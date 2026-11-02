@@ -32,7 +32,7 @@ const ASTEROID_TYPES := [
 	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0},
 	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0},
 ]
-## 운석 체력은 이 시간(초)마다 기본값만큼 더 늘어난다 (150초면 2배, 300초면 3배).
+## 운석 체력은 이 시간(초)마다 기본값만큼 계단식으로 늘어난다 (0~150초 1배, 150초부터 2배, 300초부터 3배).
 const ASTEROID_HP_GROWTH_TIME := 150.0
 ## 크기별 등장 비율. 시작할 때 → SPAWN_RAMP_TIME 뒤로 점점 바뀐다 (큰 운석이 늘어남).
 const ASTEROID_WEIGHTS_START := [6.0, 3.0, 1.0]

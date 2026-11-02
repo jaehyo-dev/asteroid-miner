@@ -21,6 +21,7 @@ class Asteroid:
 ## 탄 한 개
 class Bullet:
 	var pos: Vector2
+	var prev_pos: Vector2  ## 이번 프레임 이동 전 위치 (지나간 선분으로 명중 판정)
 	var vel: Vector2
 	var life: float  ## 남은 비행 시간
 	var damage: float
@@ -135,29 +136,33 @@ func _move_asteroids(delta: float) -> void:
 
 ## 사거리 안에 운석이 있으면 가장 가까운 운석을 향해 발사한다.
 func _auto_fire(delta: float) -> void:
-	_fire_timer = maxf(_fire_timer - delta, 0.0)
+	_fire_timer -= delta
 	if _fire_timer > 0.0:
 		return
 	var target := nearest_asteroid(player_pos, asteroids, fire_range)
 	if target == null:
-		return  # 대상이 없으면 장전된 상태로 기다린다
+		_fire_timer = 0.0  # 대상이 없으면 장전된 상태로 기다린다
+		return
 	# 움직이는 운석이 탄과 만날 지점을 노린다.
 	var base_angle := intercept_angle(player_pos, target.pos, target.vel, Balance.BULLET_SPEED)
 	var life := fire_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR
 	for angle in spread_angles(base_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG)):
 		var b := Bullet.new()
 		b.pos = player_pos
+		b.prev_pos = player_pos
 		b.vel = Vector2.from_angle(angle) * Balance.BULLET_SPEED
 		b.life = life
 		b.damage = bullet_damage
 		bullets.append(b)
-	_fire_timer = fire_interval
+	# 프레임 사이에 넘친 시간은 다음 발사에 반영해 프레임 속도와 관계없이 간격을 지킨다.
+	_fire_timer = maxf(_fire_timer + fire_interval, 0.0)
 	events.append("shoot")
 
 
 func _move_bullets(delta: float) -> void:
 	var kept: Array[Bullet] = []
 	for b in bullets:
+		b.prev_pos = b.pos
 		b.pos += b.vel * delta
 		b.life -= delta
 		if b.life > 0.0:
@@ -171,7 +176,8 @@ func _check_bullet_hits() -> void:
 	for b in bullets:
 		var hit := false
 		for a in asteroids:
-			if a.hp > 0.0 and b.pos.distance_to(a.pos) < a.radius + Balance.BULLET_RADIUS:
+			# 이번 프레임에 지나간 선분으로 판정해, 프레임이 느려도 탄이 운석을 뚫고 지나가지 않게 한다.
+			if a.hp > 0.0 and segment_distance(b.prev_pos, b.pos, a.pos) < a.radius + Balance.BULLET_RADIUS:
 				a.hp -= b.damage
 				a.flash = 0.08
 				hit = true
@@ -208,9 +214,19 @@ func _check_player_hits() -> void:
 
 # ── 규칙 계산 (자동 테스트 대상) ─────────────────────
 
-## 시간에 따라 늘어나는 운석 체력
+## 시간에 따라 늘어나는 운석 체력. 계단식으로 늘어서 처음 구간은 기본 체력(탄 수) 그대로다.
 static func asteroid_hp(base_hp: float, t: float) -> float:
-	return base_hp * (1.0 + maxf(t, 0.0) / Balance.ASTEROID_HP_GROWTH_TIME)
+	return base_hp * (1.0 + floorf(maxf(t, 0.0) / Balance.ASTEROID_HP_GROWTH_TIME))
+
+
+## 선분 a-b와 점 p 사이의 가장 짧은 거리
+static func segment_distance(a: Vector2, b: Vector2, p: Vector2) -> float:
+	var ab := b - a
+	var len_sq := ab.length_squared()
+	if len_sq == 0.0:
+		return p.distance_to(a)
+	var t := clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
 
 
 ## 사거리 안에서 가장 가까운 운석. 없으면 null.

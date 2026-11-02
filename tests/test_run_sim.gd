@@ -186,6 +186,7 @@ func test_같은_시드면_같은_결과() -> void:
 
 func test_운석_체력은_시간에_따라_늘어남() -> void:
 	assert_eq(RunSim.asteroid_hp(2.0, 0.0), 2.0)
+	assert_eq(RunSim.asteroid_hp(2.0, Balance.ASTEROID_HP_GROWTH_TIME - 0.01), 2.0, "첫 구간은 기본 체력 그대로")
 	assert_true(is_equal_approx(RunSim.asteroid_hp(2.0, Balance.ASTEROID_HP_GROWTH_TIME), 4.0))
 	var sim := _quiet_sim()
 	sim.time = Balance.ASTEROID_HP_GROWTH_TIME
@@ -232,12 +233,12 @@ func test_발사_간격을_지킴() -> void:
 	var sim := _quiet_sim(true)
 	_add_asteroid(sim, Vector2(0, -150), Vector2.ZERO, 2).hp = 1000.0
 	var shots := 0
-	var steps := int(Balance.FIRE_INTERVAL * 3.0 / 0.01)
+	var steps := int(Balance.FIRE_INTERVAL * 2.5 / 0.01)
 	for i in steps:
 		sim.update(0.01, Vector2.ZERO)
 		if sim.events.has("shoot"):
 			shots += 1
-	# 0초, 1간격, 2간격 뒤 (3간격 직전까지) → 3발
+	# 처음, 1간격 뒤, 2간격 뒤 → 2.5간격 동안 3발
 	assert_eq(shots, 3)
 
 
@@ -330,3 +331,47 @@ func test_움직이는_운석도_실제로_맞혀_부숨() -> void:
 	for i in 120:
 		sim.update(1.0 / 60.0, Vector2.ZERO)
 	assert_eq(sim.kills, 1, "움직이는 운석 명중")
+
+
+func test_실제로_나온_운석은_처음엔_기본_탄_수로_부서짐() -> void:
+	# 출격 초반에 나온 운석은 크기별 기본 탄 수(작음 1, 중간 2, 큼 3)로 부서져야 한다.
+	var sim := _quiet_sim()
+	sim.time = 30.0
+	for i in 40:
+		var a := sim.spawn_asteroid()
+		var base: float = Balance.ASTEROID_TYPES[a.type]["hp"]
+		var shots := int(ceil(a.hp / Balance.BULLET_DAMAGE))
+		assert_eq(shots, int(base), "%s 탄 수" % Balance.ASTEROID_TYPES[a.type]["name"])
+
+
+func test_선분과_점_거리() -> void:
+	assert_true(is_equal_approx(RunSim.segment_distance(Vector2(0, 0), Vector2(10, 0), Vector2(5, 3)), 3.0))
+	assert_true(is_equal_approx(RunSim.segment_distance(Vector2(0, 0), Vector2(10, 0), Vector2(-4, 3)), 5.0), "끝점 바깥")
+	assert_true(is_equal_approx(RunSim.segment_distance(Vector2(1, 1), Vector2(1, 1), Vector2(4, 5)), 5.0), "길이 0")
+
+
+func test_느린_프레임에서도_탄이_운석을_뚫고_지나가지_않음() -> void:
+	# 10fps(최대 프레임 시간)에서는 탄이 한 프레임에 26px을 가므로 지나간 선분으로 판정해야 한다.
+	var hits := 0
+	for i in 20:
+		var sim := _quiet_sim(true)
+		_add_asteroid(sim, Vector2(0, -90 - i * 2.3), Vector2(0, 40))  # 다가오는 작은 운석
+		for step in 20:
+			sim.update(Balance.MAX_FRAME_DELTA, Vector2.ZERO)
+		if sim.kills == 1 and sim.hp == Balance.SHIP_MAX_HP:
+			hits += 1
+	assert_eq(hits, 20, "모두 명중")
+
+
+func test_느린_프레임에서도_발사_간격이_같음() -> void:
+	for fps in [60.0, 30.0, 20.0]:
+		var sim := _quiet_sim(true)
+		_add_asteroid(sim, Vector2(0, -150), Vector2.ZERO, 2).hp = 1.0e6
+		var shots := 0
+		var steps := int(round(fps * 10.0))
+		for i in steps:
+			sim.update(1.0 / fps, Vector2.ZERO)
+			if sim.events.has("shoot"):
+				shots += 1
+		var expected := int(10.0 / Balance.FIRE_INTERVAL) + 1
+		assert_true(absi(shots - expected) <= 1, "%dfps 발사 %d발 (예상 %d)" % [fps, shots, expected])
