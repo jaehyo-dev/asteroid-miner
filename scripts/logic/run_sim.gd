@@ -5,6 +5,10 @@ extends RefCounted
 ## 화면 쪽(scripts/run.gd)은 매 프레임 update()를 부르고 이 상태를 그리기만 한다.
 
 
+## 적 종류: 운석 (생명체는 Balance.CREATURES의 키)
+const ROCK := "rock"
+
+
 ## 적 한 개 (운석, 황금 운석, 생명체)
 class Enemy:
 	var pos: Vector2
@@ -17,6 +21,8 @@ class Enemy:
 	var variant: int  ## 모양 변형 번호 (그리기용)
 	var golden := false  ## 황금 운석인지
 	var aimed := false  ## 우주선을 정확히 노리는 조준 운석인지
+	var kind := ROCK  ## 종류: ROCK(운석) 또는 Balance.CREATURES의 키 ("jelly", "bug")
+	var age := 0.0  ## 나온 뒤 지난 시간
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
 
 
@@ -58,7 +64,8 @@ var bullets: Array[Bullet] = []
 var destroyed: Array[Enemy] = []
 ## 이번 프레임에 주운 광물 {pos, grade} (줍기 연출·효과음용)
 var picked: Array[Dictionary] = []
-## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden", "aimed"
+## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden", "aimed",
+## "new_jelly"·"new_bug"(처음 등장), "raid_warning", "raid_start", "raid_end"
 var events: PackedStringArray = []
 ## 탄으로 부순 운석 수
 var kills := 0
@@ -94,6 +101,15 @@ var _golden_timer := Balance.GOLDEN_FIRST_TIME
 var _aimed_timer := Balance.AIMED_FIRST_TIME
 ## 다음 발사까지 남은 시간 (0 이하면 대상이 생기는 즉시 발사)
 var _fire_timer := 0.0
+## 생명체 등장 타이머
+var _jelly_timer := Balance.JELLY_FIRST_TIME
+var _bug_timer := Balance.BUG_FIRST_TIME
+## 습격 중 다음 등장까지 남은 시간
+var _raid_spawn_timer := 0.0
+## 습격 이벤트 흐름
+var raid := RaidDirector.new()
+## 이미 한 번 나온 생명체 종류 (처음 나올 때 경고용)
+var introduced := {}
 
 
 func _init(seed_value: int = 0) -> void:
@@ -119,6 +135,31 @@ func update(delta: float, move: Vector2) -> void:
 	if move != Vector2.ZERO:
 		facing = turn_toward(facing, move.angle(), Balance.SHIP_TURN_SPEED * delta)
 
+	for e in raid.update(delta, rng, time >= Balance.BUG_FIRST_TIME):
+		events.append(e)
+		if e == "raid_start":
+			_raid_spawn_timer = 0.0
+	# 습격이 끝난 뒤 숨 돌릴 틈에는 평소 등장을 멈춘다 (황금 운석은 그대로)
+	if raid.state != RaidDirector.State.CALM:
+		_spawn_regular(delta)
+	if raid.state == RaidDirector.State.ACTIVE:
+		_spawn_raid(delta)
+	_golden_timer -= delta
+	while _golden_timer <= 0.0:
+		if golden_count() < Balance.GOLDEN_MAX and enemies.size() < Balance.MAX_ENEMIES:
+			spawn_golden()
+		_golden_timer += golden_interval(time)
+
+	_move_enemies(delta)
+	_auto_fire(delta)
+	_move_bullets(delta)
+	_check_bullet_hits()
+	_check_player_hits()
+	_update_minerals(delta)
+
+
+## 평소 등장: 운석, 조준 운석, 우주 해파리, 날벌레 떼
+func _spawn_regular(delta: float) -> void:
 	_spawn_timer -= delta
 	while _spawn_timer <= 0.0:
 		if enemies.size() < Balance.MAX_ENEMIES:
@@ -129,18 +170,67 @@ func update(delta: float, move: Vector2) -> void:
 		if enemies.size() + Balance.AIMED_COUNT <= Balance.MAX_ENEMIES:
 			spawn_aimed()
 		_aimed_timer += aimed_interval(time)
-	_golden_timer -= delta
-	while _golden_timer <= 0.0:
-		if golden_count() < Balance.GOLDEN_MAX and enemies.size() < Balance.MAX_ENEMIES:
-			spawn_golden()
-		_golden_timer += golden_interval(time)
+	_jelly_timer -= delta
+	while _jelly_timer <= 0.0:
+		if enemies.size() < Balance.MAX_ENEMIES:
+			spawn_creature("jelly")
+		_jelly_timer += creature_interval(Balance.JELLY_INTERVAL_START, Balance.JELLY_INTERVAL_MIN, time)
+	_bug_timer -= delta
+	while _bug_timer <= 0.0:
+		if enemies.size() + Balance.BUG_SWARM_SIZE <= Balance.MAX_ENEMIES:
+			spawn_swarm()
+		_bug_timer += creature_interval(Balance.BUG_INTERVAL_START, Balance.BUG_INTERVAL_MIN, time)
 
-	_move_asteroids(delta)
-	_auto_fire(delta)
-	_move_bullets(delta)
-	_check_bullet_hits()
-	_check_player_hits()
-	_update_minerals(delta)
+
+## 습격 중 등장: 습격 방향(raid.direction)의 좁은 폭에서 몰려온다.
+func _spawn_raid(delta: float) -> void:
+	_raid_spawn_timer -= delta
+	while _raid_spawn_timer <= 0.0:
+		var angle := raid.direction + deg_to_rad(rng.randf_range(-Balance.RAID_ARC_DEG, Balance.RAID_ARC_DEG) / 2.0)
+		if raid.kind == RaidDirector.SWARM:
+			if enemies.size() + Balance.BUG_SWARM_SIZE <= Balance.MAX_ENEMIES:
+				spawn_swarm(angle)
+			_raid_spawn_timer += Balance.RAID_SWARM_INTERVAL
+		else:
+			if enemies.size() < Balance.MAX_ENEMIES:
+				var a := spawn_asteroid(angle)
+				# 폭풍 운석은 우주선 쪽으로 더 곧게 온다
+				var aim := (player_pos - a.pos).angle() + deg_to_rad(rng.randf_range(-Balance.RAID_STORM_AIM_SPREAD_DEG, Balance.RAID_STORM_AIM_SPREAD_DEG))
+				a.vel = Vector2.from_angle(aim) * a.vel.length()
+			_raid_spawn_timer += raid_storm_interval(time)
+
+
+## 생명체 하나를 화면 밖에 만든다 (angle을 주면 그 방향에서). 처음 나온 종류면 "new_종류" 이벤트.
+func spawn_creature(creature: String, angle: float = INF) -> Enemy:
+	var info: Dictionary = Balance.CREATURES[creature]
+	var e := Enemy.new()
+	e.kind = creature
+	e.radius = info["radius"]
+	e.damage = info["damage"]
+	e.max_hp = asteroid_hp(info["hp"], time)
+	e.hp = e.max_hp
+	e.variant = rng.randi_range(0, 3)
+	e.pos = spawn_position(rng, player_pos, view_size, e.radius, angle)
+	e.vel = (player_pos - e.pos).normalized() * creature_speed(creature, time)
+	enemies.append(e)
+	if not introduced.has(creature):
+		introduced[creature] = true
+		events.append("new_" + creature)
+	return e
+
+
+## 날벌레 떼: 같은 곳에서 BUG_SWARM_SIZE마리가 조금씩 퍼져 우주선이 갈 곳으로 돌진한다.
+func spawn_swarm(angle: float = INF) -> Array[Enemy]:
+	var group: Array[Enemy] = []
+	var lead := spawn_creature("bug", angle)
+	var speed := creature_speed("bug", time)
+	var dir := Vector2.from_angle(intercept_angle(lead.pos, player_pos, player_vel, speed))
+	for i in Balance.BUG_SWARM_SIZE:
+		var e := lead if i == 0 else spawn_creature("bug")
+		e.pos = lead.pos + Vector2(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0)) * Balance.BUG_SWARM_SPREAD
+		e.vel = dir * speed
+		group.append(e)
+	return group
 
 
 ## 우주선이 운석에 맞음. 무적 중이면 무시하고 false를 돌려준다.
@@ -156,8 +246,8 @@ func damage_player(amount: float) -> bool:
 	return true
 
 
-## 운석 하나를 화면 밖 무작위 위치에 만든다. 만든 운석을 돌려준다.
-func spawn_asteroid() -> Enemy:
+## 운석 하나를 화면 밖에 만든다 (angle을 주면 그 방향, 아니면 무작위). 만든 운석을 돌려준다.
+func spawn_asteroid(angle: float = INF) -> Enemy:
 	var a := Enemy.new()
 	a.type = pick_weighted(rng, asteroid_weights(time))
 	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
@@ -166,7 +256,7 @@ func spawn_asteroid() -> Enemy:
 	a.max_hp = asteroid_hp(info["hp"], time)
 	a.hp = a.max_hp
 	a.variant = rng.randi_range(0, 3)
-	a.pos = spawn_position(rng, player_pos, view_size, a.radius)
+	a.pos = spawn_position(rng, player_pos, view_size, a.radius, angle)
 	# 우주선 쪽을 향하되 조금씩 빗나가게 한다.
 	var aim := (player_pos - a.pos).angle() + deg_to_rad(rng.randf_range(-Balance.ASTEROID_AIM_SPREAD_DEG, Balance.ASTEROID_AIM_SPREAD_DEG))
 	a.vel = Vector2.from_angle(aim) * rng.randf_range(info["speed_min"], info["speed_max"]) * asteroid_speed_mult(time)
@@ -223,11 +313,14 @@ func golden_count() -> int:
 	return n
 
 
-## 운석을 움직이고, 너무 멀어진 운석은 없앤다.
-func _move_asteroids(delta: float) -> void:
+## 적을 움직이고, 너무 멀어진 적은 없앤다. 생명체는 우주선 쪽으로 방향을 튼다.
+func _move_enemies(delta: float) -> void:
 	var limit := despawn_distance(view_size)
 	var kept: Array[Enemy] = []
 	for a in enemies:
+		a.age += delta
+		if a.kind != ROCK and (a.kind != "bug" or a.age < Balance.BUG_HOMING_TIME):
+			a.vel = steer(a.pos, a.vel, player_pos, creature_speed(a.kind, time), float(Balance.CREATURES[a.kind]["accel"]), delta)
 		a.pos += a.vel * delta
 		a.flash = maxf(a.flash - delta, 0.0)
 		if a.pos.distance_to(player_pos) <= (limit * Balance.GOLDEN_DESPAWN_FACTOR if a.golden else limit):
@@ -404,6 +497,9 @@ func _check_player_hits() -> void:
 static func drops_of(a: Enemy) -> Array:
 	if a.golden:
 		return Balance.GOLDEN_DROPS
+	if a.kind != ROCK:
+		var c: Dictionary = Balance.CREATURES[a.kind]
+		return [{"grade": c["grade"], "count": c["minerals"]}]
 	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
 	return [{"grade": info["grade"], "count": info["minerals"]}]
 
@@ -552,9 +648,34 @@ static func pick_weighted(random: RandomNumberGenerator, weights: Array[float]) 
 
 
 ## 화면 밖 등장 위치: 화면 대각선 반 길이 + 여유만큼 떨어진 원 위의 무작위 지점
-static func spawn_position(random: RandomNumberGenerator, center: Vector2, view: Vector2, radius: float) -> Vector2:
+## angle(라디안)을 주면 그 방향, INF면 무작위 방향.
+static func spawn_position(random: RandomNumberGenerator, center: Vector2, view: Vector2, radius: float, angle: float = INF) -> Vector2:
 	var distance := view.length() / 2.0 + Balance.SPAWN_MARGIN + radius
-	return center + Vector2.from_angle(random.randf() * TAU) * distance
+	var a := random.randf() * TAU if is_inf(angle) else angle
+	return center + Vector2.from_angle(a) * distance
+
+
+## 쫓아가기: 지금 속도를 목표 방향의 최고 속도 쪽으로 accel만큼 바꾼다 (급하게 꺾지 못함).
+static func steer(pos: Vector2, vel: Vector2, target: Vector2, max_speed: float, accel: float, delta: float) -> Vector2:
+	var desired := (target - pos).normalized() * max_speed
+	return vel.move_toward(desired, accel * delta)
+
+
+## 생명체 최고 속도: 시간이 지날수록 빨라지되 운석보다 천천히.
+static func creature_speed(creature: String, t: float) -> float:
+	return float(Balance.CREATURES[creature]["speed"]) * (1.0 + maxf(t, 0.0) / Balance.CREATURE_SPEED_GROWTH_TIME)
+
+
+## 생명체 등장 간격: SPAWN_RAMP_TIME에 걸쳐 시작 → 최소로 줄어든다.
+static func creature_interval(start: float, minimum: float, t: float) -> float:
+	var k := clampf(t / Balance.SPAWN_RAMP_TIME, 0.0, 1.0)
+	return lerpf(start, minimum, k)
+
+
+## 운석 폭풍의 운석 간격: 보통 등장 간격이 줄어드는 만큼 함께 줄어든다 (최소 RAID_STORM_INTERVAL_MIN).
+static func raid_storm_interval(t: float) -> float:
+	var ratio := spawn_interval(t) / Balance.SPAWN_INTERVAL_START
+	return maxf(Balance.RAID_STORM_INTERVAL * ratio, Balance.RAID_STORM_INTERVAL_MIN)
 
 
 ## 이보다 멀어진 운석은 없앤다.

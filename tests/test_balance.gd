@@ -13,6 +13,8 @@ const MEDIAN_MAX := 360.0
 const EARLIEST_END := 100.0
 ## 가만히 있으면 조준 운석에 계속 맞으므로 더 일찍 끝나도 되지만, 1분은 버텨야 한다
 const STILL_EARLIEST_END := 60.0
+## 무작위로 돌아다니는 플레이의 한 판 길이 중앙값 최소
+const CARELESS_MEDIAN_MIN := 100.0
 ## 광물을 줍는 봇의 평균 레벨 허용 범위: 2분, 4분 시점 (v0.1.2 기준 약 7.0, 10.3)
 ## 판마다 차이가 커서 12판으로 잰다 (그 시각까지 살아 있는 판만 평균)
 const LEVEL_SEEDS := [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011]
@@ -21,11 +23,20 @@ const LEVEL_AT_240 := [9.5, 13.5]
 
 
 func test_움직이는_플레이는_한_판_길이가_알맞음() -> void:
-	for style in ["collector", "flee", "wander"]:
+	# 광물을 줍거나 운석을 피하는 "제대로 하는" 플레이 기준 (쫓아오는 적이 생긴 v0.2.0부터 무작위 이동은 제외)
+	for style in ["collector", "flee"]:
 		var st := BalanceBot.survival_stats(style, SEEDS, HARD_LIMIT + 1.0)
 		assert_true(st[2] <= HARD_LIMIT, "%s 최대 %.0f초 (10분 안에 끝나야 함)" % [style, st[2]])
 		assert_true(st[1] >= MEDIAN_MIN and st[1] <= MEDIAN_MAX, "%s 중앙값 %.0f초" % [style, st[1]])
 		assert_true(st[0] >= EARLIEST_END, "%s 최소 %.0f초 (너무 빨리 끝남)" % [style, st[0]])
+
+
+func test_무작위로_돌아다니면_더_일찍_끝나지만_바로_죽지는_않음() -> void:
+	# 피하지도 줍지도 않고 아무 데나 다니면 쫓아오는 적에게 몰려 일찍 끝난다 (2분 안팎)
+	var st := BalanceBot.survival_stats("wander", SEEDS, HARD_LIMIT + 1.0)
+	assert_true(st[2] <= HARD_LIMIT, "최대 %.0f초" % st[2])
+	assert_true(st[1] >= CARELESS_MEDIAN_MIN, "중앙값 %.0f초" % st[1])
+	assert_true(st[0] >= STILL_EARLIEST_END, "최소 %.0f초" % st[0])
 
 
 func test_가만히_있으면_강해지지_못해_일찍_끝나지만_바로_죽지는_않음() -> void:

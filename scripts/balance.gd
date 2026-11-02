@@ -72,6 +72,48 @@ const AIMED_SPEED_MULT := 1.8
 const AIMED_COUNT := 3
 const AIMED_GAP := 22.0
 
+# ── 쫓아오는 생명체 ─────────────────────────────────
+## 종류별: 이름, 반지름, 체력(탄 몇 발, 운석처럼 시간에 따라 계단식 증가), 부딪혔을 때 데미지,
+## 최고 속도, 방향을 트는 힘(가속도), 부수면 떨어지는 광물 등급과 개수
+## 속도는 시간이 지날수록 빨라지지만 운석보다 천천히 (CREATURE_SPEED_GROWTH_TIME마다 기본 속도만큼).
+const CREATURES := {
+	"jelly": {"name": "우주 해파리", "radius": 7.0, "hp": 4.0, "damage": 12.0, "speed": 32.0, "accel": 45.0, "grade": 1, "minerals": 1},
+	"bug": {"name": "날벌레", "radius": 4.0, "hp": 1.0, "damage": 7.0, "speed": 95.0, "accel": 45.0, "grade": 0, "minerals": 1},
+}
+## 생명체 속도가 기본 속도만큼 더 빨라지는 시간 (360초면 2배). 날벌레가 우주선보다 너무 빨라지지 않게 운석보다 느리게.
+const CREATURE_SPEED_GROWTH_TIME := 360.0
+## 우주 해파리: 천천히 끝까지 쫓아온다. 첫 등장 시각과 등장 간격(시작 → SPAWN_RAMP_TIME에 걸쳐 최소)
+const JELLY_FIRST_TIME := 40.0
+const JELLY_INTERVAL_START := 9.0
+const JELLY_INTERVAL_MIN := 3.5
+## 날벌레 떼: 무리 지어 빠르게 돌진한다. 첫 등장 시각, 무리 간격, 한 무리 수, 무리가 퍼진 정도(픽셀)
+const BUG_FIRST_TIME := 75.0
+const BUG_INTERVAL_START := 15.0
+const BUG_INTERVAL_MIN := 7.0
+const BUG_SWARM_SIZE := 5
+const BUG_SWARM_SPREAD := 12.0
+## 날벌레는 나온 뒤 이 시간 동안만 우주선 쪽으로 방향을 튼다 (그 뒤엔 그대로 지나감)
+const BUG_HOMING_TIME := 3.0
+
+# ── 습격 이벤트 (긴장의 리듬) ───────────────────────
+## RAID_INTERVAL마다: 경고(RAID_WARNING_TIME) → 습격(RAID_DURATION) → 숨 돌릴 틈(RAID_CALM_TIME, 보통 등장 멈춤)
+## 종류는 운석 폭풍과 날벌레 습격(날벌레가 나온 뒤부터)이 번갈아 온다.
+const RAID_FIRST_TIME := 60.0  ## 첫 습격이 시작되는 시각 (경고는 그보다 RAID_WARNING_TIME 먼저)
+const RAID_INTERVAL := 60.0
+const RAID_WARNING_TIME := 3.0
+const RAID_DURATION := 10.0
+const RAID_CALM_TIME := 5.0
+## 습격은 한 방향에서 이 폭(도) 안으로 몰려온다
+const RAID_ARC_DEG := 50.0
+## 운석 폭풍: 운석 간격(시간이 지날수록 보통 등장처럼 짧아짐, 최소 RAID_STORM_INTERVAL_MIN), 조준 퍼짐 각도(도)
+const RAID_STORM_INTERVAL := 0.4
+const RAID_STORM_INTERVAL_MIN := 0.15
+const RAID_STORM_AIM_SPREAD_DEG := 15.0
+## 날벌레 습격: 무리 간격
+const RAID_SWARM_INTERVAL := 3.0
+## 새로운 적이 처음 나올 때 / 습격 경고 배너를 보여 주는 시간
+const BANNER_TIME := 2.5
+
 # ── 황금 운석 (가끔 나오는 특수 운석) ───────────────
 ## 큰 운석보다 훨씬 단단하고 느리게 지나간다. 몸으로 부딪혀도 부서지지 않는다(피해만 입음).
 ## 체력도 일반 운석처럼 ASTEROID_HP_GROWTH_TIME마다 계단식으로 늘어난다.
@@ -135,7 +177,7 @@ const MAX_MINERALS := 300
 ## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 16, 2→3: 52, 3→4: 88 …)
 ## 경험치는 광물을 주우면 얻는다 (광물 가치 × MINERAL_XP_PER_VALUE).
 const XP_BASE := 16
-const XP_GROWTH := 36
+const XP_GROWTH := 40
 ## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게)
 const LEVEL_UP_INPUT_DELAY := 0.35
 ## 레벨업 때 보여 주는 강화 수
