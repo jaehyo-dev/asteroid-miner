@@ -16,6 +16,7 @@ class Asteroid:
 	var max_hp: float
 	var variant: int  ## 모양 변형 번호 (그리기용)
 	var golden := false  ## 황금 운석인지
+	var aimed := false  ## 우주선을 정확히 노리는 조준 운석인지
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
 
 
@@ -38,6 +39,8 @@ class Bullet:
 var rng := RandomNumberGenerator.new()
 ## 우주선 위치 (월드 좌표)
 var player_pos := Vector2.ZERO
+## 우주선 속도 (조준 운석이 앞질러 노릴 때 씀)
+var player_vel := Vector2.ZERO
 var hp := Balance.SHIP_MAX_HP
 var max_hp := Balance.SHIP_MAX_HP
 ## 남은 무적 시간
@@ -55,7 +58,7 @@ var bullets: Array[Bullet] = []
 var destroyed: Array[Asteroid] = []
 ## 이번 프레임에 주운 광물 {pos, grade} (줍기 연출·효과음용)
 var picked: Array[Dictionary] = []
-## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden"
+## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden", "aimed"
 var events: PackedStringArray = []
 ## 탄으로 부순 운석 수
 var kills := 0
@@ -87,6 +90,8 @@ var upgrade_levels: Dictionary = {}
 var _spawn_timer := 0.0
 ## 다음 황금 운석까지 남은 시간
 var _golden_timer := Balance.GOLDEN_FIRST_TIME
+## 다음 조준 운석까지 남은 시간
+var _aimed_timer := Balance.AIMED_FIRST_TIME
 ## 다음 발사까지 남은 시간 (0 이하면 대상이 생기는 즉시 발사)
 var _fire_timer := 0.0
 
@@ -109,7 +114,8 @@ func update(delta: float, move: Vector2) -> void:
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
 	time += delta
 	invuln = maxf(invuln - delta, 0.0)
-	player_pos += move.limit_length(1.0) * move_speed * delta
+	player_vel = move.limit_length(1.0) * move_speed
+	player_pos += player_vel * delta
 	if move != Vector2.ZERO:
 		facing = turn_toward(facing, move.angle(), Balance.SHIP_TURN_SPEED * delta)
 
@@ -118,6 +124,11 @@ func update(delta: float, move: Vector2) -> void:
 		if asteroids.size() < Balance.MAX_ASTEROIDS:
 			spawn_asteroid()
 		_spawn_timer += spawn_interval(time)
+	_aimed_timer -= delta
+	while _aimed_timer <= 0.0:
+		if asteroids.size() < Balance.MAX_ASTEROIDS:
+			spawn_aimed()
+		_aimed_timer += aimed_interval(time)
 	_golden_timer -= delta
 	while _golden_timer <= 0.0:
 		if golden_count() < Balance.GOLDEN_MAX and asteroids.size() < Balance.MAX_ASTEROIDS:
@@ -161,6 +172,28 @@ func spawn_asteroid() -> Asteroid:
 	a.vel = Vector2.from_angle(aim) * rng.randf_range(info["speed_min"], info["speed_max"]) * asteroid_speed_mult(time)
 	asteroids.append(a)
 	return a
+
+
+## 조준 운석 무리를 만든다: 같은 방향에서 한 줄로 AIMED_COUNT개가, 우주선이 갈 곳을 노리고 빠르게 온다.
+## 만든 운석 목록을 돌려준다.
+func spawn_aimed() -> Array[Asteroid]:
+	var group: Array[Asteroid] = []
+	var lead := spawn_asteroid()
+	var speed := lead.vel.length() * Balance.AIMED_SPEED_MULT
+	var dir := Vector2.from_angle(intercept_angle(lead.pos, player_pos, player_vel, speed))
+	for i in Balance.AIMED_COUNT:
+		var a := lead if i == 0 else spawn_asteroid()
+		a.type = lead.type
+		a.radius = lead.radius
+		a.damage = lead.damage
+		a.max_hp = lead.max_hp
+		a.hp = lead.hp
+		a.aimed = true
+		a.pos = lead.pos - dir * Balance.AIMED_GAP * i  # 줄지어 뒤따라옴
+		a.vel = dir * speed
+		group.append(a)
+	events.append("aimed")
+	return group
 
 
 ## 황금 운석 하나를 화면 밖에 만든다. 우주선 근처를 비스듬히 지나가도록 날아간다.
@@ -373,6 +406,12 @@ static func drops_of(a: Asteroid) -> Array:
 		return Balance.GOLDEN_DROPS
 	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
 	return [{"grade": info["grade"], "count": info["minerals"]}]
+
+
+## 지금 시간의 조준 운석 등장 간격: 시간이 지날수록 짧아진다.
+static func aimed_interval(t: float) -> float:
+	var k := clampf(t / Balance.SPAWN_RAMP_TIME, 0.0, 1.0)
+	return lerpf(Balance.AIMED_INTERVAL_START, Balance.AIMED_INTERVAL_MIN, k)
 
 
 ## 지금 시간의 황금 운석 등장 간격: 시간이 지날수록 조금씩 짧아진다.

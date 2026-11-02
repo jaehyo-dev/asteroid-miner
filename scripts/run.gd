@@ -15,15 +15,21 @@ enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
 @onready var joystick: TouchJoystick = $UI/Joystick
 @onready var pause_button: Button = $UI/PauseButton
 @onready var menu: MenuPanel = $UI/Menu
+@onready var danger: DangerOverlay = $UI/Danger
 
 var sim: RunSim
 var current_menu := Menu.NONE
+## 피격·위험 표시 상태
+var alert := DangerAlert.new()
+var _shake_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	sim = RunSim.new()
 	world.sim = sim
 	hud.sim = sim
+	hud.alert = alert
+	danger.alert = alert
 	pause_button.pressed.connect(pause)
 	menu.chosen.connect(_on_menu_chosen)
 
@@ -39,14 +45,20 @@ func _process(delta: float) -> void:
 		sim.update(delta, move)
 		world.step(delta)
 		_play_pickup_sounds()
+		if alert.update(delta, sim.events.has("hit"), sim.hp / sim.max_hp):
+			Sfx.play_warning()
+		danger.time = sim.time
 		if not sim.alive:
 			_show_game_over()
 		elif not sim.choices.is_empty():
 			_show_level_up()
 	camera.position = sim.player_pos.round()
+	# 맞았을 때 화면 흔들림 (카메라만 살짝 밀고, 배경 별은 흔들지 않음)
+	camera.offset = alert.shake_offset(_shake_rng) if current_menu == Menu.NONE else Vector2.ZERO
 	starfield.scroll = camera.position
 	world.queue_redraw()
 	hud.queue_redraw()
+	danger.queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:

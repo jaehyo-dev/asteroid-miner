@@ -46,27 +46,21 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive}
 
 
-## 정해진 시각마다의 평균 레벨 (레벨업 속도 확인용). 그 시각 전에 끝난 판은 마지막 레벨로 센다.
+## 정해진 시각마다의 평균 레벨 (레벨업 속도 확인용).
+## 그 시각까지 살아 있는 판만 평균한다 (일찍 끝난 판의 레벨이 섞이면 속도가 아니라 생존을 재게 됨).
+## 살아 있는 판이 절반보다 적으면 그 시각은 -1.
 static func average_levels(style: String, seeds: Array, marks: Array) -> Array[float]:
-	var sums: Array[float] = []
-	sums.resize(marks.size())
-	sums.fill(0.0)
-	for s in seeds:
-		var levels := _levels_at(style, s, marks)
-		for i in marks.size():
-			sums[i] += levels[i]
-	for i in marks.size():
-		sums[i] /= seeds.size()
-	return sums
-
-
-static func _levels_at(style: String, seed_value: int, marks: Array) -> Array[int]:
-	var result: Array[int] = []
+	var result: Array[float] = []
 	for t in marks:
-		result.append(int(play(style, seed_value, t)["level"]))
+		var total := 0.0
+		var alive := 0
+		for s in seeds:
+			var r := play(style, s, t)
+			if r["alive"]:
+				total += r["level"]
+				alive += 1
+		result.append(total / alive if alive * 2 >= seeds.size() else -1.0)
 	return result
-
-
 ## 여러 판의 생존 시간 [최소, 중앙값, 최대]
 static func survival_stats(style: String, seeds: Array, max_time: float) -> Array[float]:
 	var times: Array[float] = []

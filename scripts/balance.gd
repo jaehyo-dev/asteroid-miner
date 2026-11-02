@@ -59,6 +59,19 @@ const DESPAWN_DISTANCE_FACTOR := 1.6
 ## 동시에 존재할 수 있는 최대 운석 수 (휴대폰 성능 보호)
 const MAX_ASTEROIDS := 250
 
+# ── 조준 운석 (초반부터 긴장을 주는 위협) ─────────
+## 우주선이 가는 곳을 정확히 노리고 더 빠르게 날아오는 운석 무리. 화면 밖에 있을 때 가장자리에 붉은 "!"가 뜬다.
+## 한 줄로 AIMED_COUNT개가 연달아 와서, 자동 공격만으로는 다 막기 어렵다 (피해야 함).
+## 첫 등장 시각과 등장 간격(시작 → SPAWN_RAMP_TIME에 걸쳐 최소까지 줄어듦)
+const AIMED_FIRST_TIME := 12.0
+const AIMED_INTERVAL_START := 10.0
+const AIMED_INTERVAL_MIN := 5.0
+## 보통 운석보다 이 배수만큼 빠르다
+const AIMED_SPEED_MULT := 1.8
+## 한 번에 오는 개수와 줄지어 오는 간격(픽셀)
+const AIMED_COUNT := 3
+const AIMED_GAP := 22.0
+
 # ── 황금 운석 (가끔 나오는 특수 운석) ───────────────
 ## 큰 운석보다 훨씬 단단하고 느리게 지나간다. 몸으로 부딪혀도 부서지지 않는다(피해만 입음).
 ## 체력도 일반 운석처럼 ASTEROID_HP_GROWTH_TIME마다 계단식으로 늘어난다.
@@ -147,3 +160,17 @@ const UP_MAX_HP_ADD := 20.0  ## 최대 체력 +20, 그만큼 회복
 const UP_RANGE_ADD := 0.2  ## 사거리 +20% (기본값 기준)
 ## 모든 강화를 최대로 올리면 대신 나오는 "긴급 수리"의 회복량
 const REPAIR_AMOUNT := 30.0
+
+# ── 피격·위험 표시 (조작감) ─────────────────────────
+## 맞았을 때 화면 흔들림 시간과 세기(픽셀), 붉은 번쩍임 시간
+const HIT_SHAKE_TIME := 0.25
+const HIT_SHAKE_STRENGTH := 3.0
+const HIT_FLASH_TIME := 0.2
+## 이 비율 이하이면 체력 낮음 경고 상태
+const LOW_HP_RATIO := 0.3
+## 처음 체력 낮음이 될 때 화면 테두리가 붉게 맥박치는 시간
+const LOW_HP_BORDER_TIME := 2.0
+## 체력 낮음 상태에서 또 맞았을 때 테두리가 다시 붉어지는 짧은 시간
+const LOW_HP_REHIT_BORDER_TIME := 0.6
+## 경고음은 이 시간(초)에 한 번만 울린다
+const LOW_HP_SOUND_COOLDOWN := 10.0
