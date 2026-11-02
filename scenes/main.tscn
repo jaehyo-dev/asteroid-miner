@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/ui/starfield.gd" id="2_stars"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -11,6 +12,16 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
 
+[node name="Starfield" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_stars")
+
 [node name="Title" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
@@ -19,10 +30,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -40.0
-offset_right = 200.0
-offset_bottom = 0.0
+offset_left = -170.0
+offset_top = -64.0
+offset_right = 170.0
+offset_bottom = -24.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(1, 0.83, 0.31, 1)
@@ -39,17 +50,34 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = 4.0
-offset_right = 200.0
-offset_bottom = 24.0
+offset_left = -170.0
+offset_top = -20.0
+offset_right = 170.0
+offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(0.6, 0.65, 0.8, 1)
 theme_override_font_sizes/font_size = 12
-text = "준비 중 - 다음은 1단계: 이동과 운석"
+text = "WASD·방향키, 휴대폰은 화면을 끌어서 이동"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="StartButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -60.0
+offset_top = 12.0
+offset_right = 60.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 12
+text = "출격"
 
 [node name="VersionLabel" type="Label" parent="."]
 unique_name_in_owner = true
@@ -82,6 +110,7 @@ offset_top = -26.0
 offset_right = 72.0
 offset_bottom = -4.0
 grow_vertical = 0
+focus_mode = 0
 theme_override_font_sizes/font_size = 12
 text = "이전 버전"
 flat = true

@@ -26,7 +26,7 @@
 
   | 단계 | 내용 | 배포 버전 |
   |---|---|---|
-  | 0 | 프로젝트 기본 구조, 웹 내보내기, 자동 배포 (완료) | v0.0.1 |
+  | 0 | 프로젝트 기본 구조, 웹 내보내기, 자동 배포 | v0.0.1 |
   | 1 | 이동 + 운석 | v0.0.2 |
   | 2 | 자동 공격 | v0.0.3 |
   | 3 | 광물 | v0.0.4 |
@@ -60,6 +60,8 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 
 - 테스트는 실패하면 종료 코드 1로 끝나. 종료 코드까지 확인해.
 - 게임 자동 테스트 작성법: `tests/test_이름.gd`에서 `extends TestCase`, `test_`로 시작하는 함수 안에서 `assert_eq`, `assert_true` 등을 써. 씬은 `instantiate()` 후 `add_child()`하고 `await wait_frames()`로 확인해.
+- 조작감·속도·난이도 같은 게임 플레이 수치는 `scripts/balance.gd` 한곳에 모아 둬 (색·여백 같은 화면 꾸밈 값은 각 화면 파일에 둬도 돼).
+- 진행 기록: 단계를 끝낼 때마다 PROGRESS.md에 만든 것, 내가 판단한 것, 검토 결과, 플레이하며 확인할 부분을 짧게 기록해.
 - 게임 로직(데미지, 경험치, 귀환, 보존 비율, 배율, 비용 등)은 화면·노드와 분리된 스크립트(`scripts/logic/`)에 두고, 직접 호출해서 테스트해. 무작위 값은 시드를 받을 수 있게 만들어 테스트에서 결과를 고정해.
 - GAME_SPEC.md "9. 테스트할 로직"은 해당 기능을 만드는 단계에서 자동 테스트로 만들어.
 - 화면 확인: 웹으로 내보낸 결과를 로컬 웹 서버로 열고 Playwright(Chromium)로 PC(1280x720)와 휴대폰(390x844) 크기 스크린샷을 찍어 직접 확인해. 콘솔 오류가 없어야 해.
@@ -136,7 +138,7 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 project.godot            Godot 프로젝트 설정 (게임 버전 config/version)
 export_presets.cfg       웹 내보내기 설정 (스레드 없음: GitHub Pages용)
 scenes/                  씬 (.tscn)
-scripts/                 게임 스크립트 (.gd), 로직은 scripts/logic/
+scripts/                 게임 스크립트 (.gd). 수치는 balance.gd, 로직은 logic/, 화면 부품은 ui/
 assets/                  외부·직접 만든 에셋 (폴더마다 라이선스 파일)
 tests/                   게임 자동 테스트 (run_tests.gd 실행기, test_*.gd)
 tools/                   변경 기록·버전 페이지·라이선스 도구와 그 테스트
@@ -145,6 +147,7 @@ tools/                   변경 기록·버전 페이지·라이선스 도구와
 GAME_SPEC.md             게임 설계서
 CHANGELOG.md             변경 기록 (버전 기준)
 CREDITS.md               외부 오픈소스·에셋 출처와 라이선스
+PROGRESS.md              단계별 진행 기록
 ```
 
 - Godot가 만드는 `*.import`, `*.uid` 파일은 커밋해. `.godot/`, `build/`는 커밋하지 마.

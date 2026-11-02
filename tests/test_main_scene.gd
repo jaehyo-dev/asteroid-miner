@@ -24,3 +24,13 @@ func test_이전_버전_버튼은_웹에서만_보임() -> void:
 	# 테스트는 웹이 아닌 환경에서 실행되므로 숨겨져 있어야 한다.
 	assert_eq(button.visible, OS.has_feature("web"))
 	main.queue_free()
+
+
+func test_출격_버튼에_포커스가_있어_Enter로_시작할_수_있음() -> void:
+	var main: Control = MainScene.instantiate()
+	add_child(main)
+	await wait_frames()
+	var button: Button = main.get_node("%StartButton")
+	assert_eq(button.text, "출격")
+	assert_true(button.has_focus(), "포커스")
+	main.queue_free()
