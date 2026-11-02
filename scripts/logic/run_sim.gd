@@ -126,7 +126,7 @@ func update(delta: float, move: Vector2) -> void:
 		_spawn_timer += spawn_interval(time)
 	_aimed_timer -= delta
 	while _aimed_timer <= 0.0:
-		if asteroids.size() < Balance.MAX_ASTEROIDS:
+		if asteroids.size() + Balance.AIMED_COUNT <= Balance.MAX_ASTEROIDS:
 			spawn_aimed()
 		_aimed_timer += aimed_interval(time)
 	_golden_timer -= delta

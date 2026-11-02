@@ -52,6 +52,15 @@ func update(delta: float, hit: bool, hp_ratio: float) -> bool:
 	return false
 
 
+## 화면 효과(흔들림, 번쩍임, 테두리)를 바로 끈다. 메뉴가 열리거나 게임이 끝날 때 부른다.
+## 체력 낮음 상태와 경고음 대기 시간은 그대로 둔다 (메뉴를 닫아도 체력 막대 깜빡임은 이어짐).
+func clear_effects() -> void:
+	shake = 0.0
+	flash = 0.0
+	border = 0.0
+	border_total = 0.0
+
+
 ## 화면 흔들림 위치: 남은 시간에 비례해 약해진다.
 func shake_offset(random: RandomNumberGenerator) -> Vector2:
 	if shake <= 0.0:

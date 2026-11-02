@@ -128,6 +128,8 @@ func _show_level_up() -> void:
 
 func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray, input_delay: float = 0.0) -> void:
 	current_menu = kind
+	# 메뉴(일시 정지·레벨업·게임 오버)가 떠 있는 동안 붉은 화면 효과가 멈춘 채 남지 않게 끈다
+	alert.clear_effects()
 	joystick.enabled = false
 	pause_button.hide()
 	world.moving = false

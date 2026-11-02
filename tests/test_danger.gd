@@ -177,3 +177,39 @@ func test_출격_화면에서_맞으면_흔들리고_체력_낮으면_경고_표
 	assert_true(run.alert.shake > 0.0, "흔들림")
 	await wait_frames(3)
 	run.queue_free()
+
+
+func test_메뉴가_열리면_붉은_화면_효과가_남지_않음() -> void:
+	var run: Node = load("res://scenes/run.tscn").instantiate()
+	add_child(run)
+	await wait_frames(2)
+	# 체력 30% 밑으로 떨어진 직후 일시 정지
+	run.alert.update(0.016, true, 0.2)
+	assert_true(run.alert.border > 0.0 and run.alert.flash > 0.0)
+	run.pause()
+	await wait_frames(5)
+	assert_eq(run.alert.flash_strength(), 0.0, "일시 정지 중 번쩍임 없음")
+	assert_eq(run.alert.border_strength(1.0), 0.0, "일시 정지 중 테두리 없음")
+	assert_true(run.alert.low, "체력 막대 깜빡임 상태는 유지")
+	run.queue_free()
+
+
+func test_파괴된_뒤_게임_오버_화면이_붉게_남지_않음() -> void:
+	var run: Node = load("res://scenes/run.tscn").instantiate()
+	add_child(run)
+	await wait_frames(2)
+	run.sim.hp = 1.0
+	run.sim.invuln = 0.0
+	var a := RunSim.Asteroid.new()
+	a.radius = 9.0
+	a.damage = 50.0
+	a.hp = 1000.0
+	a.max_hp = 1000.0
+	a.pos = run.sim.player_pos
+	run.sim.asteroids.append(a)
+	await wait_frames(30)
+	assert_false(run.sim.alive)
+	assert_true(run.menu.visible, "게임 오버 메뉴")
+	assert_eq(run.alert.flash_strength(), 0.0, "붉은 번쩍임이 남지 않음")
+	assert_eq(run.alert.shake, 0.0)
+	run.queue_free()
