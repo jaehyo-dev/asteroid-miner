@@ -1,6 +1,6 @@
 class_name Hud
 extends Control
-## 출격 중 화면 정보: 체력 막대, 버틴 시간.
+## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 운석 수.
 
 const MARGIN := 8.0
 const BAR_SIZE := Vector2(80, 6)
@@ -29,6 +29,8 @@ func _draw() -> void:
 	# 체력
 	draw_string(font, Vector2(MARGIN, MARGIN + 10), "HP", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	_draw_bar(Vector2(MARGIN + 18, MARGIN + 4), sim.hp / sim.max_hp, COLOR_HP)
+	# 부순 운석 수
+	draw_string(font, Vector2(MARGIN, MARGIN + 26), "파괴 %d" % sim.kills, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
 

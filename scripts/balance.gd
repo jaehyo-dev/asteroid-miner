@@ -26,12 +26,14 @@ const JOYSTICK_RADIUS := 28.0
 const JOYSTICK_DEAD_ZONE := 0.15
 
 # ── 운석 ─────────────────────────────────────────────
-## 크기별 수치: 반지름, 부딪혔을 때 데미지, 속도 범위
+## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위
 const ASTEROID_TYPES := [
-	{"name": "작은 운석", "radius": 5.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0},
-	{"name": "중간 운석", "radius": 9.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0},
-	{"name": "큰 운석", "radius": 14.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0},
+	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0},
+	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0},
+	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0},
 ]
+## 운석 체력은 이 시간(초)마다 기본값만큼 더 늘어난다 (150초면 2배, 300초면 3배).
+const ASTEROID_HP_GROWTH_TIME := 150.0
 ## 크기별 등장 비율. 시작할 때 → SPAWN_RAMP_TIME 뒤로 점점 바뀐다 (큰 운석이 늘어남).
 const ASTEROID_WEIGHTS_START := [6.0, 3.0, 1.0]
 const ASTEROID_WEIGHTS_LATE := [4.0, 4.0, 2.0]
@@ -47,3 +49,17 @@ const SPAWN_MARGIN := 24.0
 const DESPAWN_DISTANCE_FACTOR := 1.6
 ## 동시에 존재할 수 있는 최대 운석 수 (휴대폰 성능 보호)
 const MAX_ASTEROIDS := 250
+
+# ── 자동 공격 ────────────────────────────────────────
+## 발사 간격
+const FIRE_INTERVAL := 0.55
+## 이 거리 안에 있는 가장 가까운 운석을 자동으로 노린다.
+const FIRE_RANGE := 170.0
+const BULLET_SPEED := 260.0
+const BULLET_DAMAGE := 1.0
+const BULLET_RADIUS := 1.5
+## 한 번에 쏘는 탄 수 (여러 발이면 부채꼴로 퍼짐)
+const BULLET_COUNT := 1
+const MULTI_SHOT_SPREAD_DEG := 12.0
+## 탄은 사거리보다 이 비율만큼 더 날아가고 사라진다.
+const BULLET_LIFETIME_FACTOR := 1.15

@@ -36,6 +36,7 @@ func _process(delta: float) -> void:
 		var move := MoveInput.combine(keys, joystick.vector)
 		world.moving = move != Vector2.ZERO
 		sim.update(delta, move)
+		world.step(delta)
 		if not sim.alive:
 			_show_game_over()
 	camera.position = sim.player_pos.round()
@@ -66,7 +67,7 @@ func pause() -> void:
 
 
 func _show_game_over() -> void:
-	var body := "버틴 시간 %s" % Hud.format_time(sim.time)
+	var body := "버틴 시간 %s\n부순 운석 %d개" % [Hud.format_time(sim.time), sim.kills]
 	_open_menu(Menu.GAME_OVER, "우주선 파괴", body, ["다시 출격", "처음으로"])
 
 

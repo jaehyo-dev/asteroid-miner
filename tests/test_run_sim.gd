@@ -2,10 +2,12 @@ extends TestCase
 ## 출격 로직(RunSim) 테스트: 이동, 운석 등장, 충돌, 체력, 무적, 사망.
 
 
-## 운석이 저절로 생기지 않게 큰 시간 동안 등장 타이머를 미룬 시뮬레이션
-func _quiet_sim() -> RunSim:
+## 운석이 저절로 생기지 않고(등장 타이머를 미룸) 자동 공격도 하지 않는 시뮬레이션
+func _quiet_sim(shoot: bool = false) -> RunSim:
 	var sim := RunSim.new(1234)
 	sim.set("_spawn_timer", 1.0e9)
+	if not shoot:
+		sim.fire_range = -1.0
 	return sim
 
 
@@ -14,6 +16,8 @@ func _add_asteroid(sim: RunSim, pos: Vector2, vel: Vector2 = Vector2.ZERO, type:
 	a.type = type
 	a.radius = Balance.ASTEROID_TYPES[type]["radius"]
 	a.damage = Balance.ASTEROID_TYPES[type]["damage"]
+	a.max_hp = Balance.ASTEROID_TYPES[type]["hp"]
+	a.hp = a.max_hp
 	a.pos = pos
 	a.vel = vel
 	sim.asteroids.append(a)
@@ -176,3 +180,153 @@ func test_같은_시드면_같은_결과() -> void:
 	assert_eq(a.asteroids.size(), b.asteroids.size())
 	assert_eq(a.hp, b.hp)
 	assert_eq(a.player_pos, b.player_pos)
+
+
+# ── 2단계: 자동 공격 ──
+
+func test_운석_체력은_시간에_따라_늘어남() -> void:
+	assert_eq(RunSim.asteroid_hp(2.0, 0.0), 2.0)
+	assert_true(is_equal_approx(RunSim.asteroid_hp(2.0, Balance.ASTEROID_HP_GROWTH_TIME), 4.0))
+	var sim := _quiet_sim()
+	sim.time = Balance.ASTEROID_HP_GROWTH_TIME
+	var a := sim.spawn_asteroid()
+	assert_true(is_equal_approx(a.hp, Balance.ASTEROID_TYPES[a.type]["hp"] * 2.0), "체력 %f" % a.hp)
+
+
+func test_가장_가까운_운석을_고름() -> void:
+	var sim := _quiet_sim()
+	var far := _add_asteroid(sim, Vector2(100, 0))
+	var near := _add_asteroid(sim, Vector2(0, -50))
+	assert_eq(RunSim.nearest_asteroid(Vector2.ZERO, sim.asteroids, 200.0), near)
+	assert_eq(RunSim.nearest_asteroid(Vector2.ZERO, sim.asteroids, 40.0), null, "사거리 밖")
+	assert_eq(RunSim.nearest_asteroid(Vector2(100, 10), sim.asteroids, 200.0), far)
+
+
+func test_여러_발은_가운데_기준_부채꼴() -> void:
+	var one := RunSim.spread_angles(1.0, 1, 0.2)
+	assert_eq(one.size(), 1)
+	assert_true(is_equal_approx(one[0], 1.0))
+	var three := RunSim.spread_angles(0.0, 3, 0.2)
+	assert_true(is_equal_approx(three[0], -0.2) and is_equal_approx(three[1], 0.0) and is_equal_approx(three[2], 0.2), "%s" % three)
+	var two := RunSim.spread_angles(0.0, 2, 0.2)
+	assert_true(is_equal_approx(two[0], -0.1) and is_equal_approx(two[1], 0.1), "%s" % two)
+
+
+func test_사거리_안_운석을_향해_자동_발사() -> void:
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(0, -100))
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.bullets.size(), 1, "한 발")
+	assert_true(sim.events.has("shoot"))
+	assert_true(sim.bullets[0].vel.normalized().is_equal_approx(Vector2.UP), "위쪽으로: %s" % sim.bullets[0].vel)
+
+
+func test_대상이_없으면_쏘지_않음() -> void:
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(Balance.FIRE_RANGE + 50.0, 0))
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.bullets.size(), 0)
+
+
+func test_발사_간격을_지킴() -> void:
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(0, -150), Vector2.ZERO, 2).hp = 1000.0
+	var shots := 0
+	var steps := int(Balance.FIRE_INTERVAL * 3.0 / 0.01)
+	for i in steps:
+		sim.update(0.01, Vector2.ZERO)
+		if sim.events.has("shoot"):
+			shots += 1
+	# 0초, 1간격, 2간격 뒤 (3간격 직전까지) → 3발
+	assert_eq(shots, 3)
+
+
+func test_탄_개수만큼_발사() -> void:
+	var sim := _quiet_sim(true)
+	sim.bullet_count = 3
+	_add_asteroid(sim, Vector2(0, -100))
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.bullets.size(), 3)
+
+
+func test_탄에_맞으면_체력이_줄고_0이면_부서짐() -> void:
+	var sim := _quiet_sim(true)
+	var a := _add_asteroid(sim, Vector2(0, -60), Vector2.ZERO, 1)  # 체력 2
+	var steps := 0
+	while sim.kills == 0 and steps < 300:
+		sim.update(0.01, Vector2.ZERO)
+		steps += 1
+		if sim.kills == 0 and a.hp < a.max_hp:
+			assert_true(is_equal_approx(a.hp, 1.0), "한 발 맞음")
+	assert_eq(sim.kills, 1, "부서짐")
+	assert_eq(sim.asteroids.size(), 0)
+	# 두 발이 필요하므로 최소 한 번의 발사 간격이 지나야 부서진다
+	assert_true(steps * 0.01 >= Balance.FIRE_INTERVAL, "걸린 시간 %f" % (steps * 0.01))
+
+
+func test_부서진_운석은_그_프레임의_destroyed에_담김() -> void:
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(0, -20))
+	var found := false
+	for i in 30:
+		sim.update(0.01, Vector2.ZERO)
+		if sim.destroyed.size() > 0:
+			found = true
+			assert_true(sim.events.has("destroy"))
+			break
+	assert_true(found)
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.destroyed.size(), 0, "다음 프레임엔 비워짐")
+
+
+func test_탄은_수명이_다하면_사라짐() -> void:
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(0, -100), Vector2.ZERO).hp = 1000.0
+	sim.update(0.01, Vector2.ZERO)
+	sim.asteroids.clear()  # 맞을 대상을 없앤다
+	var life := Balance.FIRE_RANGE / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR
+	for i in int(life / 0.05) + 2:
+		sim.update(0.05, Vector2.ZERO)
+	assert_eq(sim.bullets.size(), 0)
+
+
+func test_탄_하나는_운석_하나만_맞춤() -> void:
+	var sim := _quiet_sim(true)
+	var a1 := _add_asteroid(sim, Vector2(0, -30))
+	var a2 := _add_asteroid(sim, Vector2(0, -30))
+	a1.hp = 5.0
+	a2.hp = 5.0
+	for i in 20:
+		sim.update(0.01, Vector2.ZERO)
+	assert_eq(a1.hp + a2.hp, 9.0, "총 피해 1")
+
+
+func test_움직이는_운석은_앞질러_쏨() -> void:
+	# 오른쪽으로 움직이는 대상: 탄은 대상의 현재 위치보다 오른쪽을 노려야 한다.
+	var from := Vector2.ZERO
+	var target := Vector2(0, -150)
+	var vel := Vector2(60, 0)
+	var angle := RunSim.intercept_angle(from, target, vel, 260.0)
+	var dir := Vector2.from_angle(angle)
+	assert_true(dir.x > 0.0 and dir.y < 0.0, "오른쪽 위: %s" % dir)
+	# 탄과 대상이 실제로 같은 지점에서 만나는지 확인
+	var t := 150.0 / sqrt(260.0 * 260.0 - 60.0 * 60.0)
+	assert_true((dir * 260.0 * t).distance_to(target + vel * t) < 0.5, "만나는 지점")
+
+
+func test_멈춘_운석은_똑바로_쏨() -> void:
+	var angle := RunSim.intercept_angle(Vector2.ZERO, Vector2(100, 0), Vector2.ZERO, 260.0)
+	assert_true(is_equal_approx(angle, 0.0))
+
+
+func test_따라잡을_수_없으면_현재_위치를_노림() -> void:
+	var angle := RunSim.intercept_angle(Vector2.ZERO, Vector2(100, 0), Vector2(500, 0), 260.0)
+	assert_true(is_equal_approx(angle, 0.0))
+
+
+func test_움직이는_운석도_실제로_맞혀_부숨() -> void:
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(-80, -140), Vector2(70, 10))  # 작은 운석, 체력 1
+	for i in 120:
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+	assert_eq(sim.kills, 1, "움직이는 운석 명중")

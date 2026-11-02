@@ -21,6 +21,11 @@ const SHIP_COLORS := {
 ## 엔진 불꽃 색 (밝은 → 어두운)
 const FLAME_COLORS := [Color("#ffe27a"), Color("#ff9a3c")]
 
+## 탄 색 (가운데, 테두리)
+const BULLET_COLORS := [Color("#ffffff"), Color("#7fe8ff")]
+## 부서질 때 파편 색
+const DEBRIS_COLOR := Color("#c8b49c")
+
 ## 운석 색: 밝은 면, 기본, 그늘, 구멍
 const ROCK_COLORS := [Color("#a8957f"), Color("#7a6a5a"), Color("#54483d"), Color("#3e352d")]
 
@@ -85,3 +90,16 @@ static func asteroid(radius: float, variant: int) -> ImageTexture:
 	var tex := ImageTexture.create_from_image(img)
 	_cache[key] = tex
 	return tex
+
+
+## 탄에 맞았을 때 잠깐 보여 주는 흰 실루엣 (같은 모양)
+static func asteroid_flash(radius: float, variant: int) -> ImageTexture:
+	var key := "rock_flash_%d_%d" % [int(radius), variant]
+	if not _cache.has(key):
+		var img := asteroid(radius, variant).get_image()
+		for y in img.get_height():
+			for x in img.get_width():
+				if img.get_pixel(x, y).a > 0.0:
+					img.set_pixel(x, y, Color.WHITE)
+		_cache[key] = ImageTexture.create_from_image(img)
+	return _cache[key]
