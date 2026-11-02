@@ -1,6 +1,6 @@
 extends Node
 ## 효과음 (자동 로드: Sfx). 외부 음원 없이 코드로 8비트 소리를 만들어 쓴다.
-## 광물을 주울 때의 등급별 효과음과 체력 낮음 경고음이 있다.
+## 광물을 주울 때의 등급별 효과음, 체력 낮음 경고음, 습격 경고음이 있다.
 
 const MIX_RATE := 22050
 ## 효과음 음량 (데시벨)
@@ -20,7 +20,11 @@ const PICKUP_SOUNDS := [
 ## 체력 낮음 경고음: 높낮이를 두 번 오가는 경보
 const WARNING_SOUND := {"wave": "square", "notes": [[880.0, 0.09], [620.0, 0.09], [880.0, 0.09], [620.0, 0.12]], "volume": 0.3}
 
+## 습격 경고: 낮게 울리는 경적 두 번
+const RAID_SOUND := {"wave": "square", "notes": [[220.0, 0.22], [165.0, 0.22], [220.0, 0.22], [165.0, 0.3]], "volume": 0.3}
+
 var _pickup_players: Array[AudioStreamPlayer] = []
+var _raid_player: AudioStreamPlayer
 var _warning_player: AudioStreamPlayer
 
 
@@ -36,6 +40,20 @@ func _ready() -> void:
 	_warning_player.stream = synth(WARNING_SOUND["notes"], WARNING_SOUND["wave"], WARNING_SOUND["volume"])
 	_warning_player.volume_db = VOLUME_DB
 	add_child(_warning_player)
+	_raid_player = AudioStreamPlayer.new()
+	_raid_player.stream = synth(RAID_SOUND["notes"], RAID_SOUND["wave"], RAID_SOUND["volume"])
+	_raid_player.volume_db = VOLUME_DB
+	add_child(_raid_player)
+
+
+## 습격 경고음
+func play_raid() -> void:
+	_raid_player.play()
+
+
+## 습격 경고음 (테스트용)
+func raid_stream() -> AudioStreamWAV:
+	return _raid_player.stream
 
 
 ## 체력 낮음 경고음

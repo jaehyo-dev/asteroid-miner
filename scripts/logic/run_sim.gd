@@ -140,8 +140,7 @@ func update(delta: float, move: Vector2) -> void:
 		if e == "raid_start":
 			_raid_spawn_timer = 0.0
 	# 습격이 끝난 뒤 숨 돌릴 틈에는 평소 등장을 멈춘다 (황금 운석은 그대로)
-	if raid.state != RaidDirector.State.CALM:
-		_spawn_regular(delta)
+	_spawn_regular(delta, raid.state == RaidDirector.State.CALM)
 	if raid.state == RaidDirector.State.ACTIVE:
 		_spawn_raid(delta)
 	_golden_timer -= delta
@@ -158,28 +157,36 @@ func update(delta: float, move: Vector2) -> void:
 	_update_minerals(delta)
 
 
-## 평소 등장: 운석, 조준 운석, 우주 해파리, 날벌레 떼
-func _spawn_regular(delta: float) -> void:
-	_spawn_timer -= delta
+## 평소 등장: 운석, 조준 운석, 우주 해파리, 날벌레 떼.
+## hold(숨 돌릴 틈)이면 시간은 그대로 흐르되 나오지 않고 "준비됨"에서 기다렸다가, 틈이 끝나면 한 번씩 나온다.
+## (타이머를 멈추면 이후 등장 시각이 모두 밀리므로 멈추지 않는다)
+func _spawn_regular(delta: float, hold: bool) -> void:
+	_spawn_timer = _tick(_spawn_timer, delta, hold)
 	while _spawn_timer <= 0.0:
 		if enemies.size() < Balance.MAX_ENEMIES:
 			spawn_asteroid()
 		_spawn_timer += spawn_interval(time)
-	_aimed_timer -= delta
+	_aimed_timer = _tick(_aimed_timer, delta, hold)
 	while _aimed_timer <= 0.0:
 		if enemies.size() + Balance.AIMED_COUNT <= Balance.MAX_ENEMIES:
 			spawn_aimed()
 		_aimed_timer += aimed_interval(time)
-	_jelly_timer -= delta
+	_jelly_timer = _tick(_jelly_timer, delta, hold)
 	while _jelly_timer <= 0.0:
 		if enemies.size() < Balance.MAX_ENEMIES:
 			spawn_creature("jelly")
 		_jelly_timer += creature_interval(Balance.JELLY_INTERVAL_START, Balance.JELLY_INTERVAL_MIN, time)
-	_bug_timer -= delta
+	_bug_timer = _tick(_bug_timer, delta, hold)
 	while _bug_timer <= 0.0:
 		if enemies.size() + Balance.BUG_SWARM_SIZE <= Balance.MAX_ENEMIES:
 			spawn_swarm()
 		_bug_timer += creature_interval(Balance.BUG_INTERVAL_START, Balance.BUG_INTERVAL_MIN, time)
+
+
+## 등장 타이머 한 프레임: hold면 0 바로 위에서 멈춰 기다린다.
+static func _tick(timer: float, delta: float, hold: bool) -> float:
+	timer -= delta
+	return maxf(timer, 0.0001) if hold else timer
 
 
 ## 습격 중 등장: 습격 방향(raid.direction)의 좁은 폭에서 몰려온다.

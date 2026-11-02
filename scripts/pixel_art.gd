@@ -74,6 +74,35 @@ const MINERAL_PATTERNS := [
 	],
 ]
 
+## 우주 해파리 색: 몸 밝은 면, 몸, 촉수, 빛나는 핵
+const JELLY_COLORS := [Color("#ffc8f0"), Color("#ff7ad9"), Color("#c04aa8"), Color("#fff0fb")]
+## 우주 해파리 몸통(종 모양) 9x6. 글자 → 색: h 밝은 면, m 몸, c 핵
+const JELLY_BELL := [
+	"..hhhhh..",
+	".hhmmmmh.",
+	"hhmmcmmmm",
+	"hmmcccmmm",
+	"mmmmcmmmm",
+	"m.m.m.m.m",
+]
+## 날벌레 색: 몸, 눈, 날개
+const BUG_COLORS := [Color("#9dff6a"), Color("#ff4d4d"), Color("#e8ffd8")]
+## 날벌레 2프레임 (위쪽을 바라봄). b 몸, e 눈, w 날개. 날갯짓: 0 펼침 / 1 접음
+const BUG_FRAMES := [
+	[
+		"w.e.w",
+		"wwbww",
+		"wwbww",
+		"..b..",
+	],
+	[
+		"..e..",
+		".wbw.",
+		"..b..",
+		"..b..",
+	],
+]
+
 ## 운석 색: 밝은 면, 기본, 그늘, 구멍
 const ROCK_COLORS := [Color("#a8957f"), Color("#7a6a5a"), Color("#54483d"), Color("#3e352d")]
 ## 황금 운석 색: 밝은 면, 기본, 그늘, 구멍 (멀리서도 눈에 띄게 밝은 금색)
@@ -163,4 +192,27 @@ static func mineral(grade: int) -> ImageTexture:
 	if not _cache.has(key):
 		var c: Array = MINERAL_COLORS[grade]
 		_cache[key] = from_pattern(MINERAL_PATTERNS[grade], {"h": c[0], "m": c[1], "s": c[2], "w": Color.WHITE})
+	return _cache[key]
+
+
+## 우주 해파리 몸통 (맞으면 흰색)
+static func jelly_bell(white: bool = false) -> ImageTexture:
+	var key := "jelly_%s" % white
+	if not _cache.has(key):
+		var c: Array = JELLY_COLORS
+		var colors := {"h": c[0], "m": c[1], "c": c[3]}
+		if white:
+			colors = {"h": Color.WHITE, "m": Color.WHITE, "c": Color.WHITE}
+		_cache[key] = from_pattern(JELLY_BELL, colors)
+	return _cache[key]
+
+
+## 날벌레 프레임 (0 날개 펼침, 1 접음)
+static func bug(frame: int, white: bool = false) -> ImageTexture:
+	var key := "bug_%d_%s" % [frame, white]
+	if not _cache.has(key):
+		var colors := {"b": BUG_COLORS[0], "e": BUG_COLORS[1], "w": BUG_COLORS[2]}
+		if white:
+			colors = {"b": Color.WHITE, "e": Color.WHITE, "w": Color.WHITE}
+		_cache[key] = from_pattern(BUG_FRAMES[frame % 2], colors)
 	return _cache[key]

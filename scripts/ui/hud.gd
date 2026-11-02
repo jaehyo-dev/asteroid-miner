@@ -23,11 +23,21 @@ const COLOR_HP_BLINK := Color("#ffd0d0")
 const HP_BLINK_RATE := 3.0
 ## 조준 운석 경고 색
 const COLOR_DANGER := Color("#ff4040")
+## 습격 방향 표시: 가장자리 빛의 반지름
+const RAID_GLOW_RADIUS := 70.0
+## 알림 배너 글자 위치 (왼쪽 위 광물·가치 줄보다 아래)
+const BANNER_Y := 88.0
+## 조준 운석 표시를 하나로 묶는 거리: 한 줄로 오는 무리는 "!" 하나만
+const AIMED_MARKER_MERGE := 24.0
 const COLOR_BAR_BG := Color("#2a2a40")
 
 var sim: RunSim
 ## 피격·위험 표시 상태 (체력 낮음이면 체력 막대가 깜빡임)
 var alert: DangerAlert
+## 화면 가운데 위 알림 배너 (새로운 위협, 습격 경고)
+var banner_text := ""
+var banner_color := Color.WHITE
+var banner_time := 0.0
 
 
 func _ready() -> void:
@@ -64,8 +74,10 @@ func _draw() -> void:
 	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, size.x, XP_BAR_HEIGHT), COLOR_BAR_BG)
 	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, roundf(size.x * clampf(float(sim.xp) / need, 0.0, 1.0)), XP_BAR_HEIGHT), COLOR_XP)
 	draw_string(font, Vector2(MARGIN, size.y - XP_BAR_HEIGHT - 4), "Lv %d" % sim.level, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_XP)
+	_draw_raid_direction()
 	_draw_golden_markers()
 	_draw_aimed_markers()
+	_draw_banner(font)
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
 
@@ -87,6 +99,46 @@ func _draw_golden_markers() -> void:
 		draw_texture(PixelArt.mineral(3), (marker - dir * (MARKER_BACK + 8.0) - Vector2(4, 3)).round())
 
 
+## 알림 배너를 띄운다 (Balance.BANNER_TIME 동안).
+func show_banner(text: String, color: Color) -> void:
+	banner_text = text
+	banner_color = color
+	banner_time = Balance.BANNER_TIME
+
+
+## 배너 시간 진행 (게임이 진행될 때만 부름)
+func step(delta: float) -> void:
+	banner_time = maxf(banner_time - delta, 0.0)
+
+
+func _draw_banner(font: Font) -> void:
+	if banner_time <= 0.0:
+		return
+	# 처음과 끝 0.3초는 서서히 나타나고 사라진다
+	var a := clampf(minf(banner_time, Balance.BANNER_TIME - banner_time) / 0.3, 0.0, 1.0)
+	var y := BANNER_Y
+	draw_rect(Rect2(0, y - 13, size.x, 18), Color(0, 0, 0, 0.45 * a))
+	draw_string(font, Vector2(0, y), banner_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, Color(banner_color, a))
+
+
+## 습격이 오는 방향의 화면 가장자리를 붉게 밝힌다: 경고 중에는 맥박치고, 습격 중에는 은은하게.
+## 습격 중에는 시간 아래에 남은 시간을 보여 준다.
+func _draw_raid_direction() -> void:
+	var r := sim.raid
+	if r.state != RaidDirector.State.WARNING and r.state != RaidDirector.State.ACTIVE:
+		return
+	var dir := Vector2.from_angle(r.direction)
+	var edge: Vector2 = Offscreen.edge_marker(Vector2.ZERO, dir * 100000.0, size, 0.0)
+	var strength := 0.5 + 0.5 * sin(sim.time * TAU * 2.0) if r.state == RaidDirector.State.WARNING else 0.35
+	for i in 5:
+		var radius := RAID_GLOW_RADIUS * (1.0 - i * 0.18)
+		draw_circle(edge, radius, Color(COLOR_DANGER, 0.06 * strength))
+	draw_colored_polygon(arrow_points(edge - dir * (MARKER_MARGIN + MARKER_SIZE), dir), Color(COLOR_DANGER, 0.5 + 0.5 * strength))
+	if r.state == RaidDirector.State.ACTIVE:
+		var text := "%s %d" % [RaidDirector.display_name(r.kind), ceili(r.timer)]
+		draw_string(get_theme_default_font(), Vector2(0, MARGIN + 24), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_DANGER)
+
+
 ## 체력 막대 색: 체력 낮음 경고 상태면 빨강과 밝은 색을 오가며 깜빡인다.
 static func hp_bar_color(danger: DangerAlert, time: float) -> Color:
 	if danger != null and danger.low and int(time * HP_BLINK_RATE * 2.0) % 2 == 1:
@@ -98,16 +150,25 @@ static func hp_bar_color(danger: DangerAlert, time: float) -> Color:
 func _draw_aimed_markers() -> void:
 	var center := sim.player_pos.round()
 	var font := get_theme_default_font()
+	var drawn: Array[Vector2] = []
 	for a in sim.enemies:
 		if not a.aimed:
 			continue
 		var marker: Variant = Offscreen.edge_marker(center, a.pos, size, MARKER_MARGIN, a.radius)
-		if marker == null:
+		if marker == null or _near_any(marker, drawn, AIMED_MARKER_MERGE):
 			continue
+		drawn.append(marker)
 		var dir := (a.pos - center).normalized()
 		draw_colored_polygon(arrow_points(marker, dir), COLOR_DANGER)
 		var label_pos: Vector2 = marker - dir * (MARKER_BACK + 8.0)
 		draw_string(font, (label_pos + Vector2(-6, 5)).round(), "!", HORIZONTAL_ALIGNMENT_CENTER, 12, FONT_SIZE, COLOR_DANGER)
+
+
+static func _near_any(p: Vector2, points: Array[Vector2], distance: float) -> bool:
+	for q in points:
+		if p.distance_to(q) < distance:
+			return true
+	return false
 
 
 ## 방향 표시 화살표 꼭짓점: [끝, 밑변 한쪽, 밑변 다른 쪽]. dir은 길이 1인 방향.

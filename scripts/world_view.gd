@@ -61,6 +61,12 @@ func _draw() -> void:
 	if sim == null:
 		return
 	for a in sim.enemies:
+		if a.kind == "jelly":
+			_draw_jelly(a)
+			continue
+		if a.kind == "bug":
+			_draw_bug(a)
+			continue
 		if a.golden:
 			_draw_golden_glow(a)
 		var tex := PixelArt.asteroid_flash(a.radius, a.variant, a.golden) if a.flash > 0.0 else PixelArt.asteroid(a.radius, a.variant, a.golden)
@@ -79,6 +85,39 @@ func _draw() -> void:
 		_draw_pickup_fx(fx)
 	if sim.alive:
 		_draw_ship()
+
+
+## 우주 해파리: 몸통이 오므렸다 펴지며(맥박) 촉수가 물결치듯 흔들린다.
+func _draw_jelly(e: RunSim.Enemy) -> void:
+	var phase := e.age * 5.0 + e.variant
+	var pulse := sin(phase)  # -1 ~ 1
+	var center := e.pos.round()
+	# 은은한 빛
+	draw_circle(center, e.radius + 2.0 + pulse, Color(PixelArt.JELLY_COLORS[1], 0.12))
+	# 촉수 4가닥: 몸통 아래에서 늘어져 물결친다 (오므릴 때 짧아짐)
+	var length := 6.0 + 2.0 * pulse
+	for i in 4:
+		var x := -3.0 + i * 2.0
+		var prev := center + Vector2(x, 2)
+		for j in range(1, 4):
+			var y := 2.0 + length * j / 3.0
+			var p := center + Vector2(x + sin(phase * 1.3 + i + j * 0.9) * 1.2, y)
+			draw_line(prev, p, PixelArt.JELLY_COLORS[2], 1.0)
+			prev = p
+	# 몸통: 오므릴 때 옆으로 좁아지고 위아래로 길어진다
+	var tex := PixelArt.jelly_bell(e.flash > 0.0)
+	draw_set_transform(center + Vector2(0, -2), 0.0, Vector2(1.0 - 0.12 * pulse, 1.0 + 0.12 * pulse))
+	draw_texture(tex, -(tex.get_size() / 2.0).floor())
+	draw_set_transform(Vector2.ZERO)
+
+
+## 날벌레: 날갯짓(2프레임)을 하며 날아가는 방향을 바라본다.
+func _draw_bug(e: RunSim.Enemy) -> void:
+	var frame := int(e.age * 14.0 + e.variant) % 2
+	var tex := PixelArt.bug(frame, e.flash > 0.0)
+	draw_set_transform(e.pos.round(), e.vel.angle() + PI / 2.0)
+	draw_texture(tex, -(tex.get_size() / 2.0).floor())
+	draw_set_transform(Vector2.ZERO)
 
 
 ## 황금 운석 둘레에서 숨 쉬듯 커졌다 작아지는 금빛 후광 (멀리서도 눈에 띄게)

@@ -87,7 +87,8 @@ const JELLY_FIRST_TIME := 40.0
 const JELLY_INTERVAL_START := 9.0
 const JELLY_INTERVAL_MIN := 3.5
 ## 날벌레 떼: 무리 지어 빠르게 돌진한다. 첫 등장 시각, 무리 간격, 한 무리 수, 무리가 퍼진 정도(픽셀)
-const BUG_FIRST_TIME := 75.0
+## (첫 등장 시각은 습격 뒤 숨 돌릴 틈(평소 등장이 멈춤)과 겹치지 않게 정한다)
+const BUG_FIRST_TIME := 80.0
 const BUG_INTERVAL_START := 15.0
 const BUG_INTERVAL_MIN := 7.0
 const BUG_SWARM_SIZE := 5
@@ -177,7 +178,7 @@ const MAX_MINERALS := 300
 ## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 16, 2→3: 52, 3→4: 88 …)
 ## 경험치는 광물을 주우면 얻는다 (광물 가치 × MINERAL_XP_PER_VALUE).
 const XP_BASE := 16
-const XP_GROWTH := 40
+const XP_GROWTH := 38
 ## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게)
 const LEVEL_UP_INPUT_DELAY := 0.35
 ## 레벨업 때 보여 주는 강화 수

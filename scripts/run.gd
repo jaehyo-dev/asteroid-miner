@@ -47,6 +47,8 @@ func _process(delta: float) -> void:
 		_play_pickup_sounds()
 		if alert.update(delta, sim.events.has("hit"), sim.hp / sim.max_hp):
 			Sfx.play_warning()
+		hud.step(delta)
+		_announce(sim.events)
 		danger.time = sim.time
 		if not sim.alive:
 			_show_game_over()
@@ -75,6 +77,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif current_menu == Menu.PAUSE:
 			_close_menu()
 		get_viewport().set_input_as_handled()
+
+
+## 새로운 위협과 습격을 배너·소리로 알린다.
+func _announce(events: PackedStringArray) -> void:
+	for e in events:
+		if e == "raid_warning":
+			hud.show_banner("!! %s 접근 !!" % RaidDirector.display_name(sim.raid.kind), Hud.COLOR_DANGER)
+			Sfx.play_raid()
+		elif e.begins_with("new_"):
+			var creature := e.substr(4)
+			hud.show_banner("새로운 위협: %s" % Balance.CREATURES[creature]["name"], PixelArt.JELLY_COLORS[0] if creature == "jelly" else PixelArt.BUG_COLORS[0])
 
 
 ## 이번 프레임에 주운 광물의 효과음. 같은 등급은 한 프레임에 한 번만 낸다 (한꺼번에 주워도 시끄럽지 않게).
