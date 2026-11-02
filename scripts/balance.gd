@@ -119,10 +119,10 @@ const PICKUP_RADIUS := 8.0
 const MAX_MINERALS := 300
 
 # ── 경험치와 레벨업 강화 ─────────────────────────────
-## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 14, 2→3: 46, 3→4: 78 …)
+## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 16, 2→3: 52, 3→4: 88 …)
 ## 경험치는 광물을 주우면 얻는다 (광물 가치 × MINERAL_XP_PER_VALUE).
-const XP_BASE := 14
-const XP_GROWTH := 32
+const XP_BASE := 16
+const XP_GROWTH := 36
 ## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게)
 const LEVEL_UP_INPUT_DELAY := 0.35
 ## 레벨업 때 보여 주는 강화 수

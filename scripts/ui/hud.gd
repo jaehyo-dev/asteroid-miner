@@ -14,6 +14,9 @@ const XP_BAR_HEIGHT := 3.0
 ## 화면 밖 황금 운석 방향 표시: 가장자리에서 떨어진 거리, 화살표 크기
 const MARKER_MARGIN := 12.0
 const MARKER_SIZE := 6.0
+## 화살표 모양: 끝까지 길이(MARKER_SIZE), 뒤쪽 길이, 밑변 반폭. 길고 뾰족해야 방향이 헷갈리지 않는다.
+const MARKER_BACK := 6.0
+const MARKER_HALF_WIDTH := 3.5
 const COLOR_GOLD := Color("#ffcc33")
 const COLOR_BAR_BG := Color("#2a2a40")
 
@@ -70,11 +73,16 @@ func _draw_golden_markers() -> void:
 		if marker == null:
 			continue
 		var dir := (a.pos - center).normalized()
-		var side := Vector2(-dir.y, dir.x)
-		var tip: Vector2 = marker + dir * MARKER_SIZE
-		var points := PackedVector2Array([tip, marker - dir * 2.0 + side * MARKER_SIZE * 0.8, marker - dir * 2.0 - side * MARKER_SIZE * 0.8])
-		draw_colored_polygon(points, Color(COLOR_GOLD, pulse))
-		draw_texture(PixelArt.mineral(3), (marker - dir * 10.0 - Vector2(4, 3)).round(), Color(1, 1, 1, pulse))
+		draw_colored_polygon(arrow_points(marker, dir), Color(COLOR_GOLD, pulse))
+		# 화살표 뒤쪽(화면 안쪽)에 금괴 그림을 붙여 무엇을 가리키는지 알려 준다
+		draw_texture(PixelArt.mineral(3), (marker - dir * (MARKER_BACK + 8.0) - Vector2(4, 3)).round(), Color(1, 1, 1, pulse))
+
+
+## 방향 표시 화살표 꼭짓점: [끝, 밑변 한쪽, 밑변 다른 쪽]. dir은 길이 1인 방향.
+static func arrow_points(marker: Vector2, dir: Vector2) -> PackedVector2Array:
+	var side := Vector2(-dir.y, dir.x)
+	var back := marker - dir * MARKER_BACK
+	return PackedVector2Array([marker + dir * MARKER_SIZE, back + side * MARKER_HALF_WIDTH, back - side * MARKER_HALF_WIDTH])
 
 
 func _draw_bar(pos: Vector2, ratio: float, color: Color) -> void:

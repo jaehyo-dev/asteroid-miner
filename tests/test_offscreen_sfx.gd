@@ -46,3 +46,16 @@ func test_소리_만들기는_16비트_모노() -> void:
 	assert_eq(s.format, AudioStreamWAV.FORMAT_16_BITS)
 	assert_false(s.stereo)
 	assert_eq(s.data.size(), int(Sfx.MIX_RATE * 0.1) * 2)
+
+
+func test_방향_화살표는_길고_뾰족해서_방향이_분명함() -> void:
+	for dir in [Vector2.RIGHT, Vector2.UP, Vector2(1, 1).normalized(), Vector2(-0.6, 0.8)]:
+		var p := Hud.arrow_points(Vector2(100, 100), dir)
+		var tip := p[0]
+		var base_mid := (p[1] + p[2]) / 2.0
+		var height := tip.distance_to(base_mid)
+		var width := p[1].distance_to(p[2])
+		assert_true(height >= width * 1.5, "높이 %f, 밑변 %f (뾰족해야 함)" % [height, width])
+		assert_true((tip - base_mid).normalized().is_equal_approx(dir), "끝이 대상 쪽을 가리킴")
+		# 끝은 표시 위치보다 대상 쪽, 밑변은 화면 안쪽
+		assert_true((tip - Vector2(100, 100)).dot(dir) > 0.0 and (base_mid - Vector2(100, 100)).dot(dir) < 0.0)
