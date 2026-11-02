@@ -54,7 +54,7 @@ func test_파괴되면_게임_오버_메뉴() -> void:
 	assert_true(run.menu.visible, "게임 오버 메뉴")
 	assert_eq(run.menu.title_text(), "우주선 파괴")
 	assert_true(run.menu.body_text().contains("버틴 시간"))
-	assert_true(run.menu.body_text().contains("부순 운석"))
+	assert_true(run.menu.body_text().contains("부순 적"))
 	assert_true(run.menu.body_text().contains("광물 가치"))
 	assert_eq(run.menu.buttons().size(), 2)
 	assert_false(run.pause_button.visible, "일시 정지 버튼 숨김")

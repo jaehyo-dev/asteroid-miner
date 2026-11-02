@@ -67,7 +67,7 @@ var picked: Array[Dictionary] = []
 ## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden", "aimed",
 ## "new_jelly"·"new_bug"(처음 등장), "raid_warning", "raid_start", "raid_end"
 var events: PackedStringArray = []
-## 탄으로 부순 운석 수
+## 탄으로 부순 적 수 (운석·황금 운석·생명체)
 var kills := 0
 var minerals: Array[Mineral] = []
 ## 이번 판에 주운 광물 수 (등급별)

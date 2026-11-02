@@ -1,6 +1,6 @@
 class_name Hud
 extends Control
-## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 운석 수, 주운 광물, 레벨과 경험치 막대,
+## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 적 수(운석·생명체), 주운 광물, 레벨과 경험치 막대,
 ## 화면 밖 황금 운석의 방향 표시.
 
 const MARGIN := 8.0
@@ -57,7 +57,7 @@ func _draw() -> void:
 	# 체력
 	draw_string(font, Vector2(MARGIN, MARGIN + 10), "HP", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	_draw_bar(Vector2(MARGIN + 18, MARGIN + 4), sim.hp / sim.max_hp, hp_bar_color(alert, sim.time))
-	# 부순 운석 수
+	# 부순 적 수(운석·생명체)
 	draw_string(font, Vector2(MARGIN, MARGIN + 26), "파괴 %d" % sim.kills, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	# 주운 광물: 등급별 아이콘과 개수, 총 가치
 	var x := MARGIN
