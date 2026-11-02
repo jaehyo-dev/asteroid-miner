@@ -1,6 +1,6 @@
 class_name WorldView
 extends Node2D
-## 출격 화면의 월드(우주선, 운석, 탄, 파편)를 그린다. 상태는 RunSim에서 읽기만 한다.
+## 출격 화면의 월드(우주선, 운석, 광물, 탄, 파편)를 그린다. 상태는 RunSim에서 읽기만 한다.
 
 ## 무적 중 깜빡이는 간격
 const BLINK_INTERVAL := 0.08
@@ -41,6 +41,12 @@ func _draw() -> void:
 	for a in sim.asteroids:
 		var tex := PixelArt.asteroid_flash(a.radius, a.variant) if a.flash > 0.0 else PixelArt.asteroid(a.radius, a.variant)
 		draw_texture(tex, (a.pos - tex.get_size() / 2.0).round())
+	for m in sim.minerals:
+		var tex := PixelArt.mineral(m.grade)
+		draw_texture(tex, (m.pos - tex.get_size() / 2.0).round())
+		# 희귀 이상은 반짝임 한 점
+		if m.grade > 0 and int(sim.time * 4.0 + m.pos.x) % 4 == 0:
+			draw_rect(Rect2((m.pos + Vector2(2, -3)).round(), Vector2.ONE), Color.WHITE)
 	for d in _debris:
 		draw_rect(Rect2((d[0] as Vector2).round(), Vector2.ONE), PixelArt.DEBRIS_COLOR)
 	for b in sim.bullets:

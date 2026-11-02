@@ -26,6 +26,22 @@ const BULLET_COLORS := [Color("#ffffff"), Color("#7fe8ff")]
 ## 부서질 때 파편 색
 const DEBRIS_COLOR := Color("#c8b49c")
 
+## 광물 등급별 색 (일반, 희귀, 영웅, 전설): [밝은 면, 기본, 어두운 면]
+const MINERAL_COLORS := [
+	[Color("#eef3f8"), Color("#b8c4d0"), Color("#7b8794")],
+	[Color("#c8f4ff"), Color("#4fd1ff"), Color("#2a86b0")],
+	[Color("#ecd2ff"), Color("#c77dff"), Color("#7d3cb5")],
+	[Color("#fff6c4"), Color("#ffd34f"), Color("#c48a1c")],
+]
+## 광물 모양 (5x5 마름모). 글자 → 색: h 밝은 면, m 기본, s 어두운 면
+const MINERAL_PATTERN := [
+	"..h..",
+	".hmm.",
+	"hmmms",
+	".mss.",
+	"..s..",
+]
+
 ## 운석 색: 밝은 면, 기본, 그늘, 구멍
 const ROCK_COLORS := [Color("#a8957f"), Color("#7a6a5a"), Color("#54483d"), Color("#3e352d")]
 
@@ -102,4 +118,13 @@ static func asteroid_flash(radius: float, variant: int) -> ImageTexture:
 				if img.get_pixel(x, y).a > 0.0:
 					img.set_pixel(x, y, Color.WHITE)
 		_cache[key] = ImageTexture.create_from_image(img)
+	return _cache[key]
+
+
+## 등급별 광물 아이콘 (5x5)
+static func mineral(grade: int) -> ImageTexture:
+	var key := "mineral_%d" % grade
+	if not _cache.has(key):
+		var c: Array = MINERAL_COLORS[clampi(grade, 0, MINERAL_COLORS.size() - 1)]
+		_cache[key] = from_pattern(MINERAL_PATTERN, {"h": c[0], "m": c[1], "s": c[2]})
 	return _cache[key]

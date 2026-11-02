@@ -375,3 +375,112 @@ func test_느린_프레임에서도_발사_간격이_같음() -> void:
 				shots += 1
 		var expected := int(10.0 / Balance.FIRE_INTERVAL) + 1
 		assert_true(absi(shots - expected) <= 1, "%dfps 발사 %d발 (예상 %d)" % [fps, shots, expected])
+
+
+# ── 3단계: 광물 ──
+
+func _kill(sim: RunSim, a: RunSim.Asteroid) -> void:
+	# 탄으로 부순 것과 같은 처리
+	sim.call("_on_asteroid_destroyed", a)
+
+
+func test_부순_운석은_크기별_개수만큼_광물을_떨어뜨림() -> void:
+	for type in Balance.ASTEROID_TYPES.size():
+		var sim := _quiet_sim()
+		var a := _add_asteroid(sim, Vector2(100, 100), Vector2.ZERO, type)
+		_kill(sim, a)
+		assert_eq(sim.minerals.size(), int(Balance.ASTEROID_TYPES[type]["minerals"]), "%d번 크기" % type)
+		for m in sim.minerals:
+			assert_true(m.pos.distance_to(a.pos) <= Balance.MINERAL_SCATTER + 0.01, "운석 자리 근처")
+
+
+func test_탄으로_부수면_실제로_광물이_나옴() -> void:
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(0, -100))
+	for i in 60:
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+	assert_eq(sim.kills, 1)
+	assert_eq(sim.minerals.size() + sim.collected[0] + sim.collected[1] + sim.collected[2] + sim.collected[3], 1)
+
+
+func test_몸으로_부딪혀_부순_운석은_광물이_없음() -> void:
+	var sim := _quiet_sim()
+	_add_asteroid(sim, Vector2(2, 0), Vector2.ZERO, 2)
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.asteroids.size(), 0, "부딪혀 부서짐")
+	assert_eq(sim.minerals.size(), 0, "광물 없음")
+
+
+func test_광물_등급_비율() -> void:
+	var sim := _quiet_sim()
+	var counts := [0, 0, 0, 0]
+	for i in 20000:
+		counts[sim.drop_mineral(Vector2(1000, 1000)).grade] += 1
+		sim.minerals.clear()
+	var total := 0.0
+	for g in Balance.MINERAL_GRADES:
+		total += g["weight"]
+	for i in 4:
+		var expected: float = 20000.0 * Balance.MINERAL_GRADES[i]["weight"] / total
+		assert_true(absf(counts[i] - expected) < maxf(expected * 0.15, 30.0), "%s: %d (예상 %.0f)" % [Balance.MINERAL_GRADES[i]["name"], counts[i], expected])
+
+
+func test_자석_범위_안의_광물은_끌려와_주워짐() -> void:
+	var sim := _quiet_sim()
+	var m := sim.drop_mineral(Vector2(Balance.MAGNET_RADIUS - 2.0, 0))
+	m.grade = 1
+	sim.update(0.05, Vector2.ZERO)
+	assert_true(m.attracted, "끌려오기 시작")
+	for i in 30:
+		sim.update(0.05, Vector2.ZERO)
+	assert_eq(sim.minerals.size(), 0, "주움")
+	assert_eq(sim.collected[1], 1)
+	assert_eq(sim.mineral_value, int(Balance.MINERAL_GRADES[1]["value"]))
+
+
+func test_자석_범위_밖의_광물은_그대로() -> void:
+	var sim := _quiet_sim()
+	var m := sim.drop_mineral(Vector2(Balance.MAGNET_RADIUS + 5.0, 0))
+	for i in 20:
+		sim.update(0.05, Vector2.ZERO)
+	assert_false(m.attracted)
+	assert_true(m.pos.is_equal_approx(Vector2(Balance.MAGNET_RADIUS + 5.0, 0)), "움직이지 않음")
+	assert_eq(sim.minerals.size(), 1)
+
+
+func test_끌려오는_광물은_도망가는_우주선을_따라잡음() -> void:
+	var sim := _quiet_sim()
+	sim.drop_mineral(Vector2(-Balance.MAGNET_RADIUS + 10.0, 0))
+	for i in 120:
+		sim.update(1.0 / 60.0, Vector2.RIGHT)  # 광물 반대쪽으로 계속 이동
+	assert_eq(sim.minerals.size(), 0, "따라잡아 주움")
+	assert_eq(sim.mineral_value, sim.collected[0] * 1 + sim.collected[1] * 5 + sim.collected[2] * 20 + sim.collected[3] * 100)
+
+
+func test_주우면_pickup_이벤트() -> void:
+	var sim := _quiet_sim()
+	sim.drop_mineral(Vector2(1, 0))
+	sim.update(0.01, Vector2.ZERO)
+	assert_true(sim.events.has("pickup"))
+
+
+func test_광물_가치_계산() -> void:
+	assert_eq(RunSim.value_of(PackedInt32Array([3, 2, 1, 1])), 3 * 1 + 2 * 5 + 20 + 100)
+	assert_eq(RunSim.value_of(PackedInt32Array([0, 0, 0, 0])), 0)
+
+
+func test_광물이_너무_많으면_오래된_것부터_사라짐() -> void:
+	var sim := _quiet_sim()
+	var first := sim.drop_mineral(Vector2(5000, 0))
+	for i in Balance.MAX_MINERALS + 10:
+		sim.drop_mineral(Vector2(5000, i))
+	assert_eq(sim.minerals.size(), Balance.MAX_MINERALS)
+	assert_false(sim.minerals.has(first), "가장 오래된 광물 제거")
+
+
+func test_파괴된_뒤에는_광물을_줍지_않음() -> void:
+	var sim := _quiet_sim()
+	sim.drop_mineral(Vector2(1, 0))
+	sim.alive = false
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.mineral_value, 0)

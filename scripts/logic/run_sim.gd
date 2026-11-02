@@ -18,6 +18,13 @@ class Asteroid:
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
 
 
+## 떠 있는 광물 한 개
+class Mineral:
+	var pos: Vector2
+	var grade: int  ## Balance.MINERAL_GRADES 인덱스 (0 일반 ~ 3 전설)
+	var attracted := false  ## 자석에 끌려오는 중인지 (한번 끌리면 끝까지 따라옴)
+
+
 ## 탄 한 개
 class Bullet:
 	var pos: Vector2
@@ -43,16 +50,22 @@ var asteroids: Array[Asteroid] = []
 var bullets: Array[Bullet] = []
 ## 이번 프레임에 탄으로 부서진 운석 (효과·보상용)
 var destroyed: Array[Asteroid] = []
-## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy"
+## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup"
 var events: PackedStringArray = []
 ## 탄으로 부순 운석 수
 var kills := 0
+var minerals: Array[Mineral] = []
+## 이번 판에 주운 광물 수 (등급별)
+var collected := PackedInt32Array([0, 0, 0, 0])
+## 이번 판에 주운 광물의 총 가치
+var mineral_value := 0
 
 # 자동 공격 능력치 (나중에 강화로 바뀜)
 var fire_interval := Balance.FIRE_INTERVAL
 var fire_range := Balance.FIRE_RANGE
 var bullet_damage := Balance.BULLET_DAMAGE
 var bullet_count := Balance.BULLET_COUNT
+var magnet_radius := Balance.MAGNET_RADIUS
 
 var _spawn_timer := 0.0
 ## 다음 발사까지 남은 시간 (0 이하면 대상이 생기는 즉시 발사)
@@ -89,6 +102,7 @@ func update(delta: float, move: Vector2) -> void:
 	_move_bullets(delta)
 	_check_bullet_hits()
 	_check_player_hits()
+	_update_minerals(delta)
 
 
 ## 우주선이 운석에 맞음. 무적 중이면 무시하고 false를 돌려준다.
@@ -199,6 +213,45 @@ func _on_asteroid_destroyed(a: Asteroid) -> void:
 	kills += 1
 	destroyed.append(a)
 	events.append("destroy")
+	for i in int(Balance.ASTEROID_TYPES[a.type]["minerals"]):
+		drop_mineral(a.pos + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.0, Balance.MINERAL_SCATTER))
+
+
+## 광물 하나를 떨어뜨린다. 등급은 비율에 따라 무작위.
+func drop_mineral(pos: Vector2) -> Mineral:
+	var m := Mineral.new()
+	m.pos = pos
+	m.grade = pick_weighted(rng, grade_weights())
+	minerals.append(m)
+	while minerals.size() > Balance.MAX_MINERALS:
+		minerals.pop_front()
+	return m
+
+
+## 자석 범위 안의 광물은 우주선으로 끌려오고, 가까이 오면 줍는다.
+func _update_minerals(delta: float) -> void:
+	if not alive:
+		return
+	var kept: Array[Mineral] = []
+	for m in minerals:
+		var dist := m.pos.distance_to(player_pos)
+		if dist <= magnet_radius:
+			m.attracted = true
+		if m.attracted:
+			m.pos = m.pos.move_toward(player_pos, Balance.MAGNET_SPEED * delta)
+			dist = m.pos.distance_to(player_pos)
+		if dist <= Balance.PICKUP_RADIUS:
+			collect(m.grade)
+		else:
+			kept.append(m)
+	minerals = kept
+
+
+## 광물을 줍는다.
+func collect(grade: int) -> void:
+	collected[grade] += 1
+	mineral_value += int(Balance.MINERAL_GRADES[grade]["value"])
+	events.append("pickup")
 
 
 ## 우주선과 부딪힌 운석: 무적이 아니면 데미지를 주고 부서진다. 무적 중에는 그냥 지나간다.
@@ -213,6 +266,22 @@ func _check_player_hits() -> void:
 
 
 # ── 규칙 계산 (자동 테스트 대상) ─────────────────────
+
+## 광물 등급별 나올 비율
+static func grade_weights() -> Array[float]:
+	var result: Array[float] = []
+	for g in Balance.MINERAL_GRADES:
+		result.append(float(g["weight"]))
+	return result
+
+
+## 등급별 개수 → 총 가치
+static func value_of(counts: PackedInt32Array) -> int:
+	var total := 0
+	for i in mini(counts.size(), Balance.MINERAL_GRADES.size()):
+		total += counts[i] * int(Balance.MINERAL_GRADES[i]["value"])
+	return total
+
 
 ## 시간에 따라 늘어나는 운석 체력. 계단식으로 늘어서 처음 구간은 기본 체력(탄 수) 그대로다.
 static func asteroid_hp(base_hp: float, t: float) -> float:

@@ -55,6 +55,7 @@ func test_파괴되면_게임_오버_메뉴() -> void:
 	assert_eq(run.menu.title_text(), "우주선 파괴")
 	assert_true(run.menu.body_text().contains("버틴 시간"))
 	assert_true(run.menu.body_text().contains("부순 운석"))
+	assert_true(run.menu.body_text().contains("광물 가치"))
 	assert_eq(run.menu.buttons().size(), 2)
 	assert_false(run.pause_button.visible, "일시 정지 버튼 숨김")
 	run.queue_free()
@@ -70,3 +71,18 @@ func test_게임_오버_중에는_일시_정지가_안_됨() -> void:
 
 func assert_ne_menu(run: Node) -> void:
 	assert_false(run.menu.visible and run.menu.title_text() == "일시 정지", "일시 정지 메뉴가 뜨면 안 됨")
+
+
+func test_광물과_파편이_있어도_오류_없이_진행() -> void:
+	# 그리기 함수 밖에서 그리면 엔진 오류가 나고, 테스트 실행기가 실패로 잡는다.
+	var run: Node = await _start()
+	for i in 5:
+		run.sim.drop_mineral(run.sim.player_pos + Vector2(80 + i * 10, 0)).grade = i % 4
+	var a := RunSim.Asteroid.new()
+	a.radius = 9.0
+	a.pos = run.sim.player_pos + Vector2(0, 60)
+	run.sim.destroyed.append(a)
+	run.world.step(0.016)
+	await wait_frames(5)
+	assert_true(run.sim.minerals.size() >= 1, "광물이 남아 있음")
+	run.queue_free()

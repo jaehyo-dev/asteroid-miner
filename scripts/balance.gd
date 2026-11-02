@@ -26,11 +26,11 @@ const JOYSTICK_RADIUS := 28.0
 const JOYSTICK_DEAD_ZONE := 0.15
 
 # ── 운석 ─────────────────────────────────────────────
-## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위
+## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위, 부서질 때 떨어뜨리는 광물 수
 const ASTEROID_TYPES := [
-	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0},
-	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0},
-	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0},
+	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0, "minerals": 1},
+	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0, "minerals": 1},
+	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0, "minerals": 2},
 ]
 ## 운석 체력은 이 시간(초)마다 기본값만큼 계단식으로 늘어난다 (0~150초 1배, 150초부터 2배, 300초부터 3배).
 const ASTEROID_HP_GROWTH_TIME := 150.0
@@ -63,3 +63,22 @@ const BULLET_COUNT := 1
 const MULTI_SHOT_SPREAD_DEG := 12.0
 ## 탄은 사거리보다 이 비율만큼 더 날아가고 사라진다.
 const BULLET_LIFETIME_FACTOR := 1.15
+
+# ── 광물 ─────────────────────────────────────────────
+## 등급별: 이름, 나올 비율, 가치. 탄으로 부순 운석에서만 떨어진다 (몸으로 부딪혀 부순 운석은 없음).
+const MINERAL_GRADES := [
+	{"name": "일반", "weight": 80.0, "value": 1},
+	{"name": "희귀", "weight": 15.0, "value": 5},
+	{"name": "영웅", "weight": 4.0, "value": 20},
+	{"name": "전설", "weight": 1.0, "value": 100},
+]
+## 광물이 떨어질 때 운석 자리에서 흩어지는 최대 거리
+const MINERAL_SCATTER := 6.0
+## 자석 범위: 이 안에 들어온 광물은 우주선으로 끌려온다.
+const MAGNET_RADIUS := 40.0
+## 끌려오는 속도 (우주선보다 빨라야 따라잡는다)
+const MAGNET_SPEED := 220.0
+## 이 거리 안이면 줍는다.
+const PICKUP_RADIUS := 8.0
+## 바닥에 남아 있을 수 있는 최대 광물 수 (넘으면 오래된 것부터 사라짐)
+const MAX_MINERALS := 300

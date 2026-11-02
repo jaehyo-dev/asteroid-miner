@@ -34,3 +34,8 @@ func test_출격_버튼에_포커스가_있어_Enter로_시작할_수_있음() -
 	assert_eq(button.text, "출격")
 	assert_true(button.has_focus(), "포커스")
 	main.queue_free()
+
+
+func test_광물_요약_문구() -> void:
+	assert_eq(Hud.minerals_text(PackedInt32Array([3, 0, 1, 0])), "일반 3 · 영웅 1")
+	assert_eq(Hud.minerals_text(PackedInt32Array([0, 0, 0, 0])), "없음")
