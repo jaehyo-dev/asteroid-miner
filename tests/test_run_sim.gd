@@ -490,19 +490,16 @@ func test_몸으로_부딪혀_부순_운석은_광물이_없음() -> void:
 	assert_eq(sim.minerals.size(), 0, "광물 없음")
 
 
-func test_광물_등급_비율() -> void:
-	var sim := _quiet_sim()
-	var counts := [0, 0, 0, 0]
-	for i in 20000:
-		counts[sim.drop_mineral(Vector2(1000, 1000)).grade] += 1
-		sim.minerals.clear()
-	var total := 0.0
-	for g in Balance.MINERAL_GRADES:
-		total += g["weight"]
-	for i in 4:
-		var expected: float = 20000.0 * Balance.MINERAL_GRADES[i]["weight"] / total
-		assert_true(absf(counts[i] - expected) < maxf(expected * 0.15, 30.0), "%s: %d (예상 %.0f)" % [Balance.MINERAL_GRADES[i]["name"], counts[i], expected])
-
+func test_운석_크기별로_광물_등급이_고정됨() -> void:
+	# 작은 운석 → 일반, 중간 → 희귀, 큰 운석 → 영웅 (무작위 없음)
+	var expected := [0, 1, 2]
+	for type in 3:
+		for trial in 10:
+			var sim := _quiet_sim()
+			var a := _add_asteroid(sim, Vector2(500, 500), Vector2.ZERO, type)
+			_kill(sim, a)
+			for m in sim.minerals:
+				assert_eq(m.grade, expected[type], "%s → %s" % [Balance.ASTEROID_TYPES[type]["name"], Balance.MINERAL_GRADES[expected[type]]["name"]])
 
 func test_자석_범위_안의_광물은_끌려와_주워짐() -> void:
 	var sim := _quiet_sim()
@@ -618,3 +615,95 @@ func test_바라보는_방향과_조준은_따로() -> void:
 	sim.update(0.01, Vector2.RIGHT)
 	assert_true(sim.bullets[0].vel.normalized().y < -0.9, "탄은 위쪽")
 	assert_true(absf(sim.facing) < PI / 2.0, "우주선은 오른쪽으로 돌기 시작")
+
+
+# ── 황금 운석 ──
+
+func test_황금_운석은_큰_운석보다_훨씬_단단함() -> void:
+	var sim := _quiet_sim()
+	var g := sim.spawn_golden()
+	assert_true(g.golden)
+	assert_true(g.hp >= Balance.ASTEROID_TYPES[2]["hp"] * 4.0, "체력 %f" % g.hp)
+	sim.time = Balance.ASTEROID_HP_GROWTH_TIME
+	assert_eq(sim.spawn_golden().hp, Balance.GOLDEN["hp"] * 2.0, "시간이 지나면 더 단단해짐")
+
+
+func test_황금_운석을_부수면_전설_1개와_영웅_여러_개() -> void:
+	var sim := _quiet_sim()
+	var g := sim.spawn_golden()
+	g.pos = Vector2(500, 500)
+	_kill(sim, g)
+	var counts := [0, 0, 0, 0]
+	for m in sim.minerals:
+		counts[m.grade] += 1
+	assert_eq(counts[3], 1, "전설 1개")
+	assert_true(counts[2] >= 2, "영웅 여러 개: %d" % counts[2])
+	assert_eq(counts[0] + counts[1], 0)
+
+
+func test_황금_운석은_부딪혀도_부서지지_않고_피해만_줌() -> void:
+	var sim := _quiet_sim()
+	var g := sim.spawn_golden()
+	g.pos = Vector2(2, 0)
+	g.vel = Vector2.ZERO
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.hp, Balance.SHIP_MAX_HP - Balance.GOLDEN["damage"], "피해")
+	assert_true(sim.asteroids.has(g), "황금 운석은 그대로")
+	assert_eq(sim.minerals.size(), 0, "광물 없음")
+
+
+func test_황금_운석은_정해진_시각에_처음_나오고_점점_자주_나옴() -> void:
+	assert_true(RunSim.golden_interval(Balance.GOLDEN_RAMP_TIME) < RunSim.golden_interval(0.0), "점점 자주")
+	assert_true(is_equal_approx(RunSim.golden_interval(0.0), Balance.GOLDEN_INTERVAL_START))
+	assert_true(is_equal_approx(RunSim.golden_interval(99999.0), Balance.GOLDEN_INTERVAL_MIN), "최소 간격에서 멈춤")
+	var sim := _quiet_sim()
+	sim.set("hp", 1.0e9)
+	var first := -1.0
+	while sim.time < Balance.GOLDEN_FIRST_TIME + 1.0:
+		sim.update(0.1, Vector2.ZERO)
+		if first < 0.0 and sim.events.has("golden"):
+			first = sim.time
+	assert_true(absf(first - Balance.GOLDEN_FIRST_TIME) < 0.11, "첫 등장 %f초" % first)
+	assert_eq(sim.golden_count(), 1)
+
+
+func test_황금_운석은_동시에_최대_개수까지만() -> void:
+	var sim := _quiet_sim()
+	sim.set("hp", 1.0e9)
+	sim.view_size = Vector2(100000, 100000)  # 멀어져서 사라지지 않게
+	sim.time = 1000.0
+	for i in 2000:
+		sim.update(0.1, Vector2.ZERO)
+	assert_eq(sim.golden_count(), Balance.GOLDEN_MAX)
+
+
+func test_황금_운석은_우주선을_비스듬히_지나감() -> void:
+	var sim := _quiet_sim()
+	for i in 30:
+		var g := sim.spawn_golden()
+		var angle := absf(rad_to_deg(g.vel.angle_to(sim.player_pos - g.pos)))
+		assert_true(angle <= Balance.GOLDEN_AIM_SPREAD_DEG + 0.01, "각도 %f" % angle)
+		var speed := g.vel.length()
+		assert_true(speed >= Balance.GOLDEN["speed_min"] - 0.01 and speed <= Balance.GOLDEN["speed_max"] + 0.01)
+
+
+func test_황금_운석은_일반_운석보다_멀어져야_사라짐() -> void:
+	var sim := _quiet_sim()
+	var limit := RunSim.despawn_distance(sim.view_size)
+	var g := sim.spawn_golden()
+	g.pos = Vector2(limit * 1.2, 0)
+	g.vel = Vector2.ZERO
+	var rock := _add_asteroid(sim, Vector2(limit * 1.2, 0))
+	sim.update(0.01, Vector2.ZERO)
+	assert_true(sim.asteroids.has(g), "황금 운석은 남음")
+	assert_false(sim.asteroids.has(rock), "일반 운석은 사라짐")
+
+
+func test_주운_광물은_그_프레임의_picked에_담김() -> void:
+	var sim := _quiet_sim()
+	sim.drop_mineral(Vector2(1, 0), 3)
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.picked.size(), 1)
+	assert_eq(sim.picked[0]["grade"], 3)
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.picked.size(), 0, "다음 프레임엔 비워짐")

@@ -33,17 +33,51 @@ const MINERAL_COLORS := [
 	[Color("#ecd2ff"), Color("#c77dff"), Color("#7d3cb5")],
 	[Color("#fff6c4"), Color("#ffd34f"), Color("#c48a1c")],
 ]
-## 광물 모양 (5x5 마름모). 글자 → 색: h 밝은 면, m 기본, s 어두운 면
-const MINERAL_PATTERN := [
-	"..h..",
-	".hmm.",
-	"hmmms",
-	".mss.",
-	"..s..",
+## 등급별 광물 모양. 글자 → 색: h 밝은 면, m 기본, s 어두운 면, w 반짝이는 흰 점
+## 등급이 높을수록 크고 화려하다 (경험치 구슬이 아니라 보물처럼 보이게).
+const MINERAL_PATTERNS := [
+	# 일반: 울퉁불퉁한 회색 돌 조각 (작음, 4x4)
+	[
+		".hm.",
+		"hmms",
+		"mms.",
+		".s..",
+	],
+	# 희귀: 뾰족한 푸른 결정 (중간, 5x7)
+	[
+		"..h..",
+		".hh..",
+		".hmm.",
+		"hmmms",
+		".mms.",
+		".ms..",
+		"..s..",
+	],
+	# 영웅: 육각형 보라 보석 (큼, 7x7)
+	[
+		"..hhh..",
+		".hhmmm.",
+		"hhmwmms",
+		"hmwmmms",
+		"hmmmmss",
+		".mmmss.",
+		"..sss..",
+	],
+	# 전설: 빛나는 금괴 (가장 큼, 9x6)
+	[
+		"..hhhhh..",
+		".hhwhhhm.",
+		"hhmmmmmms",
+		"mmmmmmmss",
+		"smmmmmsss",
+		".sssssss.",
+	],
 ]
 
 ## 운석 색: 밝은 면, 기본, 그늘, 구멍
 const ROCK_COLORS := [Color("#a8957f"), Color("#7a6a5a"), Color("#54483d"), Color("#3e352d")]
+## 황금 운석 색: 밝은 면, 기본, 그늘, 구멍 (멀리서도 눈에 띄게 밝은 금색)
+const GOLD_ROCK_COLORS := [Color("#fff3a0"), Color("#ffcc33"), Color("#c98a12"), Color("#8a5a0a")]
 
 static var _cache: Dictionary = {}
 
@@ -67,8 +101,8 @@ static func ship() -> ImageTexture:
 
 
 ## 울퉁불퉁한 운석. 같은 (반지름, 변형 번호)는 항상 같은 모양이다.
-static func asteroid(radius: float, variant: int) -> ImageTexture:
-	var key := "rock_%d_%d" % [int(radius), variant]
+static func asteroid(radius: float, variant: int, golden: bool = false) -> ImageTexture:
+	var key := "rock_%d_%d_%s" % [int(radius), variant, golden]
 	if _cache.has(key):
 		return _cache[key]
 	var rng := RandomNumberGenerator.new()
@@ -80,6 +114,7 @@ static func asteroid(radius: float, variant: int) -> ImageTexture:
 	var size := int(ceil(radius)) * 2 + 2
 	var img := Image.create_empty(size, size, false, Image.FORMAT_RGBA8)
 	var center := Vector2(size, size) / 2.0
+	var palette: Array = GOLD_ROCK_COLORS if golden else ROCK_COLORS
 	var craters: Array[Vector3] = []  # x, y, 반지름
 	for i in maxi(1, int(radius / 4.0)):
 		var p := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.0, radius * 0.5)
@@ -92,16 +127,16 @@ static func asteroid(radius: float, variant: int) -> ImageTexture:
 			var edge := radius * lerpf(bumps[i0], bumps[(i0 + 1) % 8], angle - floorf(angle))
 			if d.length() > edge:
 				continue
-			var color: Color = ROCK_COLORS[1]
+			var color: Color = palette[1]
 			# 왼쪽 위는 밝게, 오른쪽 아래 가장자리는 그늘
 			var light := d.dot(Vector2(-1, -1).normalized()) / maxf(edge, 1.0)
 			if light > 0.45:
-				color = ROCK_COLORS[0]
+				color = palette[0]
 			elif light < -0.35 and d.length() > edge - 2.0:
-				color = ROCK_COLORS[2]
+				color = palette[2]
 			for c in craters:
 				if d.distance_to(Vector2(c.x, c.y)) < c.z:
-					color = ROCK_COLORS[3]
+					color = palette[3]
 			img.set_pixel(x, y, color)
 	var tex := ImageTexture.create_from_image(img)
 	_cache[key] = tex
@@ -109,10 +144,10 @@ static func asteroid(radius: float, variant: int) -> ImageTexture:
 
 
 ## 탄에 맞았을 때 잠깐 보여 주는 흰 실루엣 (같은 모양)
-static func asteroid_flash(radius: float, variant: int) -> ImageTexture:
-	var key := "rock_flash_%d_%d" % [int(radius), variant]
+static func asteroid_flash(radius: float, variant: int, golden: bool = false) -> ImageTexture:
+	var key := "rock_flash_%d_%d_%s" % [int(radius), variant, golden]
 	if not _cache.has(key):
-		var img := asteroid(radius, variant).get_image()
+		var img := asteroid(radius, variant, golden).get_image()
 		for y in img.get_height():
 			for x in img.get_width():
 				if img.get_pixel(x, y).a > 0.0:
@@ -121,10 +156,11 @@ static func asteroid_flash(radius: float, variant: int) -> ImageTexture:
 	return _cache[key]
 
 
-## 등급별 광물 아이콘 (5x5)
+## 등급별 광물 그림 (등급마다 모양과 크기가 다름)
 static func mineral(grade: int) -> ImageTexture:
+	grade = clampi(grade, 0, MINERAL_COLORS.size() - 1)
 	var key := "mineral_%d" % grade
 	if not _cache.has(key):
-		var c: Array = MINERAL_COLORS[clampi(grade, 0, MINERAL_COLORS.size() - 1)]
-		_cache[key] = from_pattern(MINERAL_PATTERN, {"h": c[0], "m": c[1], "s": c[2]})
+		var c: Array = MINERAL_COLORS[grade]
+		_cache[key] = from_pattern(MINERAL_PATTERNS[grade], {"h": c[0], "m": c[1], "s": c[2], "w": Color.WHITE})
 	return _cache[key]

@@ -15,6 +15,7 @@ class Asteroid:
 	var hp: float
 	var max_hp: float
 	var variant: int  ## 모양 변형 번호 (그리기용)
+	var golden := false  ## 황금 운석인지
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
 
 
@@ -52,7 +53,9 @@ var asteroids: Array[Asteroid] = []
 var bullets: Array[Bullet] = []
 ## 이번 프레임에 탄으로 부서진 운석 (효과·보상용)
 var destroyed: Array[Asteroid] = []
-## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup"
+## 이번 프레임에 주운 광물 {pos, grade} (줍기 연출·효과음용)
+var picked: Array[Dictionary] = []
+## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden"
 var events: PackedStringArray = []
 ## 탄으로 부순 운석 수
 var kills := 0
@@ -82,6 +85,8 @@ var choices: PackedStringArray = []
 var upgrade_levels: Dictionary = {}
 
 var _spawn_timer := 0.0
+## 다음 황금 운석까지 남은 시간
+var _golden_timer := Balance.GOLDEN_FIRST_TIME
 ## 다음 발사까지 남은 시간 (0 이하면 대상이 생기는 즉시 발사)
 var _fire_timer := 0.0
 
@@ -98,6 +103,7 @@ func _init(seed_value: int = 0) -> void:
 func update(delta: float, move: Vector2) -> void:
 	events.clear()
 	destroyed.clear()
+	picked.clear()
 	if not alive or not choices.is_empty():
 		return  # 파괴됐거나 강화를 고르는 중이면 멈춘다
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
@@ -112,6 +118,11 @@ func update(delta: float, move: Vector2) -> void:
 		if asteroids.size() < Balance.MAX_ASTEROIDS:
 			spawn_asteroid()
 		_spawn_timer += spawn_interval(time)
+	_golden_timer -= delta
+	while _golden_timer <= 0.0:
+		if golden_count() < Balance.GOLDEN_MAX and asteroids.size() < Balance.MAX_ASTEROIDS:
+			spawn_golden()
+		_golden_timer += golden_interval(time)
 
 	_move_asteroids(delta)
 	_auto_fire(delta)
@@ -152,6 +163,33 @@ func spawn_asteroid() -> Asteroid:
 	return a
 
 
+## 황금 운석 하나를 화면 밖에 만든다. 우주선 근처를 비스듬히 지나가도록 날아간다.
+func spawn_golden() -> Asteroid:
+	var a := Asteroid.new()
+	a.golden = true
+	a.type = Balance.ASTEROID_TYPES.size() - 1  # 그리기·조준에는 큰 운석처럼 취급
+	a.radius = Balance.GOLDEN["radius"]
+	a.damage = Balance.GOLDEN["damage"]
+	a.max_hp = asteroid_hp(Balance.GOLDEN["hp"], time)
+	a.hp = a.max_hp
+	a.variant = rng.randi_range(0, 3)
+	a.pos = spawn_position(rng, player_pos, view_size, a.radius)
+	var aim := (player_pos - a.pos).angle() + deg_to_rad(rng.randf_range(-Balance.GOLDEN_AIM_SPREAD_DEG, Balance.GOLDEN_AIM_SPREAD_DEG))
+	a.vel = Vector2.from_angle(aim) * rng.randf_range(Balance.GOLDEN["speed_min"], Balance.GOLDEN["speed_max"])
+	asteroids.append(a)
+	events.append("golden")
+	return a
+
+
+## 지금 있는 황금 운석 수
+func golden_count() -> int:
+	var n := 0
+	for a in asteroids:
+		if a.golden:
+			n += 1
+	return n
+
+
 ## 운석을 움직이고, 너무 멀어진 운석은 없앤다.
 func _move_asteroids(delta: float) -> void:
 	var limit := despawn_distance(view_size)
@@ -159,7 +197,7 @@ func _move_asteroids(delta: float) -> void:
 	for a in asteroids:
 		a.pos += a.vel * delta
 		a.flash = maxf(a.flash - delta, 0.0)
-		if a.pos.distance_to(player_pos) <= limit:
+		if a.pos.distance_to(player_pos) <= (limit * Balance.GOLDEN_DESPAWN_FACTOR if a.golden else limit):
 			kept.append(a)
 	asteroids = kept
 
@@ -229,8 +267,9 @@ func _on_asteroid_destroyed(a: Asteroid) -> void:
 	kills += 1
 	destroyed.append(a)
 	events.append("destroy")
-	for i in int(Balance.ASTEROID_TYPES[a.type]["minerals"]):
-		drop_mineral(a.pos + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.0, Balance.MINERAL_SCATTER))
+	for drop in drops_of(a):
+		for i in int(drop["count"]):
+			drop_mineral(a.pos + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.0, Balance.MINERAL_SCATTER), int(drop["grade"]))
 
 
 ## 경험치를 얻는다. 필요한 만큼 모이면 레벨업하고 강화 선택지를 연다.
@@ -276,11 +315,11 @@ func apply_upgrades() -> void:
 	hp = minf(hp, max_hp)
 
 
-## 광물 하나를 떨어뜨린다. 등급은 비율에 따라 무작위.
-func drop_mineral(pos: Vector2) -> Mineral:
+## 광물 하나를 떨어뜨린다.
+func drop_mineral(pos: Vector2, grade: int = 0) -> Mineral:
 	var m := Mineral.new()
 	m.pos = pos
-	m.grade = pick_weighted(rng, grade_weights())
+	m.grade = clampi(grade, 0, Balance.MINERAL_GRADES.size() - 1)
 	minerals.append(m)
 	while minerals.size() > Balance.MAX_MINERALS:
 		minerals.pop_front()
@@ -300,6 +339,7 @@ func _update_minerals(delta: float) -> void:
 			m.pos = m.pos.move_toward(player_pos, Balance.MAGNET_SPEED * delta)
 			dist = m.pos.distance_to(player_pos)
 		if dist <= Balance.PICKUP_RADIUS:
+			picked.append({"pos": m.pos, "grade": m.grade})
 			collect(m.grade)
 		else:
 			kept.append(m)
@@ -319,20 +359,26 @@ func _check_player_hits() -> void:
 	var kept: Array[Asteroid] = []
 	for a in asteroids:
 		var touching := a.pos.distance_to(player_pos) < a.radius + Balance.SHIP_RADIUS
-		if touching and alive and damage_player(a.damage):
-			continue  # 부서진 운석은 목록에서 뺀다
+		if touching and alive and damage_player(a.damage) and not a.golden:
+			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석은 부딪혀도 부서지지 않음)
 		kept.append(a)
 	asteroids = kept
 
 
 # ── 규칙 계산 (자동 테스트 대상) ─────────────────────
 
-## 광물 등급별 나올 비율
-static func grade_weights() -> Array[float]:
-	var result: Array[float] = []
-	for g in Balance.MINERAL_GRADES:
-		result.append(float(g["weight"]))
-	return result
+## 운석을 탄으로 부쉈을 때 떨어지는 광물 목록 [{grade, count}]
+static func drops_of(a: Asteroid) -> Array:
+	if a.golden:
+		return Balance.GOLDEN_DROPS
+	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
+	return [{"grade": info["grade"], "count": info["minerals"]}]
+
+
+## 지금 시간의 황금 운석 등장 간격: 시간이 지날수록 조금씩 짧아진다.
+static func golden_interval(t: float) -> float:
+	var k := clampf(t / Balance.GOLDEN_RAMP_TIME, 0.0, 1.0)
+	return lerpf(Balance.GOLDEN_INTERVAL_START, Balance.GOLDEN_INTERVAL_MIN, k)
 
 
 ## 광물 한 개를 주웠을 때 얻는 경험치: 가치 × 비율 (반올림, 최소 1)

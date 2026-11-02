@@ -28,11 +28,12 @@ const JOYSTICK_RADIUS := 28.0
 const JOYSTICK_DEAD_ZONE := 0.15
 
 # ── 운석 ─────────────────────────────────────────────
-## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위, 부서질 때 떨어뜨리는 광물 수
+## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위, 부서질 때 떨어뜨리는 광물 등급(MINERAL_GRADES 번호)과 개수
+## 광물 등급은 크기마다 고정이다: 작은 운석 → 일반, 중간 → 희귀, 큰 운석 → 영웅
 const ASTEROID_TYPES := [
-	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0, "minerals": 1},
-	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0, "minerals": 1},
-	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0, "minerals": 2},
+	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0, "grade": 0, "minerals": 1},
+	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0, "grade": 1, "minerals": 1},
+	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0, "grade": 2, "minerals": 2},
 ]
 ## 운석 체력은 이 시간(초)마다 기본값만큼 계단식으로 늘어난다 (0~75초 1배, 75초부터 2배, 150초부터 3배 …).
 const ASTEROID_HP_GROWTH_TIME := 75.0
@@ -47,7 +48,7 @@ const SPAWN_INTERVAL_MIN := 0.15
 const SPAWN_RAMP_TIME := 240.0
 ## 그 뒤로도 계속 어려워진다: 등장 간격이 이 시간(초)마다 절반이 된다 (SPAWN_INTERVAL_FLOOR까지).
 ## 강화를 아무리 쌓아도 결국 버틸 수 없게 해서 한 판이 끝나도록 한다.
-const SPAWN_LATE_HALVING_TIME := 60.0
+const SPAWN_LATE_HALVING_TIME := 55.0
 const SPAWN_INTERVAL_FLOOR := 0.03
 ## 운석 속도는 이 시간(초)마다 기본 속도만큼 더 빨라진다 (180초면 2배).
 const ASTEROID_SPEED_GROWTH_TIME := 180.0
@@ -57,6 +58,24 @@ const SPAWN_MARGIN := 24.0
 const DESPAWN_DISTANCE_FACTOR := 1.6
 ## 동시에 존재할 수 있는 최대 운석 수 (휴대폰 성능 보호)
 const MAX_ASTEROIDS := 250
+
+# ── 황금 운석 (가끔 나오는 특수 운석) ───────────────
+## 큰 운석보다 훨씬 단단하고 느리게 지나간다. 몸으로 부딪혀도 부서지지 않는다(피해만 입음).
+## 체력도 일반 운석처럼 ASTEROID_HP_GROWTH_TIME마다 계단식으로 늘어난다.
+const GOLDEN := {"name": "황금 운석", "radius": 12.0, "hp": 18.0, "damage": 22.0, "speed_min": 16.0, "speed_max": 26.0}
+## 부수면 떨어지는 광물: 등급(MINERAL_GRADES 번호)과 개수 → 전설 1개 + 영웅 4개
+const GOLDEN_DROPS := [{"grade": 3, "count": 1}, {"grade": 2, "count": 4}]
+## 첫 등장 시각, 등장 간격(시작 → GOLDEN_RAMP_TIME에 걸쳐 최소까지 줄어듦: 시간이 지날수록 조금씩 자주)
+const GOLDEN_FIRST_TIME := 35.0
+const GOLDEN_INTERVAL_START := 55.0
+const GOLDEN_INTERVAL_MIN := 30.0
+const GOLDEN_RAMP_TIME := 300.0
+## 우주선을 향하지 않고 이 각도(도)까지 빗나가 화면 근처를 지나간다 (쫓아가야 잡을 수 있게).
+const GOLDEN_AIM_SPREAD_DEG := 60.0
+## 동시에 있을 수 있는 최대 수
+const GOLDEN_MAX := 2
+## 일반 운석보다 이 배수만큼 더 멀어져야 사라진다 (멀어져도 쫓아갈 시간을 줌)
+const GOLDEN_DESPAWN_FACTOR := 2.0
 
 # ── 자동 공격 ────────────────────────────────────────
 ## 발사 간격
@@ -77,13 +96,14 @@ const PARALLEL_SHOT_GAP := 4.0
 const BULLET_LIFETIME_FACTOR := 1.15
 
 # ── 광물 ─────────────────────────────────────────────
-## 등급별: 이름, 나올 비율, 가치. 탄으로 부순 운석에서만 떨어진다 (몸으로 부딪혀 부순 운석은 없음).
+## 등급별: 이름, 가치. 탄으로 부순 운석에서만 떨어진다 (몸으로 부딪혀 부순 운석은 없음).
+## 어떤 등급이 떨어지는지는 운석 크기(ASTEROID_TYPES의 grade)와 황금 운석(GOLDEN_DROPS)이 정한다.
 ## 광물을 주우면 가치 × MINERAL_XP_PER_VALUE 만큼 경험치를 얻는다 (운석을 부숴서는 경험치를 얻지 않음).
 const MINERAL_GRADES := [
-	{"name": "일반", "weight": 80.0, "value": 1},
-	{"name": "희귀", "weight": 15.0, "value": 5},
-	{"name": "영웅", "weight": 4.0, "value": 20},
-	{"name": "전설", "weight": 1.0, "value": 100},
+	{"name": "일반", "value": 1},
+	{"name": "희귀", "value": 5},
+	{"name": "영웅", "value": 20},
+	{"name": "전설", "value": 100},
 ]
 ## 광물 가치 1당 경험치. 등급별 경험치 = 가치 × 이 값 (반올림, 최소 1)
 const MINERAL_XP_PER_VALUE := 1.0
@@ -99,10 +119,10 @@ const PICKUP_RADIUS := 8.0
 const MAX_MINERALS := 300
 
 # ── 경험치와 레벨업 강화 ─────────────────────────────
-## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 8, 2→3: 25, 3→4: 42 …)
+## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 14, 2→3: 46, 3→4: 78 …)
 ## 경험치는 광물을 주우면 얻는다 (광물 가치 × MINERAL_XP_PER_VALUE).
-const XP_BASE := 8
-const XP_GROWTH := 17
+const XP_BASE := 14
+const XP_GROWTH := 32
 ## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게)
 const LEVEL_UP_INPUT_DELAY := 0.35
 ## 레벨업 때 보여 주는 강화 수

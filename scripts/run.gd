@@ -38,6 +38,7 @@ func _process(delta: float) -> void:
 		world.moving = move != Vector2.ZERO
 		sim.update(delta, move)
 		world.step(delta)
+		_play_pickup_sounds()
 		if not sim.alive:
 			_show_game_over()
 		elif not sim.choices.is_empty():
@@ -62,6 +63,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif current_menu == Menu.PAUSE:
 			_close_menu()
 		get_viewport().set_input_as_handled()
+
+
+## 이번 프레임에 주운 광물의 효과음. 같은 등급은 한 프레임에 한 번만 낸다 (한꺼번에 주워도 시끄럽지 않게).
+func _play_pickup_sounds() -> void:
+	var played := {}
+	for p in sim.picked:
+		if not played.has(p["grade"]):
+			played[p["grade"]] = true
+			Sfx.play_pickup(p["grade"])
 
 
 ## 숫자키(윗줄 1~9, 키패드 1~9) → 0부터 시작하는 번호. 숫자키가 아니면 -1.

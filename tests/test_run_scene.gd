@@ -82,6 +82,11 @@ func test_광물과_파편이_있어도_오류_없이_진행() -> void:
 	a.radius = 9.0
 	a.pos = run.sim.player_pos + Vector2(0, 60)
 	run.sim.destroyed.append(a)
+	# 황금 운석(화면 안·밖), 등급별 줍기 연출도 함께 그린다
+	run.sim.spawn_golden().pos = run.sim.player_pos + Vector2(60, 0)
+	run.sim.spawn_golden().pos = run.sim.player_pos + Vector2(2000, 900)
+	for grade in 4:
+		run.sim.picked.append({"pos": run.sim.player_pos + Vector2(0, -30), "grade": grade})
 	run.world.step(0.016)
 	await wait_frames(5)
 	assert_true(run.sim.minerals.size() >= 1, "광물이 남아 있음")

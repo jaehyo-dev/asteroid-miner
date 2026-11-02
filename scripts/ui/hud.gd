@@ -1,6 +1,7 @@
 class_name Hud
 extends Control
-## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 운석 수, 주운 광물, 레벨과 경험치 막대.
+## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 운석 수, 주운 광물, 레벨과 경험치 막대,
+## 화면 밖 황금 운석의 방향 표시.
 
 const MARGIN := 8.0
 const BAR_SIZE := Vector2(80, 6)
@@ -10,6 +11,10 @@ const COLOR_HP := Color("#ff5a5a")
 const COLOR_VALUE := Color("#ffd34f")
 const COLOR_XP := Color("#4fd1ff")
 const XP_BAR_HEIGHT := 3.0
+## 화면 밖 황금 운석 방향 표시: 가장자리에서 떨어진 거리, 화살표 크기
+const MARKER_MARGIN := 12.0
+const MARKER_SIZE := 6.0
+const COLOR_GOLD := Color("#ffcc33")
 const COLOR_BAR_BG := Color("#2a2a40")
 
 var sim: RunSim
@@ -37,18 +42,39 @@ func _draw() -> void:
 	# 주운 광물: 등급별 아이콘과 개수, 총 가치
 	var x := MARGIN
 	for grade in sim.collected.size():
-		draw_texture(PixelArt.mineral(grade), Vector2(x, MARGIN + 33))
+		var icon := PixelArt.mineral(grade)
+		# 아이콘 크기가 등급마다 달라서 세로 가운데를 맞춘다
+		draw_texture(icon, Vector2(x, MARGIN + 38 - floorf(icon.get_height() / 2.0)))
 		var text := str(sim.collected[grade])
-		draw_string(font, Vector2(x + 7, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
-		x += 7 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
+		draw_string(font, Vector2(x + icon.get_width() + 2, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
+		x += icon.get_width() + 2 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
 	draw_string(font, Vector2(MARGIN, MARGIN + 58), "가치 %d" % sim.mineral_value, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_VALUE)
 	# 레벨과 경험치 막대 (화면 맨 아래 전체 너비)
 	var need := Upgrades.xp_to_next(sim.level)
 	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, size.x, XP_BAR_HEIGHT), COLOR_BAR_BG)
 	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, roundf(size.x * clampf(float(sim.xp) / need, 0.0, 1.0)), XP_BAR_HEIGHT), COLOR_XP)
 	draw_string(font, Vector2(MARGIN, size.y - XP_BAR_HEIGHT - 4), "Lv %d" % sim.level, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_XP)
+	_draw_golden_markers()
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
+
+
+## 화면 밖 황금 운석마다 가장자리에 금색 화살표를 띄운다 (카메라는 우주선을 따라감).
+func _draw_golden_markers() -> void:
+	var center := sim.player_pos.round()
+	var pulse := 0.6 + 0.4 * sin(sim.time * 6.0)
+	for a in sim.asteroids:
+		if not a.golden:
+			continue
+		var marker: Variant = Offscreen.edge_marker(center, a.pos, size, MARKER_MARGIN, a.radius)
+		if marker == null:
+			continue
+		var dir := (a.pos - center).normalized()
+		var side := Vector2(-dir.y, dir.x)
+		var tip: Vector2 = marker + dir * MARKER_SIZE
+		var points := PackedVector2Array([tip, marker - dir * 2.0 + side * MARKER_SIZE * 0.8, marker - dir * 2.0 - side * MARKER_SIZE * 0.8])
+		draw_colored_polygon(points, Color(COLOR_GOLD, pulse))
+		draw_texture(PixelArt.mineral(3), (marker - dir * 10.0 - Vector2(4, 3)).round(), Color(1, 1, 1, pulse))
 
 
 func _draw_bar(pos: Vector2, ratio: float, color: Color) -> void:
