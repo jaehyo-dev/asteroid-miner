@@ -7,7 +7,35 @@ extends SceneTree
 const TEST_DIR := "res://tests"
 
 
+## 테스트 중에 난 엔진·스크립트 오류를 모은다.
+## GDScript는 실행 중 오류(null 접근 등)가 나면 그 함수만 멈추고 계속 진행하므로,
+## 오류를 따로 잡지 않으면 실패한 테스트가 통과로 보일 수 있다.
+class ErrorCatcher extends Logger:
+	var _mutex := Mutex.new()
+	var _errors: PackedStringArray = []
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String,
+			_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_WARNING:
+			return
+		var message := rationale if not rationale.is_empty() else code
+		_mutex.lock()
+		_errors.append("%s:%d (%s) %s" % [file, line, function, message])
+		_mutex.unlock()
+
+	## 지금까지 모인 오류를 꺼내고 비운다.
+	func take() -> PackedStringArray:
+		_mutex.lock()
+		var result := _errors.duplicate()
+		_errors.clear()
+		_mutex.unlock()
+		return result
+
+var _catcher := ErrorCatcher.new()
+
+
 func _initialize() -> void:
+	OS.add_logger(_catcher)
 	_run.call_deferred()
 
 
@@ -33,7 +61,10 @@ func _run() -> void:
 			# 테스트 함수마다 새 인스턴스를 만들어 서로 영향을 주지 않게 한다.
 			var test: TestCase = script.new()
 			root.add_child(test)
+			_catcher.take()
 			await test.call(name)
+			for error in _catcher.take():
+				test.failures.append("실행 중 오류: " + error)
 			if test.failures.is_empty():
 				print("통과  %s :: %s" % [file.get_file(), name])
 				passed += 1
