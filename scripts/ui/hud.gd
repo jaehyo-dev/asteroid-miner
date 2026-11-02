@@ -75,7 +75,8 @@ func _draw_golden_markers() -> void:
 		var dir := (a.pos - center).normalized()
 		draw_colored_polygon(arrow_points(marker, dir), Color(COLOR_GOLD, pulse))
 		# 화살표 뒤쪽(화면 안쪽)에 금괴 그림을 붙여 무엇을 가리키는지 알려 준다
-		draw_texture(PixelArt.mineral(3), (marker - dir * (MARKER_BACK + 8.0) - Vector2(4, 3)).round(), Color(1, 1, 1, pulse))
+		# (금괴는 깜빡이지 않고 항상 선명하게: 어두워지면 갈색 운석처럼 보인다)
+		draw_texture(PixelArt.mineral(3), (marker - dir * (MARKER_BACK + 8.0) - Vector2(4, 3)).round())
 
 
 ## 방향 표시 화살표 꼭짓점: [끝, 밑변 한쪽, 밑변 다른 쪽]. dir은 길이 1인 방향.
