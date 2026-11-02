@@ -5,7 +5,10 @@ extends Node2D
 const MAIN_SCENE := "res://scenes/main.tscn"
 
 ## 메뉴 종류
-enum Menu { NONE, PAUSE, GAME_OVER }
+enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
+
+## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (실수로 누르는 것 방지)
+const LEVEL_UP_INPUT_DELAY := 0.35
 
 @onready var world: WorldView = $World
 @onready var camera: Camera2D = $Camera
@@ -39,6 +42,8 @@ func _process(delta: float) -> void:
 		world.step(delta)
 		if not sim.alive:
 			_show_game_over()
+		elif not sim.choices.is_empty():
+			_show_level_up()
 	camera.position = sim.player_pos.round()
 	starfield.scroll = camera.position
 	world.queue_redraw()
@@ -46,6 +51,13 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# 레벨업 메뉴에서는 숫자키 1, 2, 3으로도 고를 수 있다.
+	if current_menu == Menu.LEVEL_UP and event is InputEventKey and event.pressed and not event.echo:
+		var index: int = event.physical_keycode - KEY_1
+		if index >= 0 and index < sim.choices.size():
+			menu.choose(index)
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed("pause"):
 		if current_menu == Menu.NONE:
 			pause()
@@ -67,17 +79,30 @@ func pause() -> void:
 
 
 func _show_game_over() -> void:
-	var body := "버틴 시간 %s\n부순 운석 %d개\n모은 광물 가치 %d\n(%s)" % [
-		Hud.format_time(sim.time), sim.kills, sim.mineral_value, Hud.minerals_text(sim.collected)]
+	var body := "버틴 시간 %s · 레벨 %d\n부순 운석 %d개\n모은 광물 가치 %d\n(%s)" % [
+		Hud.format_time(sim.time), sim.level, sim.kills, sim.mineral_value, Hud.minerals_text(sim.collected)]
 	_open_menu(Menu.GAME_OVER, "우주선 파괴", body, ["다시 출격", "처음으로"])
 
 
-func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray) -> void:
+## 레벨업 강화 선택 메뉴
+func _show_level_up() -> void:
+	var options: PackedStringArray = []
+	for i in sim.choices.size():
+		var id := sim.choices[i]
+		var next := int(sim.upgrade_levels.get(id, 0)) + 1
+		var label := Upgrades.display_name(id)
+		if id != Upgrades.REPAIR:
+			label += " Lv%d" % next
+		options.append("%d. %s\n%s" % [i + 1, label, Upgrades.describe(id)])
+	_open_menu(Menu.LEVEL_UP, "레벨 업! Lv %d" % (sim.level - sim.pending_levelups + 1), "강화를 하나 고르세요", options, LEVEL_UP_INPUT_DELAY)
+
+
+func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray, input_delay: float = 0.0) -> void:
 	current_menu = kind
 	joystick.enabled = false
 	pause_button.hide()
 	world.moving = false
-	menu.show_menu(title, body, options)
+	menu.show_menu(title, body, options, input_delay)
 
 
 func _close_menu() -> void:
@@ -94,6 +119,9 @@ func _on_menu_chosen(index: int) -> void:
 				_close_menu()
 			else:
 				get_tree().change_scene_to_file(MAIN_SCENE)
+		Menu.LEVEL_UP:
+			sim.choose(index)
+			_close_menu()  # 남은 레벨업이 있으면 다음 프레임에 다시 뜬다
 		Menu.GAME_OVER:
 			if index == 0:
 				get_tree().reload_current_scene()

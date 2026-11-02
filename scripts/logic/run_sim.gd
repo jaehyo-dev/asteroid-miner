@@ -50,7 +50,7 @@ var asteroids: Array[Asteroid] = []
 var bullets: Array[Bullet] = []
 ## 이번 프레임에 탄으로 부서진 운석 (효과·보상용)
 var destroyed: Array[Asteroid] = []
-## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup"
+## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup"
 var events: PackedStringArray = []
 ## 탄으로 부순 운석 수
 var kills := 0
@@ -60,12 +60,24 @@ var collected := PackedInt32Array([0, 0, 0, 0])
 ## 이번 판에 주운 광물의 총 가치
 var mineral_value := 0
 
-# 자동 공격 능력치 (나중에 강화로 바뀜)
+# 능력치 (레벨업 강화로 바뀜, apply_upgrades 참고)
 var fire_interval := Balance.FIRE_INTERVAL
 var fire_range := Balance.FIRE_RANGE
 var bullet_damage := Balance.BULLET_DAMAGE
 var bullet_count := Balance.BULLET_COUNT
 var magnet_radius := Balance.MAGNET_RADIUS
+var move_speed := Balance.SHIP_SPEED
+
+# 경험치와 레벨업
+var level := 1
+## 현재 레벨에서 모은 경험치 (레벨업하면 필요한 만큼 빠짐)
+var xp := 0
+## 아직 고르지 않은 레벨업 횟수 (한 번에 여러 레벨이 오를 수 있음)
+var pending_levelups := 0
+## 지금 보여 주는 강화 선택지. 비어 있지 않으면 고를 때까지 게임이 멈춘다.
+var choices: PackedStringArray = []
+## 강화 id → 단계
+var upgrade_levels: Dictionary = {}
 
 var _spawn_timer := 0.0
 ## 다음 발사까지 남은 시간 (0 이하면 대상이 생기는 즉시 발사)
@@ -84,12 +96,12 @@ func _init(seed_value: int = 0) -> void:
 func update(delta: float, move: Vector2) -> void:
 	events.clear()
 	destroyed.clear()
-	if not alive:
-		return
+	if not alive or not choices.is_empty():
+		return  # 파괴됐거나 강화를 고르는 중이면 멈춘다
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
 	time += delta
 	invuln = maxf(invuln - delta, 0.0)
-	player_pos += move.limit_length(1.0) * Balance.SHIP_SPEED * delta
+	player_pos += move.limit_length(1.0) * move_speed * delta
 
 	_spawn_timer -= delta
 	while _spawn_timer <= 0.0:
@@ -213,8 +225,52 @@ func _on_asteroid_destroyed(a: Asteroid) -> void:
 	kills += 1
 	destroyed.append(a)
 	events.append("destroy")
+	gain_xp(int(Balance.ASTEROID_TYPES[a.type]["xp"]))
 	for i in int(Balance.ASTEROID_TYPES[a.type]["minerals"]):
 		drop_mineral(a.pos + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.0, Balance.MINERAL_SCATTER))
+
+
+## 경험치를 얻는다. 필요한 만큼 모이면 레벨업하고 강화 선택지를 연다.
+func gain_xp(amount: int) -> void:
+	xp += maxi(amount, 0)
+	while xp >= Upgrades.xp_to_next(level):
+		xp -= Upgrades.xp_to_next(level)
+		level += 1
+		pending_levelups += 1
+		events.append("levelup")
+	if choices.is_empty() and pending_levelups > 0:
+		choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT)
+
+
+## 강화 선택지 중 하나를 고른다. 남은 레벨업이 있으면 다음 선택지를 연다.
+func choose(index: int) -> void:
+	if index < 0 or index >= choices.size():
+		return
+	var id := choices[index]
+	if id == Upgrades.REPAIR:
+		hp = minf(hp + Balance.REPAIR_AMOUNT, max_hp)
+	else:
+		upgrade_levels[id] = int(upgrade_levels.get(id, 0)) + 1
+		if id == "max_hp":
+			hp += Balance.UP_MAX_HP_ADD
+		apply_upgrades()
+	pending_levelups = maxi(pending_levelups - 1, 0)
+	choices = []
+	if pending_levelups > 0:
+		choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT)
+
+
+## 강화 단계에 맞게 능력치를 다시 계산한다 (항상 기본값에서 계산해 오차가 쌓이지 않게).
+func apply_upgrades() -> void:
+	var lv := func(id: String) -> int: return int(upgrade_levels.get(id, 0))
+	fire_interval = Balance.FIRE_INTERVAL * pow(Balance.UP_FIRE_INTERVAL_MULT, lv.call("fire_rate"))
+	bullet_count = Balance.BULLET_COUNT + Balance.UP_BULLET_COUNT_ADD * lv.call("multishot")
+	bullet_damage = Balance.BULLET_DAMAGE + Balance.UP_DAMAGE_ADD * lv.call("damage")
+	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + Balance.UP_MAGNET_ADD * lv.call("magnet"))
+	move_speed = Balance.SHIP_SPEED * (1.0 + Balance.UP_SPEED_ADD * lv.call("speed"))
+	max_hp = Balance.SHIP_MAX_HP + Balance.UP_MAX_HP_ADD * lv.call("max_hp")
+	fire_range = Balance.FIRE_RANGE * (1.0 + Balance.UP_RANGE_ADD * lv.call("range"))
+	hp = minf(hp, max_hp)
 
 
 ## 광물 하나를 떨어뜨린다. 등급은 비율에 따라 무작위.

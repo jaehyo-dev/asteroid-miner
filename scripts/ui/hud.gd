@@ -1,6 +1,6 @@
 class_name Hud
 extends Control
-## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 운석 수, 주운 광물.
+## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 운석 수, 주운 광물, 레벨과 경험치 막대.
 
 const MARGIN := 8.0
 const BAR_SIZE := Vector2(80, 6)
@@ -8,6 +8,8 @@ const FONT_SIZE := 12
 const COLOR_TEXT := Color("#c8cde0")
 const COLOR_HP := Color("#ff5a5a")
 const COLOR_VALUE := Color("#ffd34f")
+const COLOR_XP := Color("#4fd1ff")
+const XP_BAR_HEIGHT := 3.0
 const COLOR_BAR_BG := Color("#2a2a40")
 
 var sim: RunSim
@@ -40,6 +42,11 @@ func _draw() -> void:
 		draw_string(font, Vector2(x + 7, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 		x += 7 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
 	draw_string(font, Vector2(MARGIN, MARGIN + 58), "가치 %d" % sim.mineral_value, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_VALUE)
+	# 레벨과 경험치 막대 (화면 맨 아래 전체 너비)
+	var need := Upgrades.xp_to_next(sim.level)
+	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, size.x, XP_BAR_HEIGHT), COLOR_BAR_BG)
+	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, roundf(size.x * clampf(float(sim.xp) / need, 0.0, 1.0)), XP_BAR_HEIGHT), COLOR_XP)
+	draw_string(font, Vector2(MARGIN, size.y - XP_BAR_HEIGHT - 4), "Lv %d" % sim.level, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_XP)
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
 

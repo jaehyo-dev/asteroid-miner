@@ -86,3 +86,55 @@ func test_광물과_파편이_있어도_오류_없이_진행() -> void:
 	await wait_frames(5)
 	assert_true(run.sim.minerals.size() >= 1, "광물이 남아 있음")
 	run.queue_free()
+
+
+func test_레벨업하면_강화_메뉴가_뜨고_고르면_닫힘() -> void:
+	var run: Node = await _start()
+	run.sim.gain_xp(Balance.XP_BASE)
+	await wait_frames(2)
+	assert_true(run.menu.visible, "레벨업 메뉴")
+	assert_true(run.menu.title_text().begins_with("레벨 업"), run.menu.title_text())
+	assert_eq(run.menu.buttons().size(), Balance.UPGRADE_CHOICE_COUNT)
+	assert_true(run.menu.buttons()[0].disabled, "뜬 직후에는 누를 수 없음")
+	var t: float = run.sim.time
+	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	assert_false(run.menu.buttons()[0].disabled, "잠시 뒤 누를 수 있음")
+	assert_eq(run.sim.time, t, "고르는 동안 멈춤")
+	run.menu.choose(1)
+	await wait_frames(2)
+	assert_false(run.menu.visible, "닫힘")
+	assert_eq(run.sim.pending_levelups, 0)
+	assert_true(run.sim.time > t, "다시 진행")
+	run.queue_free()
+
+
+func test_두_번_레벨업하면_메뉴가_두_번_뜸() -> void:
+	var run: Node = await _start()
+	run.sim.gain_xp(Upgrades.xp_to_next(1) + Upgrades.xp_to_next(2))
+	await wait_frames(2)
+	assert_true(run.menu.title_text().contains("Lv 2"), run.menu.title_text())
+	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	run.menu.choose(0)
+	await wait_frames(2)
+	assert_true(run.menu.visible, "두 번째 메뉴")
+	assert_true(run.menu.title_text().contains("Lv 3"), run.menu.title_text())
+	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	run.menu.choose(0)
+	await wait_frames(2)
+	assert_false(run.menu.visible)
+	run.queue_free()
+
+
+func test_숫자키로_강화를_고름() -> void:
+	var run: Node = await _start()
+	run.sim.gain_xp(Balance.XP_BASE)
+	await wait_frames(2)
+	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	var expected: String = run.sim.choices[2]
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_3
+	key.pressed = true
+	run._unhandled_input(key)
+	await wait_frames(1)
+	assert_eq(int(run.sim.upgrade_levels.get(expected, 0)), 1, "3번 강화 적용")
+	run.queue_free()
