@@ -1,0 +1,35 @@
+; Godot 프로젝트 설정 파일.
+; 게임 버전은 application/config/version 한 곳에서 관리한다 (CHANGELOG.md 최신 버전과 같아야 함).
+
+config_version=5
+
+[application]
+
+config/name="소행성 광부"
+config/description="소행성 지대로 출격해 자동 공격으로 버티며 광물을 캐는 픽셀 아트 로그라이트 채굴 슈터"
+config/version="0.0.1"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+boot_splash/bg_color=Color(0.03, 0.03, 0.07, 1)
+boot_splash/show_image=false
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=360
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[gui]
+
+theme/custom_font="res://assets/fonts/galmuri/Galmuri11.ttf"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.03, 0.03, 0.07, 1)

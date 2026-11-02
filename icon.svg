@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- 픽셀 아트 소행성 아이콘 (이 프로젝트에서 직접 그림) -->
+  <rect width="16" height="16" fill="#0b0b1a"/>
+  <rect x="4" y="3" width="8" height="10" fill="#7a6a5a"/>
+  <rect x="3" y="5" width="10" height="6" fill="#7a6a5a"/>
+  <rect x="5" y="4" width="2" height="2" fill="#5a4c40"/>
+  <rect x="9" y="8" width="2" height="2" fill="#5a4c40"/>
+  <rect x="6" y="9" width="1" height="1" fill="#5a4c40"/>
+  <rect x="8" y="5" width="2" height="1" fill="#4fd1ff"/>
+  <rect x="4" y="7" width="1" height="2" fill="#ffd34f"/>
+</svg>
