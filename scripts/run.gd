@@ -7,8 +7,6 @@ const MAIN_SCENE := "res://scenes/main.tscn"
 ## 메뉴 종류
 enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
 
-## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (실수로 누르는 것 방지)
-const LEVEL_UP_INPUT_DELAY := 0.35
 
 @onready var world: WorldView = $World
 @onready var camera: Camera2D = $Camera
@@ -53,7 +51,7 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# 레벨업 메뉴에서는 숫자키 1, 2, 3으로도 고를 수 있다.
 	if current_menu == Menu.LEVEL_UP and event is InputEventKey and event.pressed and not event.echo:
-		var index: int = event.physical_keycode - KEY_1
+		var index := number_key_index(event.physical_keycode)
 		if index >= 0 and index < sim.choices.size():
 			menu.choose(index)
 			get_viewport().set_input_as_handled()
@@ -64,6 +62,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif current_menu == Menu.PAUSE:
 			_close_menu()
 		get_viewport().set_input_as_handled()
+
+
+## 숫자키(윗줄 1~9, 키패드 1~9) → 0부터 시작하는 번호. 숫자키가 아니면 -1.
+static func number_key_index(keycode: Key) -> int:
+	if keycode >= KEY_1 and keycode <= KEY_9:
+		return keycode - KEY_1
+	if keycode >= KEY_KP_1 and keycode <= KEY_KP_9:
+		return keycode - KEY_KP_1
+	return -1
 
 
 func _notification(what: int) -> void:
@@ -94,7 +101,7 @@ func _show_level_up() -> void:
 		if id != Upgrades.REPAIR:
 			label += " Lv%d" % next
 		options.append("%d. %s\n%s" % [i + 1, label, Upgrades.describe(id)])
-	_open_menu(Menu.LEVEL_UP, "레벨 업! Lv %d" % (sim.level - sim.pending_levelups + 1), "강화를 하나 고르세요", options, LEVEL_UP_INPUT_DELAY)
+	_open_menu(Menu.LEVEL_UP, "레벨 업! Lv %d" % (sim.level - sim.pending_levelups + 1), "강화를 하나 고르세요", options, Balance.LEVEL_UP_INPUT_DELAY)
 
 
 func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray, input_delay: float = 0.0) -> void:

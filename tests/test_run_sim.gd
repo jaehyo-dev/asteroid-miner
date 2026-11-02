@@ -48,7 +48,29 @@ func test_등장_간격은_시간이_지날수록_줄고_최소값에서_멈춤(
 	var mid := RunSim.spawn_interval(Balance.SPAWN_RAMP_TIME / 2.0)
 	assert_true(mid < Balance.SPAWN_INTERVAL_START and mid > Balance.SPAWN_INTERVAL_MIN, "중간 %f" % mid)
 	assert_true(is_equal_approx(RunSim.spawn_interval(Balance.SPAWN_RAMP_TIME), Balance.SPAWN_INTERVAL_MIN))
-	assert_true(is_equal_approx(RunSim.spawn_interval(9999.0), Balance.SPAWN_INTERVAL_MIN))
+
+
+func test_시간이_더_지나면_등장_간격이_계속_절반씩_줄고_바닥에서_멈춤() -> void:
+	var t := Balance.SPAWN_RAMP_TIME + Balance.SPAWN_LATE_HALVING_TIME
+	assert_true(is_equal_approx(RunSim.spawn_interval(t), Balance.SPAWN_INTERVAL_MIN / 2.0), "절반")
+	assert_true(is_equal_approx(RunSim.spawn_interval(99999.0), Balance.SPAWN_INTERVAL_FLOOR), "바닥")
+	# 시간이 지날수록 절대 늘어나지 않는다
+	var prev := RunSim.spawn_interval(0.0)
+	for i in 120:
+		var cur := RunSim.spawn_interval(i * 5.0)
+		assert_true(cur <= prev + 0.00001, "%d초에 늘어남" % (i * 5))
+		prev = cur
+
+
+func test_운석은_시간이_지날수록_빨라짐() -> void:
+	assert_eq(RunSim.asteroid_speed_mult(0.0), 1.0)
+	assert_true(is_equal_approx(RunSim.asteroid_speed_mult(Balance.ASTEROID_SPEED_GROWTH_TIME), 2.0))
+	var sim := _quiet_sim()
+	sim.time = Balance.ASTEROID_SPEED_GROWTH_TIME
+	for i in 20:
+		var a := sim.spawn_asteroid()
+		var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
+		assert_true(a.vel.length() >= info["speed_min"] * 2.0 - 0.01, "2배 속도")
 
 
 func test_시간이_지나면_큰_운석_비율이_늘어남() -> void:

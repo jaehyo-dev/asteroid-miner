@@ -43,6 +43,12 @@ const ASTEROID_AIM_SPREAD_DEG := 25.0
 const SPAWN_INTERVAL_START := 1.0
 const SPAWN_INTERVAL_MIN := 0.15
 const SPAWN_RAMP_TIME := 240.0
+## 그 뒤로도 계속 어려워진다: 등장 간격이 이 시간(초)마다 절반이 된다 (SPAWN_INTERVAL_FLOOR까지).
+## 강화를 아무리 쌓아도 결국 버틸 수 없게 해서 한 판이 끝나도록 한다.
+const SPAWN_LATE_HALVING_TIME := 60.0
+const SPAWN_INTERVAL_FLOOR := 0.03
+## 운석 속도는 이 시간(초)마다 기본 속도만큼 더 빨라진다 (180초면 2배).
+const ASTEROID_SPEED_GROWTH_TIME := 180.0
 ## 운석은 화면 밖 이만큼 떨어진 곳에서 나타난다.
 const SPAWN_MARGIN := 24.0
 ## 화면 대각선 반 길이의 이 배수보다 멀어진 운석은 없앤다.
@@ -84,10 +90,12 @@ const PICKUP_RADIUS := 8.0
 const MAX_MINERALS := 300
 
 # ── 경험치와 레벨업 강화 ─────────────────────────────
-## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 5, 2→3: 9, 3→4: 13 …)
+## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 5, 2→3: 11, 3→4: 17 …)
 ## 경험치는 탄으로 운석을 부수면 얻는다 (크기별 xp는 ASTEROID_TYPES).
 const XP_BASE := 5
 const XP_GROWTH := 6
+## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게)
+const LEVEL_UP_INPUT_DELAY := 0.35
 ## 레벨업 때 보여 주는 강화 수
 const UPGRADE_CHOICE_COUNT := 3
 ## 강화 목록: id, 이름, 최대 단계. 강화는 그 판에서만 유지된다.

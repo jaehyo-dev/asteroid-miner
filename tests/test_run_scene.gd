@@ -97,7 +97,7 @@ func test_레벨업하면_강화_메뉴가_뜨고_고르면_닫힘() -> void:
 	assert_eq(run.menu.buttons().size(), Balance.UPGRADE_CHOICE_COUNT)
 	assert_true(run.menu.buttons()[0].disabled, "뜬 직후에는 누를 수 없음")
 	var t: float = run.sim.time
-	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
 	assert_false(run.menu.buttons()[0].disabled, "잠시 뒤 누를 수 있음")
 	assert_eq(run.sim.time, t, "고르는 동안 멈춤")
 	run.menu.choose(1)
@@ -113,12 +113,12 @@ func test_두_번_레벨업하면_메뉴가_두_번_뜸() -> void:
 	run.sim.gain_xp(Upgrades.xp_to_next(1) + Upgrades.xp_to_next(2))
 	await wait_frames(2)
 	assert_true(run.menu.title_text().contains("Lv 2"), run.menu.title_text())
-	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
 	run.menu.choose(0)
 	await wait_frames(2)
 	assert_true(run.menu.visible, "두 번째 메뉴")
 	assert_true(run.menu.title_text().contains("Lv 3"), run.menu.title_text())
-	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
 	run.menu.choose(0)
 	await wait_frames(2)
 	assert_false(run.menu.visible)
@@ -129,7 +129,7 @@ func test_숫자키로_강화를_고름() -> void:
 	var run: Node = await _start()
 	run.sim.gain_xp(Balance.XP_BASE)
 	await wait_frames(2)
-	await get_tree().create_timer(run.LEVEL_UP_INPUT_DELAY + 0.1).timeout
+	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
 	var expected: String = run.sim.choices[2]
 	var key := InputEventKey.new()
 	key.physical_keycode = KEY_3
@@ -138,3 +138,11 @@ func test_숫자키로_강화를_고름() -> void:
 	await wait_frames(1)
 	assert_eq(int(run.sim.upgrade_levels.get(expected, 0)), 1, "3번 강화 적용")
 	run.queue_free()
+
+
+func test_숫자키_번호() -> void:
+	var script: GDScript = load("res://scripts/run.gd")
+	assert_eq(script.number_key_index(KEY_1), 0)
+	assert_eq(script.number_key_index(KEY_3), 2)
+	assert_eq(script.number_key_index(KEY_KP_2), 1, "키패드")
+	assert_eq(script.number_key_index(KEY_A), -1)

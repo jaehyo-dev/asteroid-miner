@@ -143,7 +143,7 @@ func spawn_asteroid() -> Asteroid:
 	a.pos = spawn_position(rng, player_pos, view_size, a.radius)
 	# 우주선 쪽을 향하되 조금씩 빗나가게 한다.
 	var aim := (player_pos - a.pos).angle() + deg_to_rad(rng.randf_range(-Balance.ASTEROID_AIM_SPREAD_DEG, Balance.ASTEROID_AIM_SPREAD_DEG))
-	a.vel = Vector2.from_angle(aim) * rng.randf_range(info["speed_min"], info["speed_max"])
+	a.vel = Vector2.from_angle(aim) * rng.randf_range(info["speed_min"], info["speed_max"]) * asteroid_speed_mult(time)
 	asteroids.append(a)
 	return a
 
@@ -398,10 +398,18 @@ static func spread_angles(center: float, count: int, spread: float) -> PackedFlo
 	return result
 
 
-## 지금 시간의 운석 등장 간격
+## 지금 시간의 운석 등장 간격: 처음 SPAWN_RAMP_TIME 동안 MIN까지 줄고, 그 뒤로는 계속 절반씩 준다.
 static func spawn_interval(t: float) -> float:
-	var k := clampf(t / Balance.SPAWN_RAMP_TIME, 0.0, 1.0)
-	return lerpf(Balance.SPAWN_INTERVAL_START, Balance.SPAWN_INTERVAL_MIN, k)
+	if t <= Balance.SPAWN_RAMP_TIME:
+		var k := clampf(t / Balance.SPAWN_RAMP_TIME, 0.0, 1.0)
+		return lerpf(Balance.SPAWN_INTERVAL_START, Balance.SPAWN_INTERVAL_MIN, k)
+	var late := Balance.SPAWN_INTERVAL_MIN * pow(0.5, (t - Balance.SPAWN_RAMP_TIME) / Balance.SPAWN_LATE_HALVING_TIME)
+	return maxf(late, Balance.SPAWN_INTERVAL_FLOOR)
+
+
+## 지금 시간의 운석 속도 배율
+static func asteroid_speed_mult(t: float) -> float:
+	return 1.0 + maxf(t, 0.0) / Balance.ASTEROID_SPEED_GROWTH_TIME
 
 
 ## 지금 시간의 운석 크기별 등장 비율
