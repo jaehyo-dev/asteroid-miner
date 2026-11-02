@@ -18,6 +18,8 @@ const SHIP_RADIUS := 6.0
 const SHIP_MAX_HP := 100.0
 ## 맞은 뒤 무적 시간. 이 시간 동안은 운석과 부딪혀도 데미지가 없다.
 const SHIP_INVULN_TIME := 1.0
+## 우주선이 이동 방향으로 도는 속도 (라디안/초). 클수록 빨리 돈다 (10이면 반 바퀴에 약 0.3초).
+const SHIP_TURN_SPEED := 10.0
 
 # ── 휴대폰 가상 조이스틱 ─────────────────────────────
 ## 손가락을 이만큼 끌면 최고 속도
@@ -26,11 +28,11 @@ const JOYSTICK_RADIUS := 28.0
 const JOYSTICK_DEAD_ZONE := 0.15
 
 # ── 운석 ─────────────────────────────────────────────
-## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위, 부서질 때 떨어뜨리는 광물 수, 경험치
+## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위, 부서질 때 떨어뜨리는 광물 수
 const ASTEROID_TYPES := [
-	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0, "minerals": 1, "xp": 1},
-	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0, "minerals": 1, "xp": 2},
-	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0, "minerals": 2, "xp": 4},
+	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0, "minerals": 1},
+	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0, "minerals": 1},
+	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0, "minerals": 2},
 ]
 ## 운석 체력은 이 시간(초)마다 기본값만큼 계단식으로 늘어난다 (0~75초 1배, 75초부터 2배, 150초부터 3배 …).
 const ASTEROID_HP_GROWTH_TIME := 75.0
@@ -64,20 +66,27 @@ const FIRE_RANGE := 170.0
 const BULLET_SPEED := 260.0
 const BULLET_DAMAGE := 1.0
 const BULLET_RADIUS := 1.5
-## 한 번에 쏘는 탄 수 (여러 발이면 부채꼴로 퍼짐)
+## 한 번에 쏘는 탄 수
+## 발사 형태: 1발 직선 / 2발 나란히 / 홀수(3, 5…) 가운데 1발 + 양옆 부채꼴 / 짝수(4, 6…) 가운데 2발 나란히 + 양옆 부채꼴
 const BULLET_COUNT := 1
+## 부채꼴로 퍼지는 탄 사이의 각도
 const MULTI_SHOT_SPREAD_DEG := 12.0
+## 나란히 나가는 두 발 사이의 간격 (픽셀). 작은 운석(반지름 5)도 두 발 다 맞을 만큼 좁게.
+const PARALLEL_SHOT_GAP := 4.0
 ## 탄은 사거리보다 이 비율만큼 더 날아가고 사라진다.
 const BULLET_LIFETIME_FACTOR := 1.15
 
 # ── 광물 ─────────────────────────────────────────────
 ## 등급별: 이름, 나올 비율, 가치. 탄으로 부순 운석에서만 떨어진다 (몸으로 부딪혀 부순 운석은 없음).
+## 광물을 주우면 가치 × MINERAL_XP_PER_VALUE 만큼 경험치를 얻는다 (운석을 부숴서는 경험치를 얻지 않음).
 const MINERAL_GRADES := [
 	{"name": "일반", "weight": 80.0, "value": 1},
 	{"name": "희귀", "weight": 15.0, "value": 5},
 	{"name": "영웅", "weight": 4.0, "value": 20},
 	{"name": "전설", "weight": 1.0, "value": 100},
 ]
+## 광물 가치 1당 경험치. 등급별 경험치 = 가치 × 이 값 (반올림, 최소 1)
+const MINERAL_XP_PER_VALUE := 1.0
 ## 광물이 떨어질 때 운석 자리에서 흩어지는 최대 거리
 const MINERAL_SCATTER := 6.0
 ## 자석 범위: 이 안에 들어온 광물은 우주선으로 끌려온다.
@@ -90,10 +99,10 @@ const PICKUP_RADIUS := 8.0
 const MAX_MINERALS := 300
 
 # ── 경험치와 레벨업 강화 ─────────────────────────────
-## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 5, 2→3: 11, 3→4: 17 …)
-## 경험치는 탄으로 운석을 부수면 얻는다 (크기별 xp는 ASTEROID_TYPES).
-const XP_BASE := 5
-const XP_GROWTH := 6
+## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 8, 2→3: 25, 3→4: 42 …)
+## 경험치는 광물을 주우면 얻는다 (광물 가치 × MINERAL_XP_PER_VALUE).
+const XP_BASE := 8
+const XP_GROWTH := 17
 ## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게)
 const LEVEL_UP_INPUT_DELAY := 0.35
 ## 레벨업 때 보여 주는 강화 수

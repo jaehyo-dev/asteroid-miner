@@ -41,6 +41,8 @@ var hp := Balance.SHIP_MAX_HP
 var max_hp := Balance.SHIP_MAX_HP
 ## 남은 무적 시간
 var invuln := 0.0
+## 우주선이 바라보는 방향 (라디안, 0 = 오른쪽, -PI/2 = 위쪽). 멈추면 마지막 방향을 유지한다.
+var facing := -PI / 2.0
 var alive := true
 ## 출격 후 지난 시간
 var time := 0.0
@@ -102,6 +104,8 @@ func update(delta: float, move: Vector2) -> void:
 	time += delta
 	invuln = maxf(invuln - delta, 0.0)
 	player_pos += move.limit_length(1.0) * move_speed * delta
+	if move != Vector2.ZERO:
+		facing = turn_toward(facing, move.angle(), Balance.SHIP_TURN_SPEED * delta)
 
 	_spawn_timer -= delta
 	while _spawn_timer <= 0.0:
@@ -172,11 +176,11 @@ func _auto_fire(delta: float) -> void:
 	# 움직이는 운석이 탄과 만날 지점을 노린다.
 	var base_angle := intercept_angle(player_pos, target.pos, target.vel, Balance.BULLET_SPEED)
 	var life := fire_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR
-	for angle in spread_angles(base_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG)):
+	for shot in shot_pattern(base_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG), Balance.PARALLEL_SHOT_GAP):
 		var b := Bullet.new()
-		b.pos = player_pos
-		b.prev_pos = player_pos
-		b.vel = Vector2.from_angle(angle) * Balance.BULLET_SPEED
+		b.pos = player_pos + shot.offset
+		b.prev_pos = b.pos
+		b.vel = Vector2.from_angle(shot.angle) * Balance.BULLET_SPEED
 		b.life = life
 		b.damage = bullet_damage
 		bullets.append(b)
@@ -225,7 +229,6 @@ func _on_asteroid_destroyed(a: Asteroid) -> void:
 	kills += 1
 	destroyed.append(a)
 	events.append("destroy")
-	gain_xp(int(Balance.ASTEROID_TYPES[a.type]["xp"]))
 	for i in int(Balance.ASTEROID_TYPES[a.type]["minerals"]):
 		drop_mineral(a.pos + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.0, Balance.MINERAL_SCATTER))
 
@@ -308,6 +311,7 @@ func collect(grade: int) -> void:
 	collected[grade] += 1
 	mineral_value += int(Balance.MINERAL_GRADES[grade]["value"])
 	events.append("pickup")
+	gain_xp(mineral_xp(grade))
 
 
 ## 우주선과 부딪힌 운석: 무적이 아니면 데미지를 주고 부서진다. 무적 중에는 그냥 지나간다.
@@ -329,6 +333,11 @@ static func grade_weights() -> Array[float]:
 	for g in Balance.MINERAL_GRADES:
 		result.append(float(g["weight"]))
 	return result
+
+
+## 광물 한 개를 주웠을 때 얻는 경험치: 가치 × 비율 (반올림, 최소 1)
+static func mineral_xp(grade: int) -> int:
+	return maxi(1, roundi(float(Balance.MINERAL_GRADES[grade]["value"]) * Balance.MINERAL_XP_PER_VALUE))
 
 
 ## 등급별 개수 → 총 가치
@@ -390,12 +399,35 @@ static func intercept_angle(from: Vector2, target_pos: Vector2, target_vel: Vect
 	return (to_target + target_vel * t).angle()
 
 
-## 여러 발을 쏠 때 각 탄의 각도: 가운데를 기준으로 spread 간격의 부채꼴
-static func spread_angles(center: float, count: int, spread: float) -> PackedFloat64Array:
-	var result := PackedFloat64Array()
-	for i in maxi(count, 1):
-		result.append(center + (i - (maxi(count, 1) - 1) / 2.0) * spread)
+## 한 번 발사할 때 각 탄의 방향과 출발 위치 (우주선 기준).
+## - 1발: 직선 / 2발: 같은 방향으로 gap만큼 떨어져 나란히
+## - 홀수(3, 5…): 가운데 1발 + 양옆으로 spread 간격의 부채꼴
+## - 짝수(4, 6…): 가운데 2발 나란히 + 양옆으로 spread 간격의 부채꼴
+## 결과는 {angle, offset} 목록 (왼쪽 → 오른쪽 순서)
+static func shot_pattern(center: float, count: int, spread: float, gap: float) -> Array[Dictionary]:
+	count = maxi(count, 1)
+	var result: Array[Dictionary] = []
+	# 진행 방향에 수직인 방향 (나란히 붙은 두 발을 벌리는 쪽)
+	var side := Vector2.from_angle(center + PI / 2.0)
+	var fan := (count - 1) / 2 if count % 2 == 1 else (count - 2) / 2  # 한쪽으로 퍼지는 탄 수
+	for i in range(fan, 0, -1):
+		result.append({"angle": center - i * spread, "offset": Vector2.ZERO})
+	if count % 2 == 1:
+		result.append({"angle": center, "offset": Vector2.ZERO})
+	else:
+		result.append({"angle": center, "offset": -side * gap / 2.0})
+		result.append({"angle": center, "offset": side * gap / 2.0})
+	for i in range(1, fan + 1):
+		result.append({"angle": center + i * spread, "offset": Vector2.ZERO})
 	return result
+
+
+## 바라보는 방향을 목표 방향으로 최대 max_step(라디안)만큼 돌린다. 짧은 쪽으로 돈다.
+static func turn_toward(from: float, to: float, max_step: float) -> float:
+	var diff := wrapf(to - from, -PI, PI)
+	if absf(diff) <= max_step:
+		return wrapf(to, -PI, PI)
+	return wrapf(from + signf(diff) * max_step, -PI, PI)
 
 
 ## 지금 시간의 운석 등장 간격: 처음 SPAWN_RAMP_TIME 동안 MIN까지 줄고, 그 뒤로는 계속 절반씩 준다.

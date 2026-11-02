@@ -39,3 +39,19 @@ func test_출격_버튼에_포커스가_있어_Enter로_시작할_수_있음() -
 func test_광물_요약_문구() -> void:
 	assert_eq(Hud.minerals_text(PackedInt32Array([3, 0, 1, 0])), "일반 3 · 영웅 1")
 	assert_eq(Hud.minerals_text(PackedInt32Array([0, 0, 0, 0])), "없음")
+
+
+func test_별_배경_층은_카메라를_따라_밀림() -> void:
+	# 월드에 고정된 층(parallax 1.0)이 있어야 이동감이 난다.
+	var has_world_layer := false
+	for layer in Starfield.LAYERS:
+		if is_equal_approx(layer["parallax"], 1.0):
+			has_world_layer = true
+		assert_true(layer["parallax"] >= 0.3, "너무 느린 층은 우주선을 따라오는 것처럼 보임")
+	assert_true(has_world_layer, "월드 고정 층")
+	var area := Vector2(640, 360)
+	var before := Starfield.star_position(Vector2(0.5, 0.5), area, Vector2.ZERO, 1.0)
+	var after := Starfield.star_position(Vector2(0.5, 0.5), area, Vector2(10, 0), 1.0)
+	assert_eq(before - after, Vector2(10, 0), "카메라가 오른쪽으로 10 가면 별은 왼쪽으로 10")
+	var wrapped := Starfield.star_position(Vector2(0.01, 0.5), area, Vector2(20, 0), 1.0).x
+	assert_true(is_equal_approx(wrapped, 640.0 - 20.0 + 6.4), "화면 밖은 반대편에서: %f" % wrapped)

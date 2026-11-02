@@ -154,16 +154,32 @@ func test_긴급_수리는_최대_체력까지만_회복() -> void:
 	assert_true(sim.upgrade_levels.is_empty(), "강화 단계는 그대로")
 
 
-func test_운석을_부수면_크기별_경험치() -> void:
+func test_운석을_부숴도_경험치는_없음() -> void:
 	for type in Balance.ASTEROID_TYPES.size():
 		var sim := _sim()
 		var a := RunSim.Asteroid.new()
 		a.type = type
 		a.pos = Vector2(500, 500)
 		sim.call("_on_asteroid_destroyed", a)
-		var expected := int(Balance.ASTEROID_TYPES[type]["xp"])
-		assert_eq(sim.xp + (Balance.XP_BASE if sim.level > 1 else 0), expected, "%d번 크기" % type)
+		assert_eq(sim.xp, 0, "%d번 크기" % type)
+		assert_eq(sim.level, 1)
 
+
+func test_광물을_주우면_가치에_비례한_경험치() -> void:
+	for grade in Balance.MINERAL_GRADES.size():
+		var expected := maxi(1, roundi(Balance.MINERAL_GRADES[grade]["value"] * Balance.MINERAL_XP_PER_VALUE))
+		assert_eq(RunSim.mineral_xp(grade), expected, Balance.MINERAL_GRADES[grade]["name"])
+	# 등급이 높을수록 경험치도 많다
+	for grade in range(1, Balance.MINERAL_GRADES.size()):
+		assert_true(RunSim.mineral_xp(grade) > RunSim.mineral_xp(grade - 1))
+
+
+func test_광물을_실제로_주우면_경험치가_오름() -> void:
+	var sim := _sim()
+	sim.drop_mineral(Vector2(1, 0)).grade = 0
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.collected[0], 1)
+	assert_eq(sim.xp + (Upgrades.xp_to_next(1) if sim.level > 1 else 0), RunSim.mineral_xp(0))
 
 func test_탄_개수_강화는_실제로_여러_발_발사() -> void:
 	var sim := _sim()

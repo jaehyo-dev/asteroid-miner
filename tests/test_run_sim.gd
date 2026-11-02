@@ -225,15 +225,72 @@ func test_가장_가까운_운석을_고름() -> void:
 	assert_eq(RunSim.nearest_asteroid(Vector2(100, 10), sim.asteroids, 200.0), far)
 
 
-func test_여러_발은_가운데_기준_부채꼴() -> void:
-	var one := RunSim.spread_angles(1.0, 1, 0.2)
-	assert_eq(one.size(), 1)
-	assert_true(is_equal_approx(one[0], 1.0))
-	var three := RunSim.spread_angles(0.0, 3, 0.2)
-	assert_true(is_equal_approx(three[0], -0.2) and is_equal_approx(three[1], 0.0) and is_equal_approx(three[2], 0.2), "%s" % three)
-	var two := RunSim.spread_angles(0.0, 2, 0.2)
-	assert_true(is_equal_approx(two[0], -0.1) and is_equal_approx(two[1], 0.1), "%s" % two)
+func _angles(pattern: Array[Dictionary]) -> Array[float]:
+	var result: Array[float] = []
+	for shot in pattern:
+		result.append(float(shot.angle))
+	return result
 
+
+func test_탄_1발은_직선() -> void:
+	var p := RunSim.shot_pattern(1.0, 1, 0.2, 4.0)
+	assert_eq(p.size(), 1)
+	assert_true(is_equal_approx(p[0].angle, 1.0))
+	assert_eq(p[0].offset, Vector2.ZERO)
+
+
+func test_탄_2발은_퍼지지_않고_나란히() -> void:
+	var p := RunSim.shot_pattern(0.0, 2, 0.2, 4.0)  # 오른쪽으로 발사
+	assert_eq(p.size(), 2)
+	for shot in p:
+		assert_true(is_equal_approx(shot.angle, 0.0), "같은 방향")
+	# 진행 방향(오른쪽)에 수직으로 4픽셀 떨어져 있음
+	assert_true(p[0].offset.distance_to(p[1].offset) > 3.99 and p[0].offset.distance_to(p[1].offset) < 4.01, "간격 4")
+	assert_true(is_zero_approx(p[0].offset.x) and is_zero_approx(p[1].offset.x), "옆으로만 떨어짐")
+	assert_true(is_zero_approx((p[0].offset + p[1].offset).length()), "가운데 기준 대칭")
+
+
+func test_탄_3발은_가운데_1발과_양옆_부채꼴() -> void:
+	var p := RunSim.shot_pattern(0.0, 3, 0.2, 4.0)
+	var a := _angles(p)
+	assert_true(is_equal_approx(a[0], -0.2) and is_equal_approx(a[1], 0.0) and is_equal_approx(a[2], 0.2), "%s" % [a])
+	for shot in p:
+		assert_eq(shot.offset, Vector2.ZERO)
+
+
+func test_탄_4발은_가운데_2발_나란히와_양옆_부채꼴() -> void:
+	var p := RunSim.shot_pattern(0.0, 4, 0.2, 4.0)
+	var a := _angles(p)
+	assert_eq(p.size(), 4)
+	assert_true(is_equal_approx(a[0], -0.2) and is_equal_approx(a[3], 0.2), "양옆 %s" % [a])
+	assert_true(is_equal_approx(a[1], 0.0) and is_equal_approx(a[2], 0.0), "가운데 2발 같은 방향 %s" % [a])
+	assert_true(p[1].offset.distance_to(p[2].offset) > 3.99, "가운데 2발 나란히")
+	assert_eq(p[0].offset, Vector2.ZERO)
+	assert_eq(p[3].offset, Vector2.ZERO)
+
+
+func test_탄_5발과_6발() -> void:
+	var five := _angles(RunSim.shot_pattern(0.0, 5, 0.2, 4.0))
+	var expected5: Array[float] = [-0.4, -0.2, 0.0, 0.2, 0.4]
+	for i in 5:
+		assert_true(is_equal_approx(five[i], expected5[i]), "5발 %s" % [five])
+	var six := RunSim.shot_pattern(0.0, 6, 0.2, 4.0)
+	var a6 := _angles(six)
+	var expected6: Array[float] = [-0.4, -0.2, 0.0, 0.0, 0.2, 0.4]
+	for i in 6:
+		assert_true(is_equal_approx(a6[i], expected6[i]), "6발 %s" % [a6])
+	assert_true(six[2].offset.distance_to(six[3].offset) > 3.99, "6발 가운데 2발 나란히")
+
+
+func test_2발은_가운데_적에게_둘_다_맞음() -> void:
+	var sim := _quiet_sim(true)
+	sim.bullet_count = 2
+	var a := _add_asteroid(sim, Vector2(0, -80))  # 작은 운석
+	a.hp = 10.0
+	a.max_hp = 10.0
+	for i in 30:
+		sim.update(0.01, Vector2.ZERO)
+	assert_eq(a.hp, 8.0, "첫 발사의 두 발 모두 명중")
 
 func test_사거리_안_운석을_향해_자동_발사() -> void:
 	var sim := _quiet_sim(true)
@@ -506,3 +563,58 @@ func test_파괴된_뒤에는_광물을_줍지_않음() -> void:
 	sim.alive = false
 	sim.update(0.01, Vector2.ZERO)
 	assert_eq(sim.mineral_value, 0)
+
+
+# ── 우주선 방향 ──
+
+func test_우주선은_처음에_위쪽을_바라봄() -> void:
+	assert_true(is_equal_approx(RunSim.new(1).facing, -PI / 2.0))
+
+
+func test_이동하면_그_방향으로_부드럽게_돈다() -> void:
+	var sim := _quiet_sim()
+	sim.update(0.01, Vector2.DOWN)  # 위 → 아래, 반 바퀴
+	var turned := absf(angle_difference(-PI / 2.0, sim.facing))
+	assert_true(turned > 0.0 and turned <= Balance.SHIP_TURN_SPEED * 0.01 + 0.0001, "한 프레임에 조금만 돎: %f" % turned)
+	for i in 100:
+		sim.update(0.01, Vector2.DOWN)
+	assert_true(is_equal_approx(sim.facing, PI / 2.0), "결국 아래를 바라봄: %f" % sim.facing)
+
+
+func test_멈추면_마지막_방향을_유지() -> void:
+	var sim := _quiet_sim()
+	for i in 100:
+		sim.update(0.01, Vector2.RIGHT)
+	assert_true(is_zero_approx(sim.facing), "오른쪽")
+	for i in 50:
+		sim.update(0.01, Vector2.ZERO)
+	assert_true(is_zero_approx(sim.facing), "멈춰도 오른쪽 유지")
+
+
+func test_짧은_쪽으로_돈다() -> void:
+	# 오른쪽(0)에서 약간 위(-0.3)로: 시계 반대 방향으로 짧게
+	assert_true(is_equal_approx(RunSim.turn_toward(0.0, -0.3, 0.1), -0.1))
+	# 거의 왼쪽(3.0)에서 왼쪽 아래(-3.0)로: PI를 넘어 짧게 돈다
+	var r := RunSim.turn_toward(3.0, -3.0, 0.1)
+	assert_true(r > 3.0 or r < -3.0, "PI를 넘어감: %f" % r)
+	assert_true(is_equal_approx(RunSim.turn_toward(1.0, 1.05, 0.1), 1.05), "가까우면 바로 도착")
+
+
+func test_키보드와_조이스틱이_같은_방향이면_똑같이_돈다() -> void:
+	var by_key := _quiet_sim()
+	var by_stick := _quiet_sim()
+	var key := MoveInput.keyboard_vector(true, false, false, false)  # 왼쪽 키
+	var stick := MoveInput.joystick_vector(Vector2(100, 100), Vector2(40, 100), Balance.JOYSTICK_RADIUS, Balance.JOYSTICK_DEAD_ZONE)
+	for i in 20:
+		by_key.update(0.016, key)
+		by_stick.update(0.016, stick)
+	assert_true(is_equal_approx(by_key.facing, by_stick.facing), "%f / %f" % [by_key.facing, by_stick.facing])
+
+
+func test_바라보는_방향과_조준은_따로() -> void:
+	# 오른쪽으로 움직이면서 위쪽 운석을 쏜다
+	var sim := _quiet_sim(true)
+	_add_asteroid(sim, Vector2(0, -100)).hp = 100.0
+	sim.update(0.01, Vector2.RIGHT)
+	assert_true(sim.bullets[0].vel.normalized().y < -0.9, "탄은 위쪽")
+	assert_true(absf(sim.facing) < PI / 2.0, "우주선은 오른쪽으로 돌기 시작")

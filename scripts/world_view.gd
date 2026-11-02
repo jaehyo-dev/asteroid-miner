@@ -62,10 +62,13 @@ func _draw_ship() -> void:
 	if sim.invuln > 0.0 and int(sim.invuln / BLINK_INTERVAL) % 2 == 1:
 		return
 	var tex := PixelArt.ship()
-	var top_left := (sim.player_pos - tex.get_size() / 2.0).round()
+	# 그림은 위쪽을 바라보므로 바라보는 방향(facing)에서 90도를 더해 돌린다.
+	draw_set_transform(sim.player_pos.round(), sim.facing + PI / 2.0)
+	var top_left := -(tex.get_size() / 2.0).floor()
 	if moving:
-		# 엔진 불꽃: 아래쪽 두 엔진에서 깜빡이는 2픽셀
+		# 엔진 불꽃: 뒤쪽 두 엔진에서 깜빡이는 픽셀
 		var flicker := int(sim.time * 20.0) % 2
 		for x in [2, 6]:
 			draw_rect(Rect2(top_left + Vector2(x, 7), Vector2(1, 1 + flicker)), PixelArt.FLAME_COLORS[flicker])
 	draw_texture(tex, top_left)
+	draw_set_transform(Vector2.ZERO)

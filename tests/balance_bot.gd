@@ -3,6 +3,7 @@ extends RefCounted
 ## 밸런스 확인용 자동 플레이 봇 (테스트 전용, 게임에는 포함되지 않음).
 ## 강화는 무작위로 고르고, 움직이는 방식만 다르다.
 ##   still: 가만히 있음 / wander: 2초마다 무작위 방향으로 돌아다님 / flee: 가까운 운석 반대로 피함
+##   collector: 가까운 운석은 피하고, 아니면 가장 가까운 광물을 주우러 감 (보통 플레이어에 가장 가까움)
 
 const STEP := 1.0 / 30.0
 
@@ -24,6 +25,18 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 				if turn <= 0.0:
 					turn = 2.0
 					move = Vector2.from_angle(rng.randf() * TAU)
+			"collector":
+				var danger := RunSim.nearest_asteroid(sim.player_pos, sim.asteroids, 45.0)
+				if danger != null:
+					move = (sim.player_pos - danger.pos).normalized()
+				else:
+					move = Vector2.ZERO
+					var best := 260.0
+					for m in sim.minerals:
+						var d := m.pos.distance_to(sim.player_pos)
+						if d < best:
+							best = d
+							move = (m.pos - sim.player_pos).normalized()
 			"flee":
 				var near := RunSim.nearest_asteroid(sim.player_pos, sim.asteroids, 80.0)
 				move = (sim.player_pos - near.pos).normalized() if near != null else Vector2.ZERO
@@ -31,6 +44,27 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 				move = Vector2.ZERO
 		sim.update(STEP, move)
 	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive}
+
+
+## 정해진 시각마다의 평균 레벨 (레벨업 속도 확인용). 그 시각 전에 끝난 판은 마지막 레벨로 센다.
+static func average_levels(style: String, seeds: Array, marks: Array) -> Array[float]:
+	var sums: Array[float] = []
+	sums.resize(marks.size())
+	sums.fill(0.0)
+	for s in seeds:
+		var levels := _levels_at(style, s, marks)
+		for i in marks.size():
+			sums[i] += levels[i]
+	for i in marks.size():
+		sums[i] /= seeds.size()
+	return sums
+
+
+static func _levels_at(style: String, seed_value: int, marks: Array) -> Array[int]:
+	var result: Array[int] = []
+	for t in marks:
+		result.append(int(play(style, seed_value, t)["level"]))
+	return result
 
 
 ## 여러 판의 생존 시간 [최소, 중앙값, 최대]
