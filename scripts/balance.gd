@@ -56,8 +56,8 @@ const ASTEROID_SPEED_GROWTH_TIME := 180.0
 const SPAWN_MARGIN := 24.0
 ## 화면 대각선 반 길이의 이 배수보다 멀어진 운석은 없앤다.
 const DESPAWN_DISTANCE_FACTOR := 1.6
-## 동시에 존재할 수 있는 최대 운석 수 (휴대폰 성능 보호)
-const MAX_ASTEROIDS := 250
+## 동시에 존재할 수 있는 최대 적 수 (운석·생명체 합계, 휴대폰 성능 보호)
+const MAX_ENEMIES := 250
 
 # ── 조준 운석 (초반부터 긴장을 주는 위협) ─────────
 ## 우주선이 가는 곳을 정확히 노리고 더 빠르게 날아오는 운석 무리. 화면 밖에 있을 때 가장자리에 붉은 "!"가 뜬다.

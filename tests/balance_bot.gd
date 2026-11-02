@@ -26,7 +26,7 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 					turn = 2.0
 					move = Vector2.from_angle(rng.randf() * TAU)
 			"collector":
-				var danger := RunSim.nearest_asteroid(sim.player_pos, sim.asteroids, 45.0)
+				var danger := RunSim.nearest_enemy(sim.player_pos, sim.enemies, 45.0)
 				if danger != null:
 					move = (sim.player_pos - danger.pos).normalized()
 				else:
@@ -38,7 +38,7 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 							best = d
 							move = (m.pos - sim.player_pos).normalized()
 			"flee":
-				var near := RunSim.nearest_asteroid(sim.player_pos, sim.asteroids, 80.0)
+				var near := RunSim.nearest_enemy(sim.player_pos, sim.enemies, 80.0)
 				move = (sim.player_pos - near.pos).normalized() if near != null else Vector2.ZERO
 			_:
 				move = Vector2.ZERO

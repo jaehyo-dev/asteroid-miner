@@ -5,8 +5,8 @@ extends RefCounted
 ## 화면 쪽(scripts/run.gd)은 매 프레임 update()를 부르고 이 상태를 그리기만 한다.
 
 
-## 운석 한 개
-class Asteroid:
+## 적 한 개 (운석, 황금 운석, 생명체)
+class Enemy:
 	var pos: Vector2
 	var vel: Vector2
 	var type: int  ## Balance.ASTEROID_TYPES 인덱스 (0 작음, 1 중간, 2 큼)
@@ -52,10 +52,10 @@ var alive := true
 var time := 0.0
 ## 지금 화면에 보이는 크기 (운석 등장·제거 거리 계산용)
 var view_size := Vector2(Balance.BASE_LANDSCAPE)
-var asteroids: Array[Asteroid] = []
+var enemies: Array[Enemy] = []
 var bullets: Array[Bullet] = []
 ## 이번 프레임에 탄으로 부서진 운석 (효과·보상용)
-var destroyed: Array[Asteroid] = []
+var destroyed: Array[Enemy] = []
 ## 이번 프레임에 주운 광물 {pos, grade} (줍기 연출·효과음용)
 var picked: Array[Dictionary] = []
 ## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden", "aimed"
@@ -121,17 +121,17 @@ func update(delta: float, move: Vector2) -> void:
 
 	_spawn_timer -= delta
 	while _spawn_timer <= 0.0:
-		if asteroids.size() < Balance.MAX_ASTEROIDS:
+		if enemies.size() < Balance.MAX_ENEMIES:
 			spawn_asteroid()
 		_spawn_timer += spawn_interval(time)
 	_aimed_timer -= delta
 	while _aimed_timer <= 0.0:
-		if asteroids.size() + Balance.AIMED_COUNT <= Balance.MAX_ASTEROIDS:
+		if enemies.size() + Balance.AIMED_COUNT <= Balance.MAX_ENEMIES:
 			spawn_aimed()
 		_aimed_timer += aimed_interval(time)
 	_golden_timer -= delta
 	while _golden_timer <= 0.0:
-		if golden_count() < Balance.GOLDEN_MAX and asteroids.size() < Balance.MAX_ASTEROIDS:
+		if golden_count() < Balance.GOLDEN_MAX and enemies.size() < Balance.MAX_ENEMIES:
 			spawn_golden()
 		_golden_timer += golden_interval(time)
 
@@ -157,8 +157,8 @@ func damage_player(amount: float) -> bool:
 
 
 ## 운석 하나를 화면 밖 무작위 위치에 만든다. 만든 운석을 돌려준다.
-func spawn_asteroid() -> Asteroid:
-	var a := Asteroid.new()
+func spawn_asteroid() -> Enemy:
+	var a := Enemy.new()
 	a.type = pick_weighted(rng, asteroid_weights(time))
 	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
 	a.radius = info["radius"]
@@ -170,14 +170,14 @@ func spawn_asteroid() -> Asteroid:
 	# 우주선 쪽을 향하되 조금씩 빗나가게 한다.
 	var aim := (player_pos - a.pos).angle() + deg_to_rad(rng.randf_range(-Balance.ASTEROID_AIM_SPREAD_DEG, Balance.ASTEROID_AIM_SPREAD_DEG))
 	a.vel = Vector2.from_angle(aim) * rng.randf_range(info["speed_min"], info["speed_max"]) * asteroid_speed_mult(time)
-	asteroids.append(a)
+	enemies.append(a)
 	return a
 
 
 ## 조준 운석 무리를 만든다: 같은 방향에서 한 줄로 AIMED_COUNT개가, 우주선이 갈 곳을 노리고 빠르게 온다.
 ## 만든 운석 목록을 돌려준다.
-func spawn_aimed() -> Array[Asteroid]:
-	var group: Array[Asteroid] = []
+func spawn_aimed() -> Array[Enemy]:
+	var group: Array[Enemy] = []
 	var lead := spawn_asteroid()
 	var speed := lead.vel.length() * Balance.AIMED_SPEED_MULT
 	var dir := Vector2.from_angle(intercept_angle(lead.pos, player_pos, player_vel, speed))
@@ -197,8 +197,8 @@ func spawn_aimed() -> Array[Asteroid]:
 
 
 ## 황금 운석 하나를 화면 밖에 만든다. 우주선 근처를 비스듬히 지나가도록 날아간다.
-func spawn_golden() -> Asteroid:
-	var a := Asteroid.new()
+func spawn_golden() -> Enemy:
+	var a := Enemy.new()
 	a.golden = true
 	a.type = Balance.ASTEROID_TYPES.size() - 1  # 그리기·조준에는 큰 운석처럼 취급
 	a.radius = Balance.GOLDEN["radius"]
@@ -209,7 +209,7 @@ func spawn_golden() -> Asteroid:
 	a.pos = spawn_position(rng, player_pos, view_size, a.radius)
 	var aim := (player_pos - a.pos).angle() + deg_to_rad(rng.randf_range(-Balance.GOLDEN_AIM_SPREAD_DEG, Balance.GOLDEN_AIM_SPREAD_DEG))
 	a.vel = Vector2.from_angle(aim) * rng.randf_range(Balance.GOLDEN["speed_min"], Balance.GOLDEN["speed_max"])
-	asteroids.append(a)
+	enemies.append(a)
 	events.append("golden")
 	return a
 
@@ -217,7 +217,7 @@ func spawn_golden() -> Asteroid:
 ## 지금 있는 황금 운석 수
 func golden_count() -> int:
 	var n := 0
-	for a in asteroids:
+	for a in enemies:
 		if a.golden:
 			n += 1
 	return n
@@ -226,13 +226,13 @@ func golden_count() -> int:
 ## 운석을 움직이고, 너무 멀어진 운석은 없앤다.
 func _move_asteroids(delta: float) -> void:
 	var limit := despawn_distance(view_size)
-	var kept: Array[Asteroid] = []
-	for a in asteroids:
+	var kept: Array[Enemy] = []
+	for a in enemies:
 		a.pos += a.vel * delta
 		a.flash = maxf(a.flash - delta, 0.0)
 		if a.pos.distance_to(player_pos) <= (limit * Balance.GOLDEN_DESPAWN_FACTOR if a.golden else limit):
 			kept.append(a)
-	asteroids = kept
+	enemies = kept
 
 
 ## 사거리 안에 운석이 있으면 가장 가까운 운석을 향해 발사한다.
@@ -240,7 +240,7 @@ func _auto_fire(delta: float) -> void:
 	_fire_timer -= delta
 	if _fire_timer > 0.0:
 		return
-	var target := nearest_asteroid(player_pos, asteroids, fire_range)
+	var target := nearest_enemy(player_pos, enemies, fire_range)
 	if target == null:
 		_fire_timer = 0.0  # 대상이 없으면 장전된 상태로 기다린다
 		return
@@ -276,7 +276,7 @@ func _check_bullet_hits() -> void:
 	var kept_bullets: Array[Bullet] = []
 	for b in bullets:
 		var hit := false
-		for a in asteroids:
+		for a in enemies:
 			# 이번 프레임에 지나간 선분으로 판정해, 프레임이 느려도 탄이 운석을 뚫고 지나가지 않게 한다.
 			if a.hp > 0.0 and segment_distance(b.prev_pos, b.pos, a.pos) < a.radius + Balance.BULLET_RADIUS:
 				a.hp -= b.damage
@@ -286,17 +286,17 @@ func _check_bullet_hits() -> void:
 		if not hit:
 			kept_bullets.append(b)
 	bullets = kept_bullets
-	var kept: Array[Asteroid] = []
-	for a in asteroids:
+	var kept: Array[Enemy] = []
+	for a in enemies:
 		if a.hp <= 0.0:
-			_on_asteroid_destroyed(a)
+			_on_enemy_destroyed(a)
 		else:
 			kept.append(a)
-	asteroids = kept
+	enemies = kept
 
 
 ## 탄으로 운석을 부쉈을 때
-func _on_asteroid_destroyed(a: Asteroid) -> void:
+func _on_enemy_destroyed(a: Enemy) -> void:
 	kills += 1
 	destroyed.append(a)
 	events.append("destroy")
@@ -389,19 +389,19 @@ func collect(grade: int) -> void:
 
 ## 우주선과 부딪힌 운석: 무적이 아니면 데미지를 주고 부서진다. 무적 중에는 그냥 지나간다.
 func _check_player_hits() -> void:
-	var kept: Array[Asteroid] = []
-	for a in asteroids:
+	var kept: Array[Enemy] = []
+	for a in enemies:
 		var touching := a.pos.distance_to(player_pos) < a.radius + Balance.SHIP_RADIUS
 		if touching and alive and damage_player(a.damage) and not a.golden:
 			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석은 부딪혀도 부서지지 않음)
 		kept.append(a)
-	asteroids = kept
+	enemies = kept
 
 
 # ── 규칙 계산 (자동 테스트 대상) ─────────────────────
 
 ## 운석을 탄으로 부쉈을 때 떨어지는 광물 목록 [{grade, count}]
-static func drops_of(a: Asteroid) -> Array:
+static func drops_of(a: Enemy) -> Array:
 	if a.golden:
 		return Balance.GOLDEN_DROPS
 	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
@@ -449,8 +449,8 @@ static func segment_distance(a: Vector2, b: Vector2, p: Vector2) -> float:
 
 
 ## 사거리 안에서 가장 가까운 운석. 없으면 null.
-static func nearest_asteroid(from: Vector2, list: Array[Asteroid], max_range: float) -> Asteroid:
-	var best: Asteroid = null
+static func nearest_enemy(from: Vector2, list: Array[Enemy], max_range: float) -> Enemy:
+	var best: Enemy = null
 	var best_dist := max_range
 	for a in list:
 		var d := from.distance_to(a.pos)

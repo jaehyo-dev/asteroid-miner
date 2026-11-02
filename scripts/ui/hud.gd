@@ -74,7 +74,7 @@ func _draw() -> void:
 func _draw_golden_markers() -> void:
 	var center := sim.player_pos.round()
 	var pulse := 0.6 + 0.4 * sin(sim.time * 6.0)
-	for a in sim.asteroids:
+	for a in sim.enemies:
 		if not a.golden:
 			continue
 		var marker: Variant = Offscreen.edge_marker(center, a.pos, size, MARKER_MARGIN, a.radius)
@@ -98,7 +98,7 @@ static func hp_bar_color(danger: DangerAlert, time: float) -> Color:
 func _draw_aimed_markers() -> void:
 	var center := sim.player_pos.round()
 	var font := get_theme_default_font()
-	for a in sim.asteroids:
+	for a in sim.enemies:
 		if not a.aimed:
 			continue
 		var marker: Variant = Offscreen.edge_marker(center, a.pos, size, MARKER_MARGIN, a.radius)

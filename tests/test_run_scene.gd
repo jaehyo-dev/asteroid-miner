@@ -42,13 +42,13 @@ func test_파괴되면_게임_오버_메뉴() -> void:
 	var run: Node = await _start()
 	run.sim.hp = 1.0
 	run.sim.invuln = 0.0
-	var a := RunSim.Asteroid.new()
+	var a := RunSim.Enemy.new()
 	a.radius = 5.0
 	a.damage = 50.0
 	a.hp = 1000.0
 	a.max_hp = 1000.0
 	a.pos = run.sim.player_pos
-	run.sim.asteroids.append(a)
+	run.sim.enemies.append(a)
 	await wait_frames(2)
 	assert_false(run.sim.alive)
 	assert_true(run.menu.visible, "게임 오버 메뉴")
@@ -78,7 +78,7 @@ func test_광물과_파편이_있어도_오류_없이_진행() -> void:
 	var run: Node = await _start()
 	for i in 5:
 		run.sim.drop_mineral(run.sim.player_pos + Vector2(80 + i * 10, 0)).grade = i % 4
-	var a := RunSim.Asteroid.new()
+	var a := RunSim.Enemy.new()
 	a.radius = 9.0
 	a.pos = run.sim.player_pos + Vector2(0, 60)
 	run.sim.destroyed.append(a)

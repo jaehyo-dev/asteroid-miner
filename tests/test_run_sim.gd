@@ -11,8 +11,8 @@ func _quiet_sim(shoot: bool = false) -> RunSim:
 	return sim
 
 
-func _add_asteroid(sim: RunSim, pos: Vector2, vel: Vector2 = Vector2.ZERO, type: int = 0) -> RunSim.Asteroid:
-	var a := RunSim.Asteroid.new()
+func _add_asteroid(sim: RunSim, pos: Vector2, vel: Vector2 = Vector2.ZERO, type: int = 0) -> RunSim.Enemy:
+	var a := RunSim.Enemy.new()
 	a.type = type
 	a.radius = Balance.ASTEROID_TYPES[type]["radius"]
 	a.damage = Balance.ASTEROID_TYPES[type]["damage"]
@@ -20,7 +20,7 @@ func _add_asteroid(sim: RunSim, pos: Vector2, vel: Vector2 = Vector2.ZERO, type:
 	a.hp = a.max_hp
 	a.pos = pos
 	a.vel = vel
-	sim.asteroids.append(a)
+	sim.enemies.append(a)
 	return a
 
 
@@ -119,11 +119,11 @@ func test_시간이_지나면_운석이_계속_나타남() -> void:
 	sim.max_hp = 1.0e9
 	var spawned := 0
 	for i in 600:  # 10초
-		var before := sim.asteroids.size()
+		var before := sim.enemies.size()
 		sim.update(1.0 / 60.0, Vector2.ZERO)
-		spawned += maxi(sim.asteroids.size() - before, 0)
+		spawned += maxi(sim.enemies.size() - before, 0)
 	# 처음 10초 간격은 약 1초 → 대략 9~10개 (충돌로 사라진 것은 제외될 수 있어 최소만 확인)
-	assert_true(sim.asteroids.size() >= 5 and sim.asteroids.size() <= 12, "운석 수 %d" % sim.asteroids.size())
+	assert_true(sim.enemies.size() >= 5 and sim.enemies.size() <= 12, "운석 수 %d" % sim.enemies.size())
 
 
 func test_운석_최대_개수를_넘지_않음() -> void:
@@ -133,7 +133,7 @@ func test_운석_최대_개수를_넘지_않음() -> void:
 	sim.time = 10000.0
 	for i in 2000:
 		sim.update(0.1, Vector2.ZERO)
-	assert_true(sim.asteroids.size() <= Balance.MAX_ASTEROIDS, "운석 수 %d" % sim.asteroids.size())
+	assert_true(sim.enemies.size() <= Balance.MAX_ENEMIES, "운석 수 %d" % sim.enemies.size())
 
 
 func test_운석에_맞으면_체력이_줄고_운석은_부서짐() -> void:
@@ -141,7 +141,7 @@ func test_운석에_맞으면_체력이_줄고_운석은_부서짐() -> void:
 	_add_asteroid(sim, Vector2(2, 0), Vector2.ZERO, 1)
 	sim.update(0.01, Vector2.ZERO)
 	assert_true(is_equal_approx(sim.hp, Balance.SHIP_MAX_HP - Balance.ASTEROID_TYPES[1]["damage"]), "체력 %f" % sim.hp)
-	assert_eq(sim.asteroids.size(), 0, "부서짐")
+	assert_eq(sim.enemies.size(), 0, "부서짐")
 	assert_true(sim.events.has("hit"), "hit 이벤트")
 	assert_true(sim.invuln > 0.0, "무적 시작")
 
@@ -152,7 +152,7 @@ func test_무적_중에는_운석이_지나감() -> void:
 	_add_asteroid(sim, Vector2(2, 0))
 	sim.update(0.01, Vector2.ZERO)
 	assert_eq(sim.hp, Balance.SHIP_MAX_HP, "데미지 없음")
-	assert_eq(sim.asteroids.size(), 1, "운석은 그대로")
+	assert_eq(sim.enemies.size(), 1, "운석은 그대로")
 
 
 func test_무적은_시간이_지나면_끝남() -> void:
@@ -189,7 +189,7 @@ func test_멀어진_운석은_사라짐() -> void:
 	_add_asteroid(sim, Vector2(RunSim.despawn_distance(sim.view_size) - 1.0, 0), Vector2(100, 0))
 	_add_asteroid(sim, Vector2(50, 0))
 	sim.update(0.05, Vector2.ZERO)
-	assert_eq(sim.asteroids.size(), 1)
+	assert_eq(sim.enemies.size(), 1)
 
 
 func test_같은_시드면_같은_결과() -> void:
@@ -199,7 +199,7 @@ func test_같은_시드면_같은_결과() -> void:
 		var move := Vector2.from_angle(i * 0.1)
 		a.update(1.0 / 60.0, move)
 		b.update(1.0 / 60.0, move)
-	assert_eq(a.asteroids.size(), b.asteroids.size())
+	assert_eq(a.enemies.size(), b.enemies.size())
 	assert_eq(a.hp, b.hp)
 	assert_eq(a.player_pos, b.player_pos)
 
@@ -220,9 +220,9 @@ func test_가장_가까운_운석을_고름() -> void:
 	var sim := _quiet_sim()
 	var far := _add_asteroid(sim, Vector2(100, 0))
 	var near := _add_asteroid(sim, Vector2(0, -50))
-	assert_eq(RunSim.nearest_asteroid(Vector2.ZERO, sim.asteroids, 200.0), near)
-	assert_eq(RunSim.nearest_asteroid(Vector2.ZERO, sim.asteroids, 40.0), null, "사거리 밖")
-	assert_eq(RunSim.nearest_asteroid(Vector2(100, 10), sim.asteroids, 200.0), far)
+	assert_eq(RunSim.nearest_enemy(Vector2.ZERO, sim.enemies, 200.0), near)
+	assert_eq(RunSim.nearest_enemy(Vector2.ZERO, sim.enemies, 40.0), null, "사거리 밖")
+	assert_eq(RunSim.nearest_enemy(Vector2(100, 10), sim.enemies, 200.0), far)
 
 
 func _angles(pattern: Array[Dictionary]) -> Array[float]:
@@ -339,7 +339,7 @@ func test_탄에_맞으면_체력이_줄고_0이면_부서짐() -> void:
 		if sim.kills == 0 and a.hp < a.max_hp:
 			assert_true(is_equal_approx(a.hp, 1.0), "한 발 맞음")
 	assert_eq(sim.kills, 1, "부서짐")
-	assert_eq(sim.asteroids.size(), 0)
+	assert_eq(sim.enemies.size(), 0)
 	# 두 발이 필요하므로 최소 한 번의 발사 간격이 지나야 부서진다
 	assert_true(steps * 0.01 >= Balance.FIRE_INTERVAL, "걸린 시간 %f" % (steps * 0.01))
 
@@ -363,7 +363,7 @@ func test_탄은_수명이_다하면_사라짐() -> void:
 	var sim := _quiet_sim(true)
 	_add_asteroid(sim, Vector2(0, -100), Vector2.ZERO).hp = 1000.0
 	sim.update(0.01, Vector2.ZERO)
-	sim.asteroids.clear()  # 맞을 대상을 없앤다
+	sim.enemies.clear()  # 맞을 대상을 없앤다
 	var life := Balance.FIRE_RANGE / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR
 	for i in int(life / 0.05) + 2:
 		sim.update(0.05, Vector2.ZERO)
@@ -458,9 +458,9 @@ func test_느린_프레임에서도_발사_간격이_같음() -> void:
 
 # ── 3단계: 광물 ──
 
-func _kill(sim: RunSim, a: RunSim.Asteroid) -> void:
+func _kill(sim: RunSim, a: RunSim.Enemy) -> void:
 	# 탄으로 부순 것과 같은 처리
-	sim.call("_on_asteroid_destroyed", a)
+	sim.call("_on_enemy_destroyed", a)
 
 
 func test_부순_운석은_크기별_개수만큼_광물을_떨어뜨림() -> void:
@@ -486,7 +486,7 @@ func test_몸으로_부딪혀_부순_운석은_광물이_없음() -> void:
 	var sim := _quiet_sim()
 	_add_asteroid(sim, Vector2(2, 0), Vector2.ZERO, 2)
 	sim.update(0.01, Vector2.ZERO)
-	assert_eq(sim.asteroids.size(), 0, "부딪혀 부서짐")
+	assert_eq(sim.enemies.size(), 0, "부딪혀 부서짐")
 	assert_eq(sim.minerals.size(), 0, "광물 없음")
 
 
@@ -648,7 +648,7 @@ func test_황금_운석은_부딪혀도_부서지지_않고_피해만_줌() -> v
 	g.vel = Vector2.ZERO
 	sim.update(0.01, Vector2.ZERO)
 	assert_eq(sim.hp, Balance.SHIP_MAX_HP - Balance.GOLDEN["damage"], "피해")
-	assert_true(sim.asteroids.has(g), "황금 운석은 그대로")
+	assert_true(sim.enemies.has(g), "황금 운석은 그대로")
 	assert_eq(sim.minerals.size(), 0, "광물 없음")
 
 
@@ -695,8 +695,8 @@ func test_황금_운석은_일반_운석보다_멀어져야_사라짐() -> void:
 	g.vel = Vector2.ZERO
 	var rock := _add_asteroid(sim, Vector2(limit * 1.2, 0))
 	sim.update(0.01, Vector2.ZERO)
-	assert_true(sim.asteroids.has(g), "황금 운석은 남음")
-	assert_false(sim.asteroids.has(rock), "일반 운석은 사라짐")
+	assert_true(sim.enemies.has(g), "황금 운석은 남음")
+	assert_false(sim.enemies.has(rock), "일반 운석은 사라짐")
 
 
 func test_주운_광물은_그_프레임의_picked에_담김() -> void:

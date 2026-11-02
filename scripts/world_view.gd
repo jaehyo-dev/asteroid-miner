@@ -60,7 +60,7 @@ func step(delta: float) -> void:
 func _draw() -> void:
 	if sim == null:
 		return
-	for a in sim.asteroids:
+	for a in sim.enemies:
 		if a.golden:
 			_draw_golden_glow(a)
 		var tex := PixelArt.asteroid_flash(a.radius, a.variant, a.golden) if a.flash > 0.0 else PixelArt.asteroid(a.radius, a.variant, a.golden)
@@ -82,7 +82,7 @@ func _draw() -> void:
 
 
 ## 황금 운석 둘레에서 숨 쉬듯 커졌다 작아지는 금빛 후광 (멀리서도 눈에 띄게)
-func _draw_golden_glow(a: RunSim.Asteroid) -> void:
+func _draw_golden_glow(a: RunSim.Enemy) -> void:
 	var pulse := 0.5 + 0.5 * sin(sim.time * 4.0)
 	draw_circle(a.pos.round(), a.radius + 4.0 + pulse * 3.0, Color(1.0, 0.85, 0.3, 0.12 + 0.08 * pulse))
 	draw_arc(a.pos.round(), a.radius + 3.0 + pulse * 4.0, 0.0, TAU, 24, Color(1.0, 0.9, 0.4, 0.35 * (1.0 - pulse) + 0.15), 1.0)

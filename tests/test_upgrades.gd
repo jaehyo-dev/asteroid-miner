@@ -157,10 +157,10 @@ func test_긴급_수리는_최대_체력까지만_회복() -> void:
 func test_운석을_부숴도_경험치는_없음() -> void:
 	for type in Balance.ASTEROID_TYPES.size():
 		var sim := _sim()
-		var a := RunSim.Asteroid.new()
+		var a := RunSim.Enemy.new()
 		a.type = type
 		a.pos = Vector2(500, 500)
-		sim.call("_on_asteroid_destroyed", a)
+		sim.call("_on_enemy_destroyed", a)
 		assert_eq(sim.xp, 0, "%d번 크기" % type)
 		assert_eq(sim.level, 1)
 
@@ -184,10 +184,10 @@ func test_광물을_실제로_주우면_경험치가_오름() -> void:
 func test_탄_개수_강화는_실제로_여러_발_발사() -> void:
 	var sim := _sim()
 	_apply(sim, "multishot", 2)
-	var a := RunSim.Asteroid.new()
+	var a := RunSim.Enemy.new()
 	a.radius = 5.0
 	a.hp = 100.0
 	a.pos = Vector2(0, -100)
-	sim.asteroids.append(a)
+	sim.enemies.append(a)
 	sim.update(0.01, Vector2.ZERO)
 	assert_eq(sim.bullets.size(), 3)

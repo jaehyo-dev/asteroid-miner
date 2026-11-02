@@ -160,13 +160,13 @@ func test_출격_화면에서_맞으면_흔들리고_체력_낮으면_경고_표
 	await wait_frames(2)
 	run.sim.hp = run.sim.max_hp * 0.35
 	run.sim.invuln = 0.0
-	var a := RunSim.Asteroid.new()
+	var a := RunSim.Enemy.new()
 	a.radius = 9.0
 	a.damage = 10.0
 	a.hp = 1000.0
 	a.max_hp = 1000.0
 	a.pos = run.sim.player_pos
-	run.sim.asteroids.append(a)
+	run.sim.enemies.append(a)
 	run.sim.drop_mineral(run.sim.player_pos + Vector2(2000, 0))  # 아무 효과 없는 광물
 	# 화면 밖 조준 운석도 함께 그려 본다
 	for r in run.sim.spawn_aimed():
@@ -200,13 +200,13 @@ func test_파괴된_뒤_게임_오버_화면이_붉게_남지_않음() -> void:
 	await wait_frames(2)
 	run.sim.hp = 1.0
 	run.sim.invuln = 0.0
-	var a := RunSim.Asteroid.new()
+	var a := RunSim.Enemy.new()
 	a.radius = 9.0
 	a.damage = 50.0
 	a.hp = 1000.0
 	a.max_hp = 1000.0
 	a.pos = run.sim.player_pos
-	run.sim.asteroids.append(a)
+	run.sim.enemies.append(a)
 	await wait_frames(30)
 	assert_false(run.sim.alive)
 	assert_true(run.menu.visible, "게임 오버 메뉴")
