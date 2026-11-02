@@ -61,6 +61,8 @@ static func average_levels(style: String, seeds: Array, marks: Array) -> Array[f
 				alive += 1
 		result.append(total / alive if alive * 2 >= seeds.size() else -1.0)
 	return result
+
+
 ## 여러 판의 생존 시간 [최소, 중앙값, 최대]
 static func survival_stats(style: String, seeds: Array, max_time: float) -> Array[float]:
 	var times: Array[float] = []
