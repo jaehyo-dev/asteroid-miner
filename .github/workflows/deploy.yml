@@ -118,7 +118,9 @@ jobs:
           current=$(python3 tools/changelog.py latest)
 
           # 현재 버전 → 사이트 루트
+          # 내보내기 결과물을 Godot가 리소스로 가져오지 않게 한다.
           mkdir -p "$site"
+          touch "$site/.gdignore"
           godot --headless --path . --import
           godot --headless --path . --export-release "Web" "$site/index.html"
           test -s "$site/index.wasm"
@@ -153,6 +155,7 @@ jobs:
           python3 tools/versions_page.py "$site/versions/index.html" "$current" "${older[@]}"
           # GitHub Pages가 파일을 그대로 내보내도록 Jekyll 처리를 끈다.
           touch "$site/.nojekyll"
+          rm -f "$site/.gdignore"
           du -sh "$site"
 
       - uses: actions/configure-pages@v5

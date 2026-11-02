@@ -53,7 +53,8 @@ godot --headless --path . --import
 godot --headless --path . -s res://tests/run_tests.gd
 # 3) 도구·버전 자동 테스트 (tools/test_*.py)
 python3 -m unittest discover -s tools -p "test_*.py" -v
-# 4) 웹 내보내기 확인 (웹 내보내기 템플릿 필요)
+# 4) 웹 내보내기 확인 (웹 내보내기 템플릿 필요, build/는 .gdignore로 Godot 리소스에서 빠져 있음)
+mkdir -p build/web
 godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 ```
 

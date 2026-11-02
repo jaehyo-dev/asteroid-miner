@@ -30,6 +30,14 @@ func test_웹_내보내기는_스레드_없이_설정됨() -> void:
 	assert_eq(presets.get_value(web_section, "name", ""), "Web", "프리셋 이름 (배포 워크플로가 이 이름을 씀)")
 	assert_eq(presets.get_value(web_section + ".options", "variant/thread_support", true), false, "스레드 지원 끔")
 	assert_eq(presets.get_value(web_section, "export_path", ""), "build/web/index.html", "내보내기 위치")
+	var excluded := str(presets.get_value(web_section, "exclude_filter", ""))
+	for folder in ["tests/*", "tools/*", "build/*", "_site/*"]:
+		assert_true(excluded.contains(folder), "내보내기 제외: " + folder)
+
+
+func test_내보내기_결과물_폴더는_리소스로_가져오지_않음() -> void:
+	# build/ 안의 이전 빌드(그림 등)가 다음 빌드에 섞여 들어가지 않게 한다.
+	assert_true(FileAccess.file_exists("res://build/.gdignore"), "build/.gdignore")
 
 
 func test_시작_씬이_존재함() -> void:

@@ -22,6 +22,7 @@ tools: Read, Glob, Grep, PowerShell, Bash
    godot --headless --path . --import
    godot --headless --path . -s res://tests/run_tests.gd
    python3 -m unittest discover -s tools -p "test_*.py" -v
+   mkdir -p build/web
    godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
    ```
    웹 내보내기 후 `build/web/`에 index.html, index.js, index.wasm, index.pck가 있는지 확인해. 웹 내보내기 템플릿이 없어 실행하지 못했으면 "확인하지 못한 부분"에 적어.

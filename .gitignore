@@ -1,6 +1,8 @@
 # Godot 생성물
 .godot/
-build/
+# 내보내기 결과물. build/.gdignore는 Godot가 이 폴더를 리소스로 가져오지 않게 하므로 커밋한다.
+build/*
+!build/.gdignore
 _site/
 *.translation
 mono_crash.*.json
