@@ -27,8 +27,8 @@ const SHOT_GLOW := Color("#ff3c8c")
 const BARRAGE_LINE_WARN := 4.0
 const BARRAGE_LINE_CHARGE := 8.0
 const BARRAGE_LINE_GLOW := 6.0
-## 다 쏜 뒤 남겨 두는 조준선의 진하기
-const BARRAGE_LINE_AFTER_ALPHA := 0.4
+## 쏘는 순간 조준선의 진하기 (여기서 BARRAGE_LINE_FADE_TIME 동안 사라짐)
+const BARRAGE_LINE_FIRE_ALPHA := 0.9
 ## 조준선 길이 (쏘는 곳에서 화면 반대편 밖까지 넉넉히)
 const BARRAGE_LINE_LENGTH := 2000.0
 
@@ -104,6 +104,9 @@ func _draw() -> void:
 ## 심연의 포격: 예고 때는 맥박치는 붉은 조준선, 충전 때는 점점 굵고 밝아지는 선, 발사 후엔 에너지탄.
 func _draw_barrages() -> void:
 	for b in sim.barrages:
+		var fade := b.line_visibility()
+		if fade <= 0.0:
+			continue  # 쏜 뒤 조준선은 잠깐만 보이고 사라진다 (가장자리 "!"는 HUD가 탄이 지나갈 때까지 남김)
 		var start := b.origin
 		# 예고가 시작되면 쏘는 곳에서부터 쭉 그어진다
 		var end := b.origin + b.dir * BARRAGE_LINE_LENGTH * b.draw_progress()
@@ -111,7 +114,7 @@ func _draw_barrages() -> void:
 		var pulse := 0.5 + 0.5 * sin(sim.time * TAU * 4.0)
 		var alpha := 0.55 + 0.35 * pulse if b.phase == Barrage.Phase.WARN else 0.9
 		if b.phase == Barrage.Phase.FIRE or b.phase == Barrage.Phase.DONE:
-			alpha = BARRAGE_LINE_AFTER_ALPHA  # 쏜 뒤에는 탄이 지나갈 때까지 길만 은은하게 남긴다
+			alpha = BARRAGE_LINE_FIRE_ALPHA * fade  # 쏘는 순간 밝게 길을 비추고 금방 사라진다
 		# 바깥 빛 → 붉은 선 → 밝은 가운데 줄 (어두운 배경에서도, 작은 화면에서도 잘 보이게)
 		draw_line(start, end, Color(BARRAGE_RED, alpha * 0.3), width + BARRAGE_LINE_GLOW)
 		draw_line(start, end, Color(BARRAGE_RED, alpha), width)

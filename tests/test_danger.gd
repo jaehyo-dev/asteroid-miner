@@ -300,7 +300,7 @@ func test_조준선은_쏘는_곳에서부터_그어짐() -> void:
 	assert_eq(b.phase, Barrage.Phase.WARN, "아직 예고 중")
 
 
-func test_다_쏜_뒤에도_탄이_우주선을_지날_때까지_조준선이_남음() -> void:
+func test_다_쏜_뒤에도_탄이_우주선을_지날_때까지_가장자리_표시가_남음() -> void:
 	var sim := RunSim.new(24)
 	for tm in ["_spawn_timer", "_barrage_timer", "_golden_timer", "_jelly_timer", "_bug_timer"]:
 		sim.set(tm, 1.0e9)
@@ -320,4 +320,26 @@ func test_다_쏜_뒤에도_탄이_우주선을_지날_때까지_조준선이_�
 		if line_gone < 0.0 and not sim.barrages.has(b):
 			line_gone = t
 	assert_true(shot_reached > 0.0 and line_gone > 0.0)
-	assert_true(line_gone >= shot_reached, "조준선(%f초)이 마지막 탄 도착(%f초)보다 먼저 사라지지 않음" % [line_gone, shot_reached])
+	assert_true(line_gone >= shot_reached, "포격 표시(%f초)가 마지막 탄 도착(%f초)보다 먼저 사라지지 않음" % [line_gone, shot_reached])
+
+
+func test_조준선은_쏜_뒤_잠깐만_보이고_사라짐() -> void:
+	var b := Barrage.new(Vector2.ZERO, Vector2.RIGHT)
+	var dt := 1.0 / 60.0
+	var t := 0.0
+	var first_fire := -1.0
+	var gone := -1.0
+	while t < 5.0:
+		var r := b.step(dt)
+		t += dt
+		if first_fire < 0.0 and int(r["fired"]) > 0:
+			first_fire = t
+			assert_true(b.line_visibility() > 0.9, "쏘는 순간에는 길이 밝게 보임 %f" % b.line_visibility())
+		if first_fire < 0.0:
+			assert_eq(b.line_visibility(), 1.0, "쏘기 전(예고·충전)에는 다 보임")
+		if gone < 0.0 and b.line_visibility() <= 0.0:
+			gone = t
+	assert_true(first_fire > 0.0 and gone > 0.0)
+	assert_true(absf(gone - first_fire - Balance.BARRAGE_LINE_FADE_TIME) < 0.05, "쏜 뒤 %f초 만에 사라짐" % (gone - first_fire))
+	# 예고부터 조준선이 사라질 때까지 몇 초 안
+	assert_true(gone <= 2.5, "조준선이 보이는 시간 %f초" % gone)

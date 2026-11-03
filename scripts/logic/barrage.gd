@@ -15,8 +15,11 @@ var phase := Phase.WARN
 var timer := Balance.BARRAGE_WARN_TIME
 ## 아직 쏘지 않은 탄 수
 var shots_left := Balance.BARRAGE_SHOTS
-## 다 쏜 뒤 조준선을 남겨 둘 남은 시간 (마지막 탄이 우주선 쪽을 지나갈 때까지). 0이 되면 끝.
+## 다 쏜 뒤 포격을 남겨 둘 남은 시간 (마지막 탄이 우주선 쪽을 지나갈 때까지). 0이 되면 끝.
+## 이 동안 조준선은 사라지고, 화면 가장자리 "!" 표시만 남는다.
 var linger := 0.0
+## 첫 탄을 쏜 뒤 지난 시간 (쏘기 전에는 -1). 조준선이 사라지는 연출에 쓴다.
+var since_fire := -1.0
 
 
 func _init(from: Vector2 = Vector2.ZERO, direction: Vector2 = Vector2.RIGHT) -> void:
@@ -27,6 +30,8 @@ func _init(from: Vector2 = Vector2.ZERO, direction: Vector2 = Vector2.RIGHT) -> 
 ## 시간을 진행하고, 이번 프레임에 일어난 일을 돌려준다: {"charge": 충전 시작했는지, "fired": 쏜 탄 수}
 func step(delta: float) -> Dictionary:
 	var result := {"charge": false, "fired": 0}
+	if since_fire >= 0.0:
+		since_fire += delta
 	timer -= delta
 	while timer <= 0.0 and phase != Phase.DONE:
 		match phase:
@@ -36,7 +41,7 @@ func step(delta: float) -> Dictionary:
 				result["charge"] = true
 			Phase.CHARGE:
 				phase = Phase.FIRE
-				# 첫 탄은 충전이 끝나는 순간 바로
+				since_fire = -timer  # 첫 탄은 충전이 끝나는 순간 바로 (이번 프레임에 넘친 시간만큼 지남)
 			Phase.FIRE:
 				result["fired"] += 1
 				shots_left -= 1
@@ -57,6 +62,14 @@ func draw_progress() -> float:
 	if phase != Phase.WARN:
 		return 1.0
 	return clampf(warn_progress() / Balance.BARRAGE_DRAW_RATIO, 0.0, 1.0)
+
+
+## 조준선이 보이는 정도 0~1: 쏘기 전에는 1, 첫 탄을 쏜 뒤 BARRAGE_LINE_FADE_TIME 동안 0으로 사라진다.
+## (쏘는 순간 탄이 지나갈 길을 잠깐 비춰 주고 사라짐)
+func line_visibility() -> float:
+	if since_fire < 0.0:
+		return 1.0
+	return 1.0 - clampf(since_fire / Balance.BARRAGE_LINE_FADE_TIME, 0.0, 1.0)
 
 
 ## 예고·충전 중인지 (조준선을 보여 줄 때)

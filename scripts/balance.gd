@@ -77,8 +77,10 @@ const BARRAGE_SHOT_DAMAGE := 10.0
 const BARRAGE_SHOT_RADIUS := 4.0
 ## 예고가 시작되면 조준선이 쏘는 곳에서부터 이 비율(예고 시간 중)만큼의 시간 동안 쭉 그어진다
 const BARRAGE_DRAW_RATIO := 0.4
-## 다 쏜 뒤에도 마지막 탄이 우주선 쪽을 지나갈 때까지 조준선을 은은하게 남기는 여유 시간 (초)
+## 다 쏜 뒤에도 마지막 탄이 우주선 쪽을 지나갈 때까지 화면 가장자리 "!" 표시를 남기는 여유 시간 (초)
 const BARRAGE_LINGER_EXTRA := 0.4
+## 첫 탄을 쏜 뒤 조준선이 사라지는 시간 (초). 쏘는 순간 탄이 지나갈 길을 잠깐 비춰 주는 느낌
+const BARRAGE_LINE_FADE_TIME := 0.5
 ## 조준: 예고를 시작할 때 우주선이 이 시간(초) 뒤에 있을 곳을 노린다 (움직이면 앞을 막고, 멈춰 있으면 그 자리)
 const BARRAGE_LEAD_TIME := 0.6
 
