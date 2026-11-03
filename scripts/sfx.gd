@@ -26,10 +26,13 @@ const RAID_SOUND := {"wave": "square", "notes": [[220.0, 0.22], [165.0, 0.22], [
 ## 심연의 포격: 충전(점점 높아지는 웅웅거림, 충전 시간과 같은 길이), 발사(내려가는 짧은 쇳소리)
 const CHARGE_SOUND := {"wave": "square", "notes": [[110.0, 0.1], [131.0, 0.1], [156.0, 0.1], [185.0, 0.1], [220.0, 0.1]], "volume": 0.3}
 const FIRE_SOUND := {"wave": "square", "notes": [[988.0, 0.03], [740.0, 0.03], [494.0, 0.05]], "volume": 0.25}
+## 고대 포탑 발사음: 낮고 짧은 "퉁" (포격보다 작게)
+const TURRET_SOUND := {"wave": "triangle", "notes": [[330.0, 0.04], [220.0, 0.06]], "volume": 0.35}
 
 var _pickup_players: Array[AudioStreamPlayer] = []
 var _charge_player: AudioStreamPlayer
 var _fire_player: AudioStreamPlayer
+var _turret_player: AudioStreamPlayer
 var _raid_player: AudioStreamPlayer
 var _warning_player: AudioStreamPlayer
 
@@ -48,6 +51,7 @@ func _ready() -> void:
 	add_child(_warning_player)
 	_charge_player = _make_player(CHARGE_SOUND)
 	_fire_player = _make_player(FIRE_SOUND)
+	_turret_player = _make_player(TURRET_SOUND)
 	_raid_player = AudioStreamPlayer.new()
 	_raid_player.stream = synth(RAID_SOUND["notes"], RAID_SOUND["wave"], RAID_SOUND["volume"])
 	_raid_player.volume_db = VOLUME_DB
@@ -70,6 +74,15 @@ func play_charge() -> void:
 
 func play_fire() -> void:
 	_fire_player.play()
+
+
+## 고대 포탑 발사음
+func play_turret() -> void:
+	_turret_player.play()
+
+
+func turret_stream() -> AudioStreamWAV:
+	return _turret_player.stream
 
 
 ## 포격 소리 (테스트용)

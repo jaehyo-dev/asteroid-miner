@@ -5,8 +5,9 @@ extends RefCounted
 ## 화면 쪽(scripts/run.gd)은 매 프레임 update()를 부르고 이 상태를 그리기만 한다.
 
 
-## 적 종류: 운석 (생명체는 Balance.CREATURES의 키)
+## 적 종류: 운석, 고대 포탑 (생명체는 Balance.CREATURES의 키)
 const ROCK := "rock"
+const TURRET := "turret"
 
 
 ## 적 한 개 (운석, 황금 운석, 생명체)
@@ -20,9 +21,19 @@ class Enemy:
 	var max_hp: float
 	var variant: int  ## 모양 변형 번호 (그리기용)
 	var golden := false  ## 황금 운석인지
-	var kind := ROCK  ## 종류: ROCK(운석) 또는 Balance.CREATURES의 키 ("jelly", "bug")
+	var kind := ROCK  ## 종류: ROCK(운석), TURRET(고대 포탑) 또는 Balance.CREATURES의 키 ("jelly", "bug")
 	var age := 0.0  ## 나온 뒤 지난 시간
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
+	var hit_dir := Vector2.ZERO  ## 마지막으로 맞은 탄이 날아온 방향 (맞으면 그쪽으로 튕기는 모션)
+	var hit_time := 0.0  ## 튕김 모션 남은 시간 (그리기용)
+	# 고대 포탑 전용
+	var aim := 0.0  ## 포신 방향 (라디안)
+	var charge := -1.0  ## 충전한 시간 (충전 중이 아니면 -1)
+	var reload := 0.0  ## 다음 충전까지 남은 시간
+
+	## 부딪혀도 부서지지 않는 단단한 적인지 (황금 운석, 고대 포탑)
+	func sturdy() -> bool:
+		return golden or kind == TURRET
 
 
 ## 떠 있는 광물 한 개
@@ -32,12 +43,15 @@ class Mineral:
 	var attracted := false  ## 자석에 끌려오는 중인지 (한번 끌리면 끝까지 따라옴)
 
 
-## 심연의 포격 에너지탄 한 개 (자동 공격으로 부술 수 없음)
+## 에너지탄 한 개: 심연의 포격 또는 고대 포탑이 쏜다 (자동 공격으로 부술 수 없음)
 class Shot:
 	var pos: Vector2
 	var prev_pos: Vector2  ## 이번 프레임 이동 전 위치 (지나간 선분으로 충돌 판정)
 	var vel: Vector2
 	var life: float  ## 남은 비행 시간
+	var damage := Balance.BARRAGE_SHOT_DAMAGE
+	var radius := Balance.BARRAGE_SHOT_RADIUS
+	var turret := false  ## 고대 포탑이 쏜 탄인지 (그리기용)
 
 
 ## 탄 한 개
@@ -73,7 +87,8 @@ var destroyed: Array[Enemy] = []
 var picked: Array[Dictionary] = []
 ## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden",
 ## "barrage_warning"·"barrage_charge"·"barrage_fire"(심연의 포격), "new_barrage"(첫 포격),
-## "new_jelly"·"new_bug"(처음 등장), "raid_warning", "raid_start", "raid_end"
+## "new_jelly"·"new_bug"·"new_turret"(처음 등장), "turret_charge"·"turret_fire"(고대 포탑),
+## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석)
 var events: PackedStringArray = []
 ## 탄으로 부순 적 수 (운석·황금 운석·생명체)
 var kills := 0
@@ -115,6 +130,8 @@ var _fire_timer := 0.0
 ## 생명체 등장 타이머
 var _jelly_timer := Balance.JELLY_FIRST_TIME
 var _bug_timer := Balance.BUG_FIRST_TIME
+## 다음 고대 포탑까지 남은 시간
+var _turret_timer := Balance.TURRET_FIRST_TIME
 ## 습격 중 다음 등장까지 남은 시간
 var _raid_spawn_timer := 0.0
 ## 습격 이벤트 흐름
@@ -150,6 +167,14 @@ func update(delta: float, move: Vector2) -> void:
 		events.append(e)
 		if e == "raid_start":
 			_raid_spawn_timer = 0.0
+			# 습격 방향에서 황금 운석이 함께 온다 (평소 최대 수 GOLDEN_MAX에 RAID_GOLDEN_COUNT만큼 더 허용)
+			var spawned := false
+			for i in Balance.RAID_GOLDEN_COUNT:
+				if golden_count() < Balance.GOLDEN_MAX + Balance.RAID_GOLDEN_COUNT:
+					spawn_golden(raid.direction + deg_to_rad(rng.randf_range(-Balance.RAID_ARC_DEG, Balance.RAID_ARC_DEG) / 2.0))
+					spawned = true
+			if spawned:
+				events.append("raid_golden")
 	# 습격이 끝난 뒤 숨 돌릴 틈에는 평소 등장을 멈춘다 (황금 운석은 그대로)
 	_spawn_regular(delta, raid.state == RaidDirector.State.CALM)
 	if raid.state == RaidDirector.State.ACTIVE:
@@ -192,6 +217,11 @@ func _spawn_regular(delta: float, hold: bool) -> void:
 		if enemies.size() + Balance.BUG_SWARM_SIZE <= Balance.MAX_ENEMIES:
 			spawn_swarm()
 		_bug_timer += creature_interval(Balance.BUG_INTERVAL_START, Balance.BUG_INTERVAL_MIN, time)
+	_turret_timer = _tick(_turret_timer, delta, hold)
+	while _turret_timer <= 0.0:
+		if turret_count() < Balance.TURRET_MAX and enemies.size() < Balance.MAX_ENEMIES:
+			spawn_turret()
+		_turret_timer += creature_interval(Balance.TURRET_INTERVAL_START, Balance.TURRET_INTERVAL_MIN, time)
 
 
 ## 등장 타이머 한 프레임: hold면 0 바로 위에서 멈춰 기다린다.
@@ -249,6 +279,35 @@ func spawn_swarm(angle: float = INF) -> Array[Enemy]:
 		e.vel = dir * speed
 		group.append(e)
 	return group
+
+
+## 고대 포탑 하나를 화면 밖(우주선이 가는 쪽 앞)에 만든다. 제자리에 떠 있다. 처음이면 "new_turret".
+func spawn_turret() -> Enemy:
+	var e := Enemy.new()
+	e.kind = TURRET
+	e.radius = Balance.TURRET["radius"]
+	e.damage = Balance.TURRET["damage"]
+	e.max_hp = asteroid_hp(Balance.TURRET["hp"], time)
+	e.hp = e.max_hp
+	e.variant = rng.randi_range(0, 3)
+	e.pos = spawn_position(rng, player_pos, view_size, e.radius, Turret.spawn_angle(rng, player_vel))
+	e.vel = Vector2.ZERO
+	e.aim = (player_pos - e.pos).angle() + PI  # 처음엔 등을 돌리고 있다가 천천히 돌아본다
+	e.reload = Balance.TURRET_FIRE_INTERVAL / 2.0
+	enemies.append(e)
+	if not introduced.has(TURRET):
+		introduced[TURRET] = true
+		events.append("new_turret")
+	return e
+
+
+## 지금 있는 고대 포탑 수
+func turret_count() -> int:
+	var n := 0
+	for e in enemies:
+		if e.kind == TURRET:
+			n += 1
+	return n
 
 
 ## 우주선이 운석에 맞음. 무적 중이면 무시하고 false를 돌려준다.
@@ -329,8 +388,8 @@ func _update_barrages(delta: float) -> void:
 		s.life -= delta
 		if s.life <= 0.0:
 			continue
-		var touching := segment_distance(s.prev_pos, s.pos, player_pos) < Balance.BARRAGE_SHOT_RADIUS + Balance.SHIP_RADIUS
-		if touching and alive and damage_player(Balance.BARRAGE_SHOT_DAMAGE):
+		var touching := segment_distance(s.prev_pos, s.pos, player_pos) < s.radius + Balance.SHIP_RADIUS
+		if touching and alive and damage_player(s.damage):
 			continue  # 맞은 탄은 사라진다
 		kept_shots.append(s)
 	shots = kept_shots
@@ -353,8 +412,8 @@ func barrage_escape(pos: Vector2, margin: float) -> Vector2:
 	return Vector2.ZERO
 
 
-## 황금 운석 하나를 화면 밖에 만든다. 우주선 근처를 비스듬히 지나가도록 날아간다.
-func spawn_golden() -> Enemy:
+## 황금 운석 하나를 화면 밖에 만든다 (angle을 주면 그 방향, 아니면 무작위). 우주선 근처를 비스듬히 지나가도록 날아간다.
+func spawn_golden(angle: float = INF) -> Enemy:
 	var a := Enemy.new()
 	a.golden = true
 	a.type = Balance.ASTEROID_TYPES.size() - 1  # 그리기·조준에는 큰 운석처럼 취급
@@ -363,8 +422,10 @@ func spawn_golden() -> Enemy:
 	a.max_hp = asteroid_hp(Balance.GOLDEN["hp"], time)
 	a.hp = a.max_hp
 	a.variant = rng.randi_range(0, 3)
-	a.pos = spawn_position(rng, player_pos, view_size, a.radius)
-	var aim := (player_pos - a.pos).angle() + deg_to_rad(rng.randf_range(-Balance.GOLDEN_AIM_SPREAD_DEG, Balance.GOLDEN_AIM_SPREAD_DEG))
+	a.pos = spawn_position(rng, player_pos, view_size, a.radius, angle)
+	# 우주선을 곧장 향하지 않고 GOLDEN_AIM_MIN_DEG ~ GOLDEN_AIM_SPREAD_DEG만큼 비껴 지나간다 (왼쪽·오른쪽 무작위)
+	var off := rng.randf_range(Balance.GOLDEN_AIM_MIN_DEG, Balance.GOLDEN_AIM_SPREAD_DEG) * (1.0 if rng.randf() < 0.5 else -1.0)
+	var aim := (player_pos - a.pos).angle() + deg_to_rad(off)
 	a.vel = Vector2.from_angle(aim) * rng.randf_range(Balance.GOLDEN["speed_min"], Balance.GOLDEN["speed_max"])
 	enemies.append(a)
 	events.append("golden")
@@ -384,15 +445,46 @@ func golden_count() -> int:
 func _move_enemies(delta: float) -> void:
 	var limit := despawn_distance(view_size)
 	var kept: Array[Enemy] = []
+	var turret_fired := false
 	for a in enemies:
 		a.age += delta
-		if a.kind != ROCK and (a.kind != "bug" or a.age < Balance.BUG_HOMING_TIME):
+		if a.kind == TURRET:
+			var was_charging := a.charge >= 0.0
+			var can_fire := alive and Turret.can_fire_at(a.pos, player_pos, view_size, Balance.TURRET_SCREEN_MARGIN)
+			if Turret.update(a, delta, player_pos, can_fire):
+				_fire_turret(a)
+				turret_fired = true
+			elif not was_charging and a.charge >= 0.0:
+				events.append("turret_charge")
+		elif a.kind != ROCK and (a.kind != "bug" or a.age < Balance.BUG_HOMING_TIME):
 			a.vel = steer(a.pos, a.vel, player_pos, creature_speed(a.kind, time), float(Balance.CREATURES[a.kind]["accel"]), delta)
 		a.pos += a.vel * delta
 		a.flash = maxf(a.flash - delta, 0.0)
-		if a.pos.distance_to(player_pos) <= (limit * Balance.GOLDEN_DESPAWN_FACTOR if a.golden else limit):
+		a.hit_time = maxf(a.hit_time - delta, 0.0)
+		var keep_limit := limit
+		if a.golden:
+			keep_limit = limit * Balance.GOLDEN_DESPAWN_FACTOR
+		elif a.kind == TURRET:
+			keep_limit = limit * Balance.TURRET_DESPAWN_FACTOR
+		if a.pos.distance_to(player_pos) <= keep_limit:
 			kept.append(a)
 	enemies = kept
+	if turret_fired:
+		events.append("turret_fire")
+
+
+## 고대 포탑이 포신 방향으로 에너지탄 한 발을 쏜다 (포신 끝에서 나감).
+func _fire_turret(t: Enemy) -> void:
+	var dir := Vector2.from_angle(t.aim)
+	var s := Shot.new()
+	s.pos = t.pos + dir * t.radius
+	s.prev_pos = s.pos
+	s.vel = dir * Balance.TURRET_SHOT_SPEED
+	s.damage = Balance.TURRET_SHOT_DAMAGE
+	s.radius = Balance.TURRET_SHOT_RADIUS
+	s.turret = true
+	s.life = despawn_distance(view_size) / Balance.TURRET_SHOT_SPEED
+	shots.append(s)
 
 
 ## 사거리 안에 운석이 있으면 가장 가까운 운석을 향해 발사한다.
@@ -400,7 +492,7 @@ func _auto_fire(delta: float) -> void:
 	_fire_timer -= delta
 	if _fire_timer > 0.0:
 		return
-	var target := nearest_enemy(player_pos, enemies, fire_range)
+	var target := pick_target(player_pos, enemies, fire_range)
 	if target == null:
 		_fire_timer = 0.0  # 대상이 없으면 장전된 상태로 기다린다
 		return
@@ -441,6 +533,8 @@ func _check_bullet_hits() -> void:
 			if a.hp > 0.0 and segment_distance(b.prev_pos, b.pos, a.pos) < a.radius + Balance.BULLET_RADIUS:
 				a.hp -= b.damage
 				a.flash = 0.08
+				a.hit_dir = b.vel.normalized()
+				a.hit_time = Balance.HIT_KNOCK_TIME
 				hit = true
 				break
 		if not hit:
@@ -552,8 +646,8 @@ func _check_player_hits() -> void:
 	var kept: Array[Enemy] = []
 	for a in enemies:
 		var touching := a.pos.distance_to(player_pos) < a.radius + Balance.SHIP_RADIUS
-		if touching and alive and damage_player(a.damage) and not a.golden:
-			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석은 부딪혀도 부서지지 않음)
+		if touching and alive and damage_player(a.damage) and not a.sturdy():
+			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석·고대 포탑은 부딪혀도 부서지지 않음)
 		kept.append(a)
 	enemies = kept
 
@@ -564,6 +658,8 @@ func _check_player_hits() -> void:
 static func drops_of(a: Enemy) -> Array:
 	if a.golden:
 		return Balance.GOLDEN_DROPS
+	if a.kind == TURRET:
+		return Balance.TURRET_DROPS
 	if a.kind != ROCK:
 		var c: Dictionary = Balance.CREATURES[a.kind]
 		return [{"grade": c["grade"], "count": c["minerals"]}]
@@ -620,6 +716,23 @@ static func nearest_enemy(from: Vector2, list: Array[Enemy], max_range: float) -
 		if d <= best_dist:
 			best = a
 			best_dist = d
+	return best
+
+
+## 자동 공격 대상: 사거리 안에서 가장 가까운 적. 단, 단단한 적(황금 운석·고대 포탑)은
+## TARGET_STURDY_PENALTY만큼 더 멀리 있는 것으로 쳐서, 가까이 다가오는 운석·생명체를 먼저 쏜다.
+## (단단한 적에 탄이 모두 묶여 다른 적에 그대로 맞는 일을 줄인다)
+static func pick_target(from: Vector2, list: Array[Enemy], max_range: float) -> Enemy:
+	var best: Enemy = null
+	var best_score := INF
+	for a in list:
+		var d := from.distance_to(a.pos)
+		if d > max_range:
+			continue
+		var score := d + (Balance.TARGET_STURDY_PENALTY if a.sturdy() else 0.0)
+		if score < best_score:
+			best = a
+			best_score = score
 	return best
 
 

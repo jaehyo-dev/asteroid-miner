@@ -91,6 +91,12 @@ func _announce(events: PackedStringArray) -> void:
 			Sfx.play_charge()
 		elif e == "barrage_fire":
 			Sfx.play_fire()
+		elif e == "turret_fire":
+			Sfx.play_turret()
+		elif e == "raid_golden":
+			hud.show_banner("습격 속에 황금 운석!", Hud.COLOR_GOLD)
+		elif e == "new_turret":
+			hud.show_banner("새로운 위협: %s" % Balance.TURRET["name"], WorldView.TURRET_RUNE)
 		elif e == "raid_warning":
 			hud.show_banner("!! %s 접근 !!" % RaidDirector.display_name(sim.raid.kind), Hud.COLOR_DANGER)
 			Sfx.play_raid()

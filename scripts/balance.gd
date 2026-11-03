@@ -108,6 +108,38 @@ const BUG_SWARM_SPREAD := 12.0
 ## 날벌레는 나온 뒤 이 시간 동안만 우주선 쪽으로 방향을 튼다 (그 뒤엔 그대로 지나감)
 const BUG_HOMING_TIME := 3.0
 
+# ── 고대 포탑 (구조물) ───────────────────────────
+## 제자리에 떠 있는 오래된 포탑. 포신을 천천히 돌려 우주선을 노리고, 충전(빛) 뒤 에너지탄 한 발을 쏜다.
+## 단단하고(탄 여러 발) 좋은 광물을 준다. 몸으로 부딪혀도 부서지지 않는다(피해만 입음).
+## 체력은 운석처럼 ASTEROID_HP_GROWTH_TIME마다 계단식으로 늘어난다.
+const TURRET := {"name": "고대 포탑", "radius": 9.0, "hp": 6.0, "damage": 15.0}
+## 부수면 떨어지는 광물: 영웅 2개 + 희귀 2개
+const TURRET_DROPS := [{"grade": 2, "count": 2}, {"grade": 1, "count": 2}]
+## 첫 등장 시각, 등장 간격(시작 → SPAWN_RAMP_TIME에 걸쳐 최소), 동시에 있을 수 있는 최대 수
+## (첫 등장 시각은 습격 뒤 숨 돌릴 틈과 겹치지 않게 정한다)
+const TURRET_FIRST_TIME := 100.0
+const TURRET_INTERVAL_START := 45.0
+const TURRET_INTERVAL_MIN := 25.0
+const TURRET_MAX := 2
+## 우주선이 움직이면 가는 쪽 앞 이 각도(도) 안에 나타난다 (제자리에 있으니 지나쳐 가는 쪽에 둬야 만남)
+const TURRET_SPAWN_AHEAD_DEG := 45.0
+## 일반 운석보다 이 배수만큼 더 멀어져야 사라진다
+const TURRET_DESPAWN_FACTOR := 1.3
+## 포신 회전 속도(라디안/초): 천천히 돌아서 옆으로 돌면 따라오지 못한다
+const TURRET_TURN_SPEED := 1.5
+## 포신이 우주선 쪽 이 각도(도) 안을 바라보면 충전을 시작한다
+const TURRET_AIM_TOLERANCE_DEG := 10.0
+## 사거리(픽셀). 화면 안(가장자리에서 TURRET_SCREEN_MARGIN 안쪽)에 보일 때만 쏜다.
+const TURRET_RANGE := 220.0
+const TURRET_SCREEN_MARGIN := 8.0
+## 충전 시간(포신 끝이 점점 밝아짐), 쏜 뒤 다음 충전까지 시간
+const TURRET_CHARGE_TIME := 1.0
+const TURRET_FIRE_INTERVAL := 3.0
+## 포탑 에너지탄: 속도, 피해, 맞는 범위(반지름). 심연의 포격처럼 자동 공격으로 부술 수 없다.
+const TURRET_SHOT_SPEED := 110.0
+const TURRET_SHOT_DAMAGE := 6.0
+const TURRET_SHOT_RADIUS := 3.0
+
 # ── 습격 이벤트 (긴장의 리듬) ───────────────────────
 ## RAID_INTERVAL마다: 경고(RAID_WARNING_TIME) → 습격(RAID_DURATION) → 숨 돌릴 틈(RAID_CALM_TIME, 보통 등장 멈춤)
 ## 종류는 운석 폭풍과 날벌레 습격(날벌레가 나온 뒤부터)이 번갈아 온다.
@@ -124,6 +156,9 @@ const RAID_STORM_INTERVAL_MIN := 0.15
 const RAID_STORM_AIM_SPREAD_DEG := 15.0
 ## 날벌레 습격: 무리 간격
 const RAID_SWARM_INTERVAL := 3.0
+## 습격이 시작될 때 습격 방향에서 황금 운석이 함께 온다 (위험을 무릅쓰고 잡으러 갈지 고민되게).
+## 습격 황금 운석이 있을 수 있게 습격 때는 최대 수를 GOLDEN_MAX + RAID_GOLDEN_COUNT까지 허용한다.
+const RAID_GOLDEN_COUNT := 1
 ## 새로운 적이 처음 나올 때 / 습격 경고 배너를 보여 주는 시간
 const BANNER_TIME := 2.5
 
@@ -140,6 +175,8 @@ const GOLDEN_INTERVAL_MIN := 30.0
 const GOLDEN_RAMP_TIME := 300.0
 ## 우주선을 향하지 않고 이 각도(도)까지 빗나가 화면 근처를 지나간다 (쫓아가야 잡을 수 있게).
 const GOLDEN_AIM_SPREAD_DEG := 60.0
+## 적어도 이 각도(도)만큼은 비껴 간다 (가만히 있는 우주선에 곧장 부딪히지 않게)
+const GOLDEN_AIM_MIN_DEG := 20.0
 ## 동시에 있을 수 있는 최대 수
 const GOLDEN_MAX := 2
 ## 일반 운석보다 이 배수만큼 더 멀어져야 사라진다 (멀어져도 쫓아갈 시간을 줌)
@@ -150,6 +187,8 @@ const GOLDEN_DESPAWN_FACTOR := 2.0
 const FIRE_INTERVAL := 0.55
 ## 이 거리 안에 있는 가장 가까운 운석을 자동으로 노린다.
 const FIRE_RANGE := 170.0
+## 자동 공격은 단단한 적(황금 운석·고대 포탑)을 이 거리(픽셀)만큼 더 멀리 있는 것으로 치고 고른다 (가까운 위협 먼저)
+const TARGET_STURDY_PENALTY := 60.0
 const BULLET_SPEED := 260.0
 const BULLET_DAMAGE := 1.0
 const BULLET_RADIUS := 1.5
@@ -221,6 +260,8 @@ const REPAIR_AMOUNT := 30.0
 const HIT_SHAKE_TIME := 0.25
 const HIT_SHAKE_STRENGTH := 3.0
 const HIT_FLASH_TIME := 0.2
+## 적이 탄에 맞으면 탄이 날아온 쪽으로 잠깐 튕기는 모션 시간 (그림만 밀림, 실제 위치는 그대로)
+const HIT_KNOCK_TIME := 0.12
 ## 이 비율 이하이면 체력 낮음 경고 상태
 const LOW_HP_RATIO := 0.3
 ## 처음 체력 낮음이 될 때 화면 테두리가 붉게 맥박치는 시간

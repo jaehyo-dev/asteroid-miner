@@ -675,6 +675,7 @@ func test_황금_운석은_동시에_최대_개수까지만() -> void:
 	sim.set("hp", 1.0e9)
 	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	sim.view_size = Vector2(100000, 100000)  # 멀어져서 사라지지 않게
+	sim.raid.timer = 1.0e9  # 습격과 함께 오는 황금 운석은 따로 확인
 	sim.time = 1000.0
 	for i in 2000:
 		sim.update(0.1, Vector2.ZERO)

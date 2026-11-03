@@ -31,6 +31,23 @@ const BARRAGE_LINE_GLOW := 6.0
 const BARRAGE_LINE_FIRE_ALPHA := 0.9
 ## 조준선 길이 (쏘는 곳에서 화면 반대편 밖까지 넉넉히)
 const BARRAGE_LINE_LENGTH := 2000.0
+## 운석 회전 속도(라디안/초)의 기준: 작은 운석일수록 빨리 돈다
+const ROCK_SPIN := 1.2
+## 맞으면 탄이 날아온 쪽으로 튕기는 거리(픽셀)
+const HIT_KNOCK_DISTANCE := 2.0
+## 운석이 금 가는 체력 비율: 이 아래로 떨어질 때마다 금이 하나씩 더 생긴다
+const CRACK_STEPS := [0.67, 0.34]
+## 고대 포탑 색: 몸체(밝은 면, 기본, 어두운 면), 문양·충전 빛, 포탑 에너지탄
+const TURRET_COLORS := [Color("#8a94a8"), Color("#5a6274"), Color("#363b48")]
+const TURRET_RUNE := Color("#ffb347")
+const TURRET_SHOT_CORE := Color("#fff4d6")
+const TURRET_SHOT_GLOW := Color("#ff9a2e")
+## 포신 길이와 굵기(픽셀)
+const TURRET_BARREL_LENGTH := 12.0
+const TURRET_BARREL_WIDTH := 4.0
+## 우주선 기울기: 돌 때 옆으로 눌려 보이는 최대 비율, 기울기가 따라가는 빠르기
+const SHIP_BANK_SQUASH := 0.35
+const SHIP_BANK_RATE := 10.0
 
 var sim: RunSim
 ## 이번 프레임에 움직이는 중인지 (엔진 불꽃 표시용)
@@ -41,6 +58,11 @@ var _debris: Array = []
 ## 줍기 연출: {pos, grade, t(지난 시간)}
 var _pickups: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
+## 우주선 기울기 (-1 왼쪽으로 돌 때 ~ 1 오른쪽으로 돌 때)
+var bank := 0.0
+var _last_facing := NAN
+## 금 선 모양 캐시 ("반지름_변형_단계" → 선 목록)
+static var _crack_cache := {}
 
 
 ## 매 프레임 효과를 갱신한다 (RunSim.update 다음에 부름).
@@ -53,6 +75,12 @@ func step(delta: float) -> void:
 		for i in count:
 			var vel := Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.4, 1.0) * DEBRIS_SPEED
 			_debris.append([a.pos, vel, DEBRIS_TIME * (1.6 if a.golden else 1.0), color])
+	# 우주선 기울기: 이번 프레임에 돈 만큼(최대 회전 속도 대비)을 부드럽게 따라간다
+	var turn := 0.0
+	if not is_nan(_last_facing) and delta > 0.0:
+		turn = clampf(wrapf(sim.facing - _last_facing, -PI, PI) / delta / Balance.SHIP_TURN_SPEED, -1.0, 1.0)
+	_last_facing = sim.facing
+	bank = move_toward(bank, turn, SHIP_BANK_RATE * delta)
 	for p in sim.picked:
 		_pickups.append({"pos": p["pos"], "grade": p["grade"], "t": 0.0})
 	var kept: Array = []
@@ -80,10 +108,12 @@ func _draw() -> void:
 		if a.kind == "bug":
 			_draw_bug(a)
 			continue
+		if a.kind == RunSim.TURRET:
+			_draw_turret(a)
+			continue
 		if a.golden:
 			_draw_golden_glow(a)
-		var tex := PixelArt.asteroid_flash(a.radius, a.variant, a.golden) if a.flash > 0.0 else PixelArt.asteroid(a.radius, a.variant, a.golden)
-		draw_texture(tex, (a.pos - tex.get_size() / 2.0).round())
+		_draw_rock(a)
 		if a.golden:
 			_draw_sparkles(a.pos, a.radius, 3, 0.0)
 	for m in sim.minerals:
@@ -121,19 +151,116 @@ func _draw_barrages() -> void:
 		draw_line(start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
 	for s in sim.shots:
 		var dir := s.vel.normalized()
+		# 고대 포탑 탄은 주황, 심연의 포격은 분홍 (크기도 포탑 탄이 작음)
+		var glow := TURRET_SHOT_GLOW if s.turret else SHOT_GLOW
+		var core := TURRET_SHOT_CORE if s.turret else SHOT_CORE
+		var k := s.radius / Balance.BARRAGE_SHOT_RADIUS
 		# 꼬리 잔상
 		for i in range(3, 0, -1):
-			draw_circle((s.pos - dir * i * 4.0).round(), 5.0 - i, Color(SHOT_GLOW, 0.25))
-		draw_circle(s.pos.round(), 7.0, Color(SHOT_GLOW, 0.35))
-		draw_circle(s.pos.round(), 4.0, SHOT_GLOW)
-		draw_circle(s.pos.round(), 2.0, SHOT_CORE)
+			draw_circle((s.pos - dir * i * 4.0 * k).round(), (5.0 - i) * k, Color(glow, 0.25))
+		draw_circle(s.pos.round(), 7.0 * k, Color(glow, 0.35))
+		draw_circle(s.pos.round(), 4.0 * k, glow)
+		draw_circle(s.pos.round(), 2.0 * k, core)
+
+
+## 운석: 천천히 돌고, 맞으면 탄이 날아온 쪽으로 살짝 튕기며, 체력이 줄면 금이 간다.
+func _draw_rock(a: RunSim.Enemy) -> void:
+	var tex := PixelArt.asteroid_flash(a.radius, a.variant, a.golden) if a.flash > 0.0 else PixelArt.asteroid(a.radius, a.variant, a.golden)
+	var center := (a.pos + knock_offset(a)).round()
+	draw_set_transform(center, a.age * spin_speed(a.variant, a.radius))
+	draw_texture(tex, -(tex.get_size() / 2.0).floor())
+	var cracks := crack_level(a.hp, a.max_hp)
+	if cracks > 0 and a.flash <= 0.0:
+		var palette: Array = PixelArt.GOLD_ROCK_COLORS if a.golden else PixelArt.ROCK_COLORS
+		for line in crack_lines(a.radius, a.variant, cracks):
+			draw_polyline(line, palette[3], 1.0)
+	draw_set_transform(Vector2.ZERO)
+
+
+## 고대 포탑: 팔각형 몸체에 문양이 맥박치고, 포신이 우주선 쪽으로 천천히 돈다. 충전 중에는 포신 끝이 점점 밝아진다.
+func _draw_turret(t: RunSim.Enemy) -> void:
+	var center := (t.pos + knock_offset(t)).round()
+	var white := t.flash > 0.0
+	var charge := Turret.charge_progress(t)
+	# 몸체: 팔각형 두 겹 (그림자 → 몸체 → 윗면)
+	var body := PackedVector2Array()
+	var top := PackedVector2Array()
+	for i in 8:
+		var dir := Vector2.from_angle(i * TAU / 8.0 + TAU / 16.0)
+		body.append(center + dir * t.radius)
+		top.append(center + dir * (t.radius - 3.0) + Vector2(0, -1))
+	draw_colored_polygon(body, Color.WHITE if white else TURRET_COLORS[2])
+	draw_colored_polygon(top, Color.WHITE if white else TURRET_COLORS[1])
+	# 문양: 네 귀퉁이 점이 천천히 맥박친다 (충전하면 밝아짐)
+	var rune := 0.35 + 0.25 * sin(t.age * 3.0 + t.variant) + 0.4 * charge
+	for i in 4:
+		var p := center + Vector2.from_angle(i * TAU / 4.0 + TAU / 8.0) * (t.radius - 2.0)
+		draw_rect(Rect2(p.round() - Vector2(1, 1), Vector2(2, 2)), Color(TURRET_RUNE, clampf(rune, 0.0, 1.0)))
+	# 포신: 쏜 직후에는 뒤로 밀렸다가 돌아온다
+	var dir := Vector2.from_angle(t.aim)
+	var recoil := 3.0 * clampf((t.reload - (Balance.TURRET_FIRE_INTERVAL - 0.25)) / 0.25, 0.0, 1.0)
+	var tip := center + dir * (TURRET_BARREL_LENGTH - recoil)
+	draw_line(center, tip, Color.WHITE if white else TURRET_COLORS[0], TURRET_BARREL_WIDTH)
+	draw_line(center, tip, Color.WHITE if white else TURRET_COLORS[2], 1.0)
+	# 포탑 머리(포신 뿌리)
+	draw_circle(center, 4.0, Color.WHITE if white else TURRET_COLORS[0])
+	draw_circle(center, 2.0, Color(TURRET_RUNE, 0.5 + 0.5 * charge))
+	# 충전 빛: 포신 끝에 모이는 빛이 커지고 밝아진다
+	if charge > 0.0:
+		draw_circle(tip, 2.0 + 5.0 * charge, Color(TURRET_SHOT_GLOW, 0.25 + 0.35 * charge))
+		draw_circle(tip, 1.0 + 2.0 * charge, Color(TURRET_SHOT_CORE, 0.6 + 0.4 * charge))
+
+
+## 맞았을 때 탄이 날아온 쪽으로 밀리는 그림 위치 (실제 위치는 그대로)
+static func knock_offset(e: RunSim.Enemy) -> Vector2:
+	if e.hit_time <= 0.0:
+		return Vector2.ZERO
+	return e.hit_dir * HIT_KNOCK_DISTANCE * (e.hit_time / Balance.HIT_KNOCK_TIME)
+
+
+## 운석 회전 속도(라디안/초): 변형 번호마다 방향과 빠르기가 다르고, 작을수록 빨리 돈다
+static func spin_speed(variant: int, radius: float) -> float:
+	return ROCK_SPIN * (float(variant) - 1.5) / 1.5 * 5.0 / maxf(radius, 1.0)
+
+
+## 금 간 정도: 0 (멀쩡) ~ CRACK_STEPS.size(). 한 방에 부서지는 적(최대 체력 1 이하)은 금이 가지 않는다.
+static func crack_level(hp: float, max_hp: float) -> int:
+	if max_hp <= 1.0:
+		return 0
+	var ratio := hp / max_hp
+	var level := 0
+	for step in CRACK_STEPS:
+		if ratio <= step:
+			level += 1
+	return level
+
+
+## 금 선들 (운석 가운데 기준 좌표). 같은 (반지름, 변형 번호)는 항상 같은 모양이고, 단계가 오르면 선이 더해진다.
+static func crack_lines(radius: float, variant: int, level: int) -> Array[PackedVector2Array]:
+	var key := "%d_%d_%d" % [int(radius), variant, level]
+	if _crack_cache.has(key):
+		return _crack_cache[key]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(radius) * 31 + variant * 977 + 5
+	var lines: Array[PackedVector2Array] = []
+	for i in level:
+		var angle := rng.randf() * TAU
+		var line := PackedVector2Array([Vector2.from_angle(angle + PI) * radius * 0.2])
+		var p := line[0]
+		for j in 3:
+			angle += rng.randf_range(-0.6, 0.6)
+			p += Vector2.from_angle(angle) * radius * 0.28
+			line.append(p.round())
+		lines.append(line)
+	_crack_cache[key] = lines  # 매 프레임 다시 만들지 않게 모양을 기억해 둔다
+	return lines
 
 
 ## 우주 해파리: 몸통이 오므렸다 펴지며(맥박) 촉수가 물결치듯 흔들린다.
 func _draw_jelly(e: RunSim.Enemy) -> void:
 	var phase := e.age * 5.0 + e.variant
 	var pulse := sin(phase)  # -1 ~ 1
-	var center := e.pos.round()
+	var center := (e.pos + knock_offset(e)).round()
 	# 은은한 빛
 	draw_circle(center, e.radius + 2.0 + pulse, Color(PixelArt.JELLY_COLORS[1], 0.12))
 	# 촉수 4가닥: 몸통 아래에서 늘어져 물결친다 (오므릴 때 짧아짐)
@@ -157,7 +284,7 @@ func _draw_jelly(e: RunSim.Enemy) -> void:
 func _draw_bug(e: RunSim.Enemy) -> void:
 	var frame := int(e.age * 14.0 + e.variant) % 2
 	var tex := PixelArt.bug(frame, e.flash > 0.0)
-	draw_set_transform(e.pos.round(), e.vel.angle() + PI / 2.0)
+	draw_set_transform((e.pos + knock_offset(e)).round(), e.vel.angle() + PI / 2.0)
 	draw_texture(tex, -(tex.get_size() / 2.0).floor())
 	draw_set_transform(Vector2.ZERO)
 
@@ -249,7 +376,8 @@ func _draw_ship() -> void:
 		return
 	var tex := PixelArt.ship()
 	# 그림은 위쪽을 바라보므로 바라보는 방향(facing)에서 90도를 더해 돌린다.
-	draw_set_transform(sim.player_pos.round(), sim.facing + PI / 2.0)
+	# 돌 때는 옆으로 살짝 눌려 몸을 기울인 것처럼 보인다 (가로 폭이 줄어듦)
+	draw_set_transform(sim.player_pos.round(), sim.facing + PI / 2.0, Vector2(1.0 - SHIP_BANK_SQUASH * absf(bank), 1.0))
 	var top_left := -(tex.get_size() / 2.0).floor()
 	if moving:
 		# 엔진 불꽃: 뒤쪽 두 엔진에서 깜빡이는 픽셀

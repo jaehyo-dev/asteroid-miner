@@ -97,8 +97,7 @@ func test_날벌레는_잠깐만_방향을_틀고_그_뒤엔_그대로_지나감
 
 func test_날벌레_떼는_정해진_시각부터_나옴() -> void:
 	var sim := RunSim.new(6)
-	sim.set("hp", 1.0e9)
-	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
+	sim.invuln = 1.0e9  # 끝까지 맞지 않게 (최대 체력 강화를 고르면 체력이 다시 깎이므로 체력 대신 무적으로)
 	var first := -1.0
 	while sim.time < Balance.BUG_FIRST_TIME + 1.0 and first < 0.0 and sim.alive:
 		if not sim.choices.is_empty():
