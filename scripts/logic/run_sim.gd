@@ -313,7 +313,7 @@ func _update_barrages(delta: float) -> void:
 			shots.append(s)
 			fired = true
 		if was_firing and b.phase == Barrage.Phase.DONE:
-			# 마지막 탄이 우주선 쪽을 지나갈 때까지 조준선을 남긴다 (예고가 사라진 뒤 탄이 보이기 전 빈틈이 없게)
+			# 마지막 탄이 우주선 쪽을 지나갈 때까지 포격을 남긴다 (조준선은 사라져도 가장자리 "!" 표시는 유지)
 			b.linger = b.origin.distance_to(player_pos) / Balance.BARRAGE_SHOT_SPEED + Balance.BARRAGE_LINGER_EXTRA
 		elif b.phase == Barrage.Phase.DONE:
 			b.linger -= delta
@@ -340,7 +340,7 @@ func _update_barrages(delta: float) -> void:
 func barrage_escape(pos: Vector2, margin: float) -> Vector2:
 	for b in barrages:
 		if b.phase == Barrage.Phase.DONE:
-			continue  # 다 쏜 뒤 남겨 둔 선은 표시일 뿐, 위험은 날아가는 탄(아래)에서 본다
+			continue  # 다 쏜 뒤에는 위험을 날아가는 탄(아래)에서 본다
 		var d := Barrage.distance_from_line(b.origin, b.dir, pos)
 		if d < margin:
 			var side := Vector2(-b.dir.y, b.dir.x)
