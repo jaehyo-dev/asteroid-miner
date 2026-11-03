@@ -5,9 +5,9 @@ extends RefCounted
 ## 화면 쪽(scripts/run.gd)은 매 프레임 update()를 부르고 이 상태를 그리기만 한다.
 
 
-## 적 종류: 운석, 고대 포탑 (생명체는 Balance.CREATURES의 키)
+## 적 종류: 운석, 고대 경비선 (생명체는 Balance.CREATURES의 키)
 const ROCK := "rock"
-const TURRET := "turret"
+const GUARD := "guard"
 
 
 ## 적 한 개 (운석, 황금 운석, 생명체)
@@ -21,19 +21,19 @@ class Enemy:
 	var max_hp: float
 	var variant: int  ## 모양 변형 번호 (그리기용)
 	var golden := false  ## 황금 운석인지
-	var kind := ROCK  ## 종류: ROCK(운석), TURRET(고대 포탑) 또는 Balance.CREATURES의 키 ("jelly", "bug")
+	var kind := ROCK  ## 종류: ROCK(운석), GUARD(고대 경비선) 또는 Balance.CREATURES의 키 ("jelly", "bug")
 	var age := 0.0  ## 나온 뒤 지난 시간
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
 	var hit_dir := Vector2.ZERO  ## 마지막으로 맞은 탄이 날아온 방향 (맞으면 그쪽으로 튕기는 모션)
 	var hit_time := 0.0  ## 튕김 모션 남은 시간 (그리기용)
-	# 고대 포탑 전용
-	var aim := 0.0  ## 포신 방향 (라디안)
+	# 고대 경비선 전용
+	var aim := 0.0  ## 선체(포)가 바라보는 방향 (라디안)
 	var charge := -1.0  ## 충전한 시간 (충전 중이 아니면 -1)
 	var reload := 0.0  ## 다음 충전까지 남은 시간
 
-	## 부딪혀도 부서지지 않는 단단한 적인지 (황금 운석, 고대 포탑)
+	## 부딪혀도 부서지지 않는 단단한 적인지 (황금 운석, 고대 경비선)
 	func sturdy() -> bool:
-		return golden or kind == TURRET
+		return golden or kind == GUARD
 
 
 ## 떠 있는 광물 한 개
@@ -43,7 +43,7 @@ class Mineral:
 	var attracted := false  ## 자석에 끌려오는 중인지 (한번 끌리면 끝까지 따라옴)
 
 
-## 에너지탄 한 개: 심연의 포격 또는 고대 포탑이 쏜다 (자동 공격으로 부술 수 없음)
+## 에너지탄 한 개: 심연의 포격 또는 고대 경비선이 쏜다 (자동 공격으로 부술 수 없음)
 class Shot:
 	var pos: Vector2
 	var prev_pos: Vector2  ## 이번 프레임 이동 전 위치 (지나간 선분으로 충돌 판정)
@@ -51,7 +51,7 @@ class Shot:
 	var life: float  ## 남은 비행 시간
 	var damage := Balance.BARRAGE_SHOT_DAMAGE
 	var radius := Balance.BARRAGE_SHOT_RADIUS
-	var turret := false  ## 고대 포탑이 쏜 탄인지 (그리기용)
+	var guard := false  ## 고대 경비선이 쏜 탄인지 (그리기용)
 
 
 ## 탄 한 개
@@ -87,7 +87,7 @@ var destroyed: Array[Enemy] = []
 var picked: Array[Dictionary] = []
 ## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden",
 ## "barrage_warning"·"barrage_charge"·"barrage_fire"(심연의 포격), "new_barrage"(첫 포격),
-## "new_jelly"·"new_bug"·"new_turret"(처음 등장), "turret_charge"·"turret_fire"(고대 포탑),
+## "new_jelly"·"new_bug"·"new_guard"(처음 등장), "guard_charge"·"guard_fire"(고대 경비선),
 ## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석)
 var events: PackedStringArray = []
 ## 탄으로 부순 적 수 (운석·황금 운석·생명체)
@@ -130,8 +130,8 @@ var _fire_timer := 0.0
 ## 생명체 등장 타이머
 var _jelly_timer := Balance.JELLY_FIRST_TIME
 var _bug_timer := Balance.BUG_FIRST_TIME
-## 다음 고대 포탑까지 남은 시간
-var _turret_timer := Balance.TURRET_FIRST_TIME
+## 다음 고대 경비선까지 남은 시간
+var _guard_timer := Balance.GUARD_FIRST_TIME
 ## 습격 중 다음 등장까지 남은 시간
 var _raid_spawn_timer := 0.0
 ## 습격 이벤트 흐름
@@ -217,11 +217,11 @@ func _spawn_regular(delta: float, hold: bool) -> void:
 		if enemies.size() + Balance.BUG_SWARM_SIZE <= Balance.MAX_ENEMIES:
 			spawn_swarm()
 		_bug_timer += creature_interval(Balance.BUG_INTERVAL_START, Balance.BUG_INTERVAL_MIN, time)
-	_turret_timer = _tick(_turret_timer, delta, hold)
-	while _turret_timer <= 0.0:
-		if turret_count() < Balance.TURRET_MAX and enemies.size() < Balance.MAX_ENEMIES:
-			spawn_turret()
-		_turret_timer += creature_interval(Balance.TURRET_INTERVAL_START, Balance.TURRET_INTERVAL_MIN, time)
+	_guard_timer = _tick(_guard_timer, delta, hold)
+	while _guard_timer <= 0.0:
+		if guard_count() < Balance.GUARD_MAX and enemies.size() < Balance.MAX_ENEMIES:
+			spawn_guard()
+		_guard_timer += creature_interval(Balance.GUARD_INTERVAL_START, Balance.GUARD_INTERVAL_MIN, time)
 
 
 ## 등장 타이머 한 프레임: hold면 0 바로 위에서 멈춰 기다린다.
@@ -281,31 +281,31 @@ func spawn_swarm(angle: float = INF) -> Array[Enemy]:
 	return group
 
 
-## 고대 포탑 하나를 화면 밖(우주선이 가는 쪽 앞)에 만든다. 제자리에 떠 있다. 처음이면 "new_turret".
-func spawn_turret() -> Enemy:
+## 고대 경비선 하나를 화면 밖에 만든다. 우주선을 따라다니며 쏜다. 처음이면 "new_guard".
+func spawn_guard(angle: float = INF) -> Enemy:
 	var e := Enemy.new()
-	e.kind = TURRET
-	e.radius = Balance.TURRET["radius"]
-	e.damage = Balance.TURRET["damage"]
-	e.max_hp = asteroid_hp(Balance.TURRET["hp"], time)
+	e.kind = GUARD
+	e.radius = Balance.GUARD["radius"]
+	e.damage = Balance.GUARD["damage"]
+	e.max_hp = asteroid_hp(Balance.GUARD["hp"], time)
 	e.hp = e.max_hp
-	e.variant = rng.randi_range(0, 3)
-	e.pos = spawn_position(rng, player_pos, view_size, e.radius, Turret.spawn_angle(rng, player_vel))
-	e.vel = Vector2.ZERO
-	e.aim = (player_pos - e.pos).angle() + PI  # 처음엔 등을 돌리고 있다가 천천히 돌아본다
-	e.reload = Balance.TURRET_FIRE_INTERVAL / 2.0
+	e.variant = rng.randi_range(0, 3)  # 짝수면 시계 방향, 홀수면 반대로 돈다
+	e.pos = spawn_position(rng, player_pos, view_size, e.radius, angle)
+	e.aim = (player_pos - e.pos).angle()
+	e.vel = Vector2.from_angle(e.aim) * guard_speed(time)
+	e.reload = Balance.GUARD_FIRE_INTERVAL / 2.0
 	enemies.append(e)
-	if not introduced.has(TURRET):
-		introduced[TURRET] = true
-		events.append("new_turret")
+	if not introduced.has(GUARD):
+		introduced[GUARD] = true
+		events.append("new_guard")
 	return e
 
 
-## 지금 있는 고대 포탑 수
-func turret_count() -> int:
+## 지금 있는 고대 경비선 수
+func guard_count() -> int:
 	var n := 0
 	for e in enemies:
-		if e.kind == TURRET:
+		if e.kind == GUARD:
 			n += 1
 	return n
 
@@ -396,7 +396,8 @@ func _update_barrages(delta: float) -> void:
 
 
 ## 우주선이 지금 위험한 조준선 위에 있으면, 그 선에서 벗어나는 방향 (아니면 ZERO). 밸런스 봇용.
-func barrage_escape(pos: Vector2, margin: float) -> Vector2:
+## lookahead: 날아가는 탄은 이 시간(초) 안에 닿을 것만 피한다.
+func barrage_escape(pos: Vector2, margin: float, lookahead: float = 1.0) -> Vector2:
 	for b in barrages:
 		if b.phase == Barrage.Phase.DONE:
 			continue  # 다 쏜 뒤에는 위험을 날아가는 탄(아래)에서 본다
@@ -405,6 +406,9 @@ func barrage_escape(pos: Vector2, margin: float) -> Vector2:
 			var side := Vector2(-b.dir.y, b.dir.x)
 			return side if (pos - b.origin).dot(side) >= 0.0 else -side
 	for s in shots:
+		var along := (pos - s.pos).dot(s.vel.normalized())
+		if along > s.vel.length() * lookahead:
+			continue  # 아직 멀리 있는 탄은 나중에 피한다 (사람도 가까이 올 때 비켜섬)
 		var d := Barrage.distance_from_line(s.pos, s.vel.normalized(), pos)
 		if d < margin:
 			var side := Vector2(-s.vel.y, s.vel.x).normalized()
@@ -445,17 +449,18 @@ func golden_count() -> int:
 func _move_enemies(delta: float) -> void:
 	var limit := despawn_distance(view_size)
 	var kept: Array[Enemy] = []
-	var turret_fired := false
+	var guard_fired := false
 	for a in enemies:
 		a.age += delta
-		if a.kind == TURRET:
+		if a.kind == GUARD:
+			a.vel = Guard.steer(a.pos, a.vel, player_pos, guard_speed(time), 1.0 if a.variant % 2 == 0 else -1.0, delta)
 			var was_charging := a.charge >= 0.0
-			var can_fire := alive and Turret.can_fire_at(a.pos, player_pos, view_size, Balance.TURRET_SCREEN_MARGIN)
-			if Turret.update(a, delta, player_pos, can_fire):
-				_fire_turret(a)
-				turret_fired = true
+			var can_fire := alive and Guard.can_fire_at(a.pos, player_pos, view_size, Balance.GUARD_SCREEN_MARGIN)
+			if Guard.update(a, delta, player_pos, can_fire):
+				_fire_guard(a)
+				guard_fired = true
 			elif not was_charging and a.charge >= 0.0:
-				events.append("turret_charge")
+				events.append("guard_charge")
 		elif a.kind != ROCK and (a.kind != "bug" or a.age < Balance.BUG_HOMING_TIME):
 			a.vel = steer(a.pos, a.vel, player_pos, creature_speed(a.kind, time), float(Balance.CREATURES[a.kind]["accel"]), delta)
 		a.pos += a.vel * delta
@@ -464,26 +469,26 @@ func _move_enemies(delta: float) -> void:
 		var keep_limit := limit
 		if a.golden:
 			keep_limit = limit * Balance.GOLDEN_DESPAWN_FACTOR
-		elif a.kind == TURRET:
-			keep_limit = limit * Balance.TURRET_DESPAWN_FACTOR
+		elif a.kind == GUARD:
+			keep_limit = limit * Balance.GUARD_DESPAWN_FACTOR
 		if a.pos.distance_to(player_pos) <= keep_limit:
 			kept.append(a)
 	enemies = kept
-	if turret_fired:
-		events.append("turret_fire")
+	if guard_fired:
+		events.append("guard_fire")
 
 
-## 고대 포탑이 포신 방향으로 에너지탄 한 발을 쏜다 (포신 끝에서 나감).
-func _fire_turret(t: Enemy) -> void:
+## 고대 경비선이 선체가 바라보는 방향으로 에너지탄 한 발을 쏜다 (뱃머리에서 나감).
+func _fire_guard(t: Enemy) -> void:
 	var dir := Vector2.from_angle(t.aim)
 	var s := Shot.new()
 	s.pos = t.pos + dir * t.radius
 	s.prev_pos = s.pos
-	s.vel = dir * Balance.TURRET_SHOT_SPEED
-	s.damage = Balance.TURRET_SHOT_DAMAGE
-	s.radius = Balance.TURRET_SHOT_RADIUS
-	s.turret = true
-	s.life = despawn_distance(view_size) / Balance.TURRET_SHOT_SPEED
+	s.vel = dir * Balance.GUARD_SHOT_SPEED
+	s.damage = Balance.GUARD_SHOT_DAMAGE
+	s.radius = Balance.GUARD_SHOT_RADIUS
+	s.guard = true
+	s.life = despawn_distance(view_size) / Balance.GUARD_SHOT_SPEED
 	shots.append(s)
 
 
@@ -647,7 +652,7 @@ func _check_player_hits() -> void:
 	for a in enemies:
 		var touching := a.pos.distance_to(player_pos) < a.radius + Balance.SHIP_RADIUS
 		if touching and alive and damage_player(a.damage) and not a.sturdy():
-			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석·고대 포탑은 부딪혀도 부서지지 않음)
+			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석·고대 경비선은 부딪혀도 부서지지 않음)
 		kept.append(a)
 	enemies = kept
 
@@ -658,8 +663,8 @@ func _check_player_hits() -> void:
 static func drops_of(a: Enemy) -> Array:
 	if a.golden:
 		return Balance.GOLDEN_DROPS
-	if a.kind == TURRET:
-		return Balance.TURRET_DROPS
+	if a.kind == GUARD:
+		return Balance.GUARD_DROPS
 	if a.kind != ROCK:
 		var c: Dictionary = Balance.CREATURES[a.kind]
 		return [{"grade": c["grade"], "count": c["minerals"]}]
@@ -719,9 +724,9 @@ static func nearest_enemy(from: Vector2, list: Array[Enemy], max_range: float) -
 	return best
 
 
-## 자동 공격 대상: 사거리 안에서 가장 가까운 적. 단, 단단한 적(황금 운석·고대 포탑)은
-## TARGET_STURDY_PENALTY만큼 더 멀리 있는 것으로 쳐서, 가까이 다가오는 운석·생명체를 먼저 쏜다.
-## (단단한 적에 탄이 모두 묶여 다른 적에 그대로 맞는 일을 줄인다)
+## 자동 공격 대상: 사거리 안에서 가장 가까운 적. 단, 황금 운석은 TARGET_GOLDEN_PENALTY만큼 더 멀리 있는
+## 것으로 쳐서, 가까이 다가오는 적을 먼저 쏜다 (단단한 황금 운석에 탄이 모두 묶여 다른 적에 그대로 맞는 일을 줄인다).
+## 고대 경비선은 따라다니며 쏘는 위협이라 다른 적과 똑같이 가까운 순서로 쏜다.
 static func pick_target(from: Vector2, list: Array[Enemy], max_range: float) -> Enemy:
 	var best: Enemy = null
 	var best_score := INF
@@ -729,7 +734,7 @@ static func pick_target(from: Vector2, list: Array[Enemy], max_range: float) -> 
 		var d := from.distance_to(a.pos)
 		if d > max_range:
 			continue
-		var score := d + (Balance.TARGET_STURDY_PENALTY if a.sturdy() else 0.0)
+		var score := d + (Balance.TARGET_GOLDEN_PENALTY if a.golden else 0.0)
 		if score < best_score:
 			best = a
 			best_score = score
@@ -844,6 +849,11 @@ static func steer(pos: Vector2, vel: Vector2, target: Vector2, max_speed: float,
 ## 생명체 최고 속도: 시간이 지날수록 빨라지되 운석보다 천천히.
 static func creature_speed(creature: String, t: float) -> float:
 	return float(Balance.CREATURES[creature]["speed"]) * (1.0 + maxf(t, 0.0) / Balance.CREATURE_SPEED_GROWTH_TIME)
+
+
+## 고대 경비선 최고 속도: 시간이 지날수록 조금씩 빨라진다 (5분이 지나도 우주선보다 느리게).
+static func guard_speed(t: float) -> float:
+	return Balance.GUARD_SPEED * (1.0 + maxf(t, 0.0) / Balance.GUARD_SPEED_GROWTH_TIME)
 
 
 ## 생명체 등장 간격: SPAWN_RAMP_TIME에 걸쳐 시작 → 최소로 줄어든다.

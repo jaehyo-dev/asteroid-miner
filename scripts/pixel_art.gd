@@ -103,6 +103,23 @@ const BUG_FRAMES := [
 	],
 ]
 
+## 고대 경비선 색: 앞쪽 뿔(밝은 청동), 선체, 어두운 선체, 핵(주황빛)
+const GUARD_COLORS := [Color("#e0c88e"), Color("#9a7c50"), Color("#55402a"), Color("#ffb347")]
+## 고대 경비선 (위쪽을 바라봄, 13x10). 글자 → 색: g 뿔, # 선체, d 어두운 선체, c 핵
+## 우주선(날렵한 은색)과 달리 뭉툭한 청동 선체에 뿔 두 개가 앞으로 뻗은 오래된 함선
+const GUARD_PATTERN := [
+	"..g.......g..",
+	"..g.......g..",
+	".gdg.....gdg.",
+	".gdg..c..gdg.",
+	".gdd#ccc#ddg.",
+	"gddd#ccc#dddg",
+	"gdd###c###ddg",
+	".dd#######dd.",
+	"..dd#####dd..",
+	"...dd...dd...",
+]
+
 ## 운석 색: 밝은 면, 기본, 그늘, 구멍
 const ROCK_COLORS := [Color("#a8957f"), Color("#7a6a5a"), Color("#54483d"), Color("#3e352d")]
 ## 황금 운석 색: 밝은 면, 기본, 그늘, 구멍 (멀리서도 눈에 띄게 밝은 금색)
@@ -192,6 +209,18 @@ static func mineral(grade: int) -> ImageTexture:
 	if not _cache.has(key):
 		var c: Array = MINERAL_COLORS[grade]
 		_cache[key] = from_pattern(MINERAL_PATTERNS[grade], {"h": c[0], "m": c[1], "s": c[2], "w": Color.WHITE})
+	return _cache[key]
+
+
+## 고대 경비선 (맞으면 흰색)
+static func guard(white: bool = false) -> ImageTexture:
+	var key := "guard_%s" % white
+	if not _cache.has(key):
+		var c: Array = GUARD_COLORS
+		var colors := {"g": c[0], "#": c[1], "d": c[2], "c": c[3]}
+		if white:
+			colors = {"g": Color.WHITE, "#": Color.WHITE, "d": Color.WHITE, "c": Color.WHITE}
+		_cache[key] = from_pattern(GUARD_PATTERN, colors)
 	return _cache[key]
 
 

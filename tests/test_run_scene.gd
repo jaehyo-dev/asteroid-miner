@@ -153,13 +153,13 @@ func test_숫자키_번호() -> void:
 	assert_eq(script.number_key_index(KEY_A), -1)
 
 
-func test_고대_포탑과_금_간_운석도_오류_없이_그림() -> void:
+func test_고대_경비선과_금_간_운석도_오류_없이_그림() -> void:
 	var run: Node = await _start()
 	run.sim.invuln = 1.0e9
-	var t: RunSim.Enemy = run.sim.spawn_turret()
+	var t: RunSim.Enemy = run.sim.spawn_guard()
 	t.pos = run.sim.player_pos + Vector2(90, 0)
 	t.charge = 0.5  # 충전 중 빛
-	var t2: RunSim.Enemy = run.sim.spawn_turret()
+	var t2: RunSim.Enemy = run.sim.spawn_guard()
 	t2.pos = run.sim.player_pos + Vector2(-90, 30)
 	t2.flash = 0.05
 	t2.hit_time = Balance.HIT_KNOCK_TIME
@@ -168,16 +168,16 @@ func test_고대_포탑과_금_간_운석도_오류_없이_그림() -> void:
 	a.pos = run.sim.player_pos + Vector2(0, 60)
 	a.max_hp = 3.0
 	a.hp = 1.0  # 금 두 줄
-	run.sim.call("_fire_turret", t)
+	run.sim.call("_fire_guard", t)
 	await wait_frames(5)
-	assert_true(run.sim.turret_count() >= 1)
+	assert_true(run.sim.guard_count() >= 1)
 	run.queue_free()
 
 
-func test_새로운_포탑과_습격_황금_운석_배너() -> void:
+func test_새로운_경비선과_습격_황금_운석_배너() -> void:
 	var run: Node = await _start()
-	run._announce(PackedStringArray(["new_turret"]))
-	assert_true(run.hud.banner_text.contains(Balance.TURRET["name"]), run.hud.banner_text)
+	run._announce(PackedStringArray(["new_guard"]))
+	assert_true(run.hud.banner_text.contains(Balance.GUARD["name"]), run.hud.banner_text)
 	run._announce(PackedStringArray(["raid_golden"]))
 	assert_true(run.hud.banner_text.contains("황금 운석"), run.hud.banner_text)
 	run.queue_free()

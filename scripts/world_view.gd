@@ -37,14 +37,11 @@ const ROCK_SPIN := 1.2
 const HIT_KNOCK_DISTANCE := 2.0
 ## 운석이 금 가는 체력 비율: 이 아래로 떨어질 때마다 금이 하나씩 더 생긴다
 const CRACK_STEPS := [0.67, 0.34]
-## 고대 포탑 색: 몸체(밝은 면, 기본, 어두운 면), 문양·충전 빛, 포탑 에너지탄
-const TURRET_COLORS := [Color("#8a94a8"), Color("#5a6274"), Color("#363b48")]
-const TURRET_RUNE := Color("#ffb347")
-const TURRET_SHOT_CORE := Color("#fff4d6")
-const TURRET_SHOT_GLOW := Color("#ff9a2e")
-## 포신 길이와 굵기(픽셀)
-const TURRET_BARREL_LENGTH := 12.0
-const TURRET_BARREL_WIDTH := 4.0
+## 고대 경비선: 충전 빛·경비선 에너지탄 색, 뱃머리(탄이 나가는 곳)까지 거리
+const GUARD_GLOW := Color("#ffb347")
+const GUARD_SHOT_CORE := Color("#fff4d6")
+const GUARD_SHOT_GLOW := Color("#ff9a2e")
+const GUARD_NOSE := 6.0
 ## 우주선 기울기: 돌 때 옆으로 눌려 보이는 최대 비율, 기울기가 따라가는 빠르기
 const SHIP_BANK_SQUASH := 0.35
 const SHIP_BANK_RATE := 10.0
@@ -108,8 +105,8 @@ func _draw() -> void:
 		if a.kind == "bug":
 			_draw_bug(a)
 			continue
-		if a.kind == RunSim.TURRET:
-			_draw_turret(a)
+		if a.kind == RunSim.GUARD:
+			_draw_guard(a)
 			continue
 		if a.golden:
 			_draw_golden_glow(a)
@@ -151,9 +148,9 @@ func _draw_barrages() -> void:
 		draw_line(start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
 	for s in sim.shots:
 		var dir := s.vel.normalized()
-		# 고대 포탑 탄은 주황, 심연의 포격은 분홍 (크기도 포탑 탄이 작음)
-		var glow := TURRET_SHOT_GLOW if s.turret else SHOT_GLOW
-		var core := TURRET_SHOT_CORE if s.turret else SHOT_CORE
+		# 고대 경비선 탄은 주황, 심연의 포격은 분홍 (크기도 경비선 탄이 작음)
+		var glow := GUARD_SHOT_GLOW if s.guard else SHOT_GLOW
+		var core := GUARD_SHOT_CORE if s.guard else SHOT_CORE
 		var k := s.radius / Balance.BARRAGE_SHOT_RADIUS
 		# 꼬리 잔상
 		for i in range(3, 0, -1):
@@ -177,38 +174,28 @@ func _draw_rock(a: RunSim.Enemy) -> void:
 	draw_set_transform(Vector2.ZERO)
 
 
-## 고대 포탑: 팔각형 몸체에 문양이 맥박치고, 포신이 우주선 쪽으로 천천히 돈다. 충전 중에는 포신 끝이 점점 밝아진다.
-func _draw_turret(t: RunSim.Enemy) -> void:
-	var center := (t.pos + knock_offset(t)).round()
-	var white := t.flash > 0.0
-	var charge := Turret.charge_progress(t)
-	# 몸체: 팔각형 두 겹 (그림자 → 몸체 → 윗면)
-	var body := PackedVector2Array()
-	var top := PackedVector2Array()
-	for i in 8:
-		var dir := Vector2.from_angle(i * TAU / 8.0 + TAU / 16.0)
-		body.append(center + dir * t.radius)
-		top.append(center + dir * (t.radius - 3.0) + Vector2(0, -1))
-	draw_colored_polygon(body, Color.WHITE if white else TURRET_COLORS[2])
-	draw_colored_polygon(top, Color.WHITE if white else TURRET_COLORS[1])
-	# 문양: 네 귀퉁이 점이 천천히 맥박친다 (충전하면 밝아짐)
-	var rune := 0.35 + 0.25 * sin(t.age * 3.0 + t.variant) + 0.4 * charge
-	for i in 4:
-		var p := center + Vector2.from_angle(i * TAU / 4.0 + TAU / 8.0) * (t.radius - 2.0)
-		draw_rect(Rect2(p.round() - Vector2(1, 1), Vector2(2, 2)), Color(TURRET_RUNE, clampf(rune, 0.0, 1.0)))
-	# 포신: 쏜 직후에는 뒤로 밀렸다가 돌아온다
+## 고대 경비선: 선체가 우주선 쪽으로 천천히 돌고, 움직이면 뒤쪽 엔진이 깜빡인다.
+## 충전 중에는 뱃머리(뿔 사이)에 주황빛이 모이고, 쏜 직후에는 뒤로 살짝 밀린다(반동).
+func _draw_guard(t: RunSim.Enemy) -> void:
 	var dir := Vector2.from_angle(t.aim)
-	var recoil := 3.0 * clampf((t.reload - (Balance.TURRET_FIRE_INTERVAL - 0.25)) / 0.25, 0.0, 1.0)
-	var tip := center + dir * (TURRET_BARREL_LENGTH - recoil)
-	draw_line(center, tip, Color.WHITE if white else TURRET_COLORS[0], TURRET_BARREL_WIDTH)
-	draw_line(center, tip, Color.WHITE if white else TURRET_COLORS[2], 1.0)
-	# 포탑 머리(포신 뿌리)
-	draw_circle(center, 4.0, Color.WHITE if white else TURRET_COLORS[0])
-	draw_circle(center, 2.0, Color(TURRET_RUNE, 0.5 + 0.5 * charge))
-	# 충전 빛: 포신 끝에 모이는 빛이 커지고 밝아진다
+	var charge := Guard.charge_progress(t)
+	var recoil := 2.0 * clampf((t.reload - (Balance.GUARD_FIRE_INTERVAL - 0.2)) / 0.2, 0.0, 1.0)
+	var center := (t.pos + knock_offset(t) - dir * recoil).round()
+	var tex := PixelArt.guard(t.flash > 0.0)
+	draw_set_transform(center, t.aim + PI / 2.0)
+	var top_left := -(tex.get_size() / 2.0).floor()
+	# 엔진 불꽃: 뒤쪽 두 엔진에서 깜빡임
+	var flicker := int(t.age * 18.0 + t.variant) % 2
+	for x in [3, 9]:
+		draw_rect(Rect2(top_left + Vector2(x, 10), Vector2(1, 1 + flicker)), PixelArt.FLAME_COLORS[flicker])
+	draw_texture(tex, top_left)
+	draw_set_transform(Vector2.ZERO)
+	# 핵이 은은하게 맥박치고, 충전하면 뱃머리에 빛이 모인다
+	draw_circle(center, 3.0, Color(GUARD_GLOW, 0.15 + 0.1 * sin(t.age * 4.0) + 0.25 * charge))
 	if charge > 0.0:
-		draw_circle(tip, 2.0 + 5.0 * charge, Color(TURRET_SHOT_GLOW, 0.25 + 0.35 * charge))
-		draw_circle(tip, 1.0 + 2.0 * charge, Color(TURRET_SHOT_CORE, 0.6 + 0.4 * charge))
+		var nose := center + dir * GUARD_NOSE
+		draw_circle(nose, 2.0 + 5.0 * charge, Color(GUARD_SHOT_GLOW, 0.25 + 0.35 * charge))
+		draw_circle(nose, 1.0 + 2.0 * charge, Color(GUARD_SHOT_CORE, 0.6 + 0.4 * charge))
 
 
 ## 맞았을 때 탄이 날아온 쪽으로 밀리는 그림 위치 (실제 위치는 그대로)

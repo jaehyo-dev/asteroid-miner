@@ -108,37 +108,43 @@ const BUG_SWARM_SPREAD := 12.0
 ## 날벌레는 나온 뒤 이 시간 동안만 우주선 쪽으로 방향을 튼다 (그 뒤엔 그대로 지나감)
 const BUG_HOMING_TIME := 3.0
 
-# ── 고대 포탑 (구조물) ───────────────────────────
-## 제자리에 떠 있는 오래된 포탑. 포신을 천천히 돌려 우주선을 노리고, 충전(빛) 뒤 에너지탄 한 발을 쏜다.
+# ── 고대 경비선 (따라다니며 쏘는 적 함선) ─────────
+## 심연을 지키던 오래된 무인 함선. 우주선과 일정 거리(GUARD_KEEP_DISTANCE)를 두고 따라다니며 주위를 돌고,
+## 선체를 천천히 돌려 우주선을 노린 뒤 충전(뱃머리 빛) → 에너지탄 한 발을 쏜다.
 ## 단단하고(탄 여러 발) 좋은 광물을 준다. 몸으로 부딪혀도 부서지지 않는다(피해만 입음).
 ## 체력은 운석처럼 ASTEROID_HP_GROWTH_TIME마다 계단식으로 늘어난다.
-const TURRET := {"name": "고대 포탑", "radius": 9.0, "hp": 6.0, "damage": 15.0}
-## 부수면 떨어지는 광물: 영웅 2개 + 희귀 2개
-const TURRET_DROPS := [{"grade": 2, "count": 2}, {"grade": 1, "count": 2}]
+const GUARD := {"name": "고대 경비선", "radius": 8.0, "hp": 4.0, "damage": 15.0}
+## 부수면 떨어지는 광물: 영웅 3개 + 희귀 2개
+const GUARD_DROPS := [{"grade": 2, "count": 3}, {"grade": 1, "count": 2}]
 ## 첫 등장 시각, 등장 간격(시작 → SPAWN_RAMP_TIME에 걸쳐 최소), 동시에 있을 수 있는 최대 수
 ## (첫 등장 시각은 습격 뒤 숨 돌릴 틈과 겹치지 않게 정한다)
-const TURRET_FIRST_TIME := 100.0
-const TURRET_INTERVAL_START := 45.0
-const TURRET_INTERVAL_MIN := 25.0
-const TURRET_MAX := 2
-## 우주선이 움직이면 가는 쪽 앞 이 각도(도) 안에 나타난다 (제자리에 있으니 지나쳐 가는 쪽에 둬야 만남)
-const TURRET_SPAWN_AHEAD_DEG := 45.0
-## 일반 운석보다 이 배수만큼 더 멀어져야 사라진다
-const TURRET_DESPAWN_FACTOR := 1.3
-## 포신 회전 속도(라디안/초): 천천히 돌아서 옆으로 돌면 따라오지 못한다
-const TURRET_TURN_SPEED := 1.5
-## 포신이 우주선 쪽 이 각도(도) 안을 바라보면 충전을 시작한다
-const TURRET_AIM_TOLERANCE_DEG := 10.0
-## 사거리(픽셀). 화면 안(가장자리에서 TURRET_SCREEN_MARGIN 안쪽)에 보일 때만 쏜다.
-const TURRET_RANGE := 220.0
-const TURRET_SCREEN_MARGIN := 8.0
-## 충전 시간(포신 끝이 점점 밝아짐), 쏜 뒤 다음 충전까지 시간
-const TURRET_CHARGE_TIME := 1.0
-const TURRET_FIRE_INTERVAL := 3.0
-## 포탑 에너지탄: 속도, 피해, 맞는 범위(반지름). 심연의 포격처럼 자동 공격으로 부술 수 없다.
-const TURRET_SHOT_SPEED := 110.0
-const TURRET_SHOT_DAMAGE := 6.0
-const TURRET_SHOT_RADIUS := 3.0
+const GUARD_FIRST_TIME := 100.0
+const GUARD_INTERVAL_START := 45.0
+const GUARD_INTERVAL_MIN := 30.0
+const GUARD_MAX := 1
+## 움직임: 최고 속도(우주선 110보다 느려서 달아날 수 있음, GUARD_SPEED_GROWTH_TIME마다 기본 속도만큼 빨라짐),
+## 방향을 바꾸는 힘(가속도), 우주선과 유지하려는 거리(픽셀), 주위를 도는 빠르기(최고 속도 대비 비율)
+const GUARD_SPEED := 65.0
+const GUARD_SPEED_GROWTH_TIME := 600.0
+const GUARD_ACCEL := 90.0
+const GUARD_KEEP_DISTANCE := 150.0
+const GUARD_ORBIT_RATIO := 0.6
+## 일반 운석보다 이 배수만큼 더 멀어져야 사라진다 (보통은 따라오므로 거의 사라지지 않음)
+const GUARD_DESPAWN_FACTOR := 1.3
+## 선체(포) 회전 속도(라디안/초): 천천히 돌아서 우주선이 빨리 옆으로 돌면 따라오지 못한다
+const GUARD_TURN_SPEED := 1.5
+## 선체가 우주선 쪽 이 각도(도) 안을 바라보면 충전을 시작한다
+const GUARD_AIM_TOLERANCE_DEG := 10.0
+## 사거리(픽셀). 화면 안(가장자리에서 GUARD_SCREEN_MARGIN 안쪽)에 보일 때만 쏜다.
+const GUARD_RANGE := 220.0
+const GUARD_SCREEN_MARGIN := 8.0
+## 충전 시간(뱃머리가 점점 밝아짐), 쏜 뒤 다음 충전까지 시간
+const GUARD_CHARGE_TIME := 1.0
+const GUARD_FIRE_INTERVAL := 3.5
+## 경비선 에너지탄: 속도, 피해, 맞는 범위(반지름). 심연의 포격처럼 자동 공격으로 부술 수 없다.
+const GUARD_SHOT_SPEED := 110.0
+const GUARD_SHOT_DAMAGE := 5.0
+const GUARD_SHOT_RADIUS := 3.0
 
 # ── 습격 이벤트 (긴장의 리듬) ───────────────────────
 ## RAID_INTERVAL마다: 경고(RAID_WARNING_TIME) → 습격(RAID_DURATION) → 숨 돌릴 틈(RAID_CALM_TIME, 보통 등장 멈춤)
@@ -187,8 +193,8 @@ const GOLDEN_DESPAWN_FACTOR := 2.0
 const FIRE_INTERVAL := 0.55
 ## 이 거리 안에 있는 가장 가까운 운석을 자동으로 노린다.
 const FIRE_RANGE := 170.0
-## 자동 공격은 단단한 적(황금 운석·고대 포탑)을 이 거리(픽셀)만큼 더 멀리 있는 것으로 치고 고른다 (가까운 위협 먼저)
-const TARGET_STURDY_PENALTY := 60.0
+## 자동 공격은 황금 운석을 이 거리(픽셀)만큼 더 멀리 있는 것으로 치고 고른다 (가까운 위협 먼저)
+const TARGET_GOLDEN_PENALTY := 60.0
 const BULLET_SPEED := 260.0
 const BULLET_DAMAGE := 1.0
 const BULLET_RADIUS := 1.5
