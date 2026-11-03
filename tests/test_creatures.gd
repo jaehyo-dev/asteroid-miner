@@ -2,14 +2,15 @@ extends TestCase
 ## v0.2.0 위기감 2: 쫓아오는 적(우주 해파리, 날벌레 떼)과 습격 이벤트 테스트.
 
 
-## 평소 운석·조준 운석·습격이 끼어들지 않는 조용한 시뮬레이션
+## 평소 운석·포격·습격이 끼어들지 않는 조용한 시뮬레이션
 func _quiet() -> RunSim:
 	var sim := RunSim.new(77)
-	for t in ["_spawn_timer", "_aimed_timer", "_golden_timer", "_jelly_timer", "_bug_timer"]:
+	for t in ["_spawn_timer", "_barrage_timer", "_golden_timer", "_jelly_timer", "_bug_timer"]:
 		sim.set(t, 1.0e9)
 	sim.raid.timer = 1.0e9
 	sim.fire_range = -1.0  # 쏘지 않음
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	return sim
 
 
@@ -18,8 +19,9 @@ func _quiet() -> RunSim:
 func test_해파리는_정해진_시각에_처음_나오고_새로운_위협_이벤트() -> void:
 	var sim := RunSim.new(5)
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	var seen := -1.0
-	while sim.time < Balance.JELLY_FIRST_TIME + 1.0:
+	while sim.time < Balance.JELLY_FIRST_TIME + 1.0 and sim.alive:
 		if not sim.choices.is_empty():
 			sim.choose(0)
 			continue
@@ -96,8 +98,9 @@ func test_날벌레는_잠깐만_방향을_틀고_그_뒤엔_그대로_지나감
 func test_날벌레_떼는_정해진_시각부터_나옴() -> void:
 	var sim := RunSim.new(6)
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	var first := -1.0
-	while sim.time < Balance.BUG_FIRST_TIME + 1.0 and first < 0.0:
+	while sim.time < Balance.BUG_FIRST_TIME + 1.0 and first < 0.0 and sim.alive:
 		if not sim.choices.is_empty():
 			sim.choose(0)
 			continue
@@ -212,6 +215,7 @@ func test_날벌레_습격은_무리로_옴() -> void:
 func test_숨_돌릴_틈에는_평소_등장이_멈춤() -> void:
 	var sim := RunSim.new(9)
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	sim.raid.state = RaidDirector.State.CALM
 	sim.raid.timer = 3.0
 	sim.set("_golden_timer", 1.0e9)
@@ -223,7 +227,7 @@ func test_숨_돌릴_틈에는_평소_등장이_멈춤() -> void:
 	sim.raid.state = RaidDirector.State.IDLE
 	sim.raid.timer = 1.0e9
 	sim.update(1.0 / 30.0, Vector2.ZERO)
-	assert_true(sim.enemies.size() - before <= 1 + Balance.AIMED_COUNT, "몰려나오지 않음: %d" % (sim.enemies.size() - before))
+	assert_true(sim.enemies.size() - before <= 2 + Balance.BUG_SWARM_SIZE, "몰려나오지 않음: %d" % (sim.enemies.size() - before))
 
 
 func test_습격_경고음과_화면() -> void:
@@ -258,7 +262,7 @@ func test_새로운_위협_배너() -> void:
 
 func test_첫_등장_시각은_숨_돌릴_틈과_겹치지_않음() -> void:
 	# 숨 돌릴 틈에는 평소 등장이 멈추므로, 첫 등장이 그 사이에 있으면 늦어진다
-	for first in [Balance.JELLY_FIRST_TIME, Balance.BUG_FIRST_TIME, Balance.AIMED_FIRST_TIME]:
+	for first in [Balance.JELLY_FIRST_TIME, Balance.BUG_FIRST_TIME, Balance.BARRAGE_FIRST_TIME]:
 		for n in 10:
 			var calm_start := Balance.RAID_FIRST_TIME + n * Balance.RAID_INTERVAL + Balance.RAID_DURATION
 			assert_false(first > calm_start and first <= calm_start + Balance.RAID_CALM_TIME, "%f초가 숨 돌릴 틈과 겹침" % first)

@@ -4,6 +4,9 @@ extends Node2D
 
 const MAIN_SCENE := "res://scenes/main.tscn"
 
+## "??? 의 포격" 배너 색 (심연의 붉은 보라)
+const BARRAGE_BANNER_COLOR := Color("#ff6aa8")
+
 ## 메뉴 종류
 enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
 
@@ -82,7 +85,13 @@ func _unhandled_input(event: InputEvent) -> void:
 ## 새로운 위협과 습격을 배너·소리로 알린다.
 func _announce(events: PackedStringArray) -> void:
 	for e in events:
-		if e == "raid_warning":
+		if e == "new_barrage":
+			hud.show_banner("??? 의 포격", BARRAGE_BANNER_COLOR)
+		elif e == "barrage_charge":
+			Sfx.play_charge()
+		elif e == "barrage_fire":
+			Sfx.play_fire()
+		elif e == "raid_warning":
 			hud.show_banner("!! %s 접근 !!" % RaidDirector.display_name(sim.raid.kind), Hud.COLOR_DANGER)
 			Sfx.play_raid()
 		elif e.begins_with("new_"):

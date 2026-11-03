@@ -11,7 +11,7 @@ const MEDIAN_MIN := 150.0
 const MEDIAN_MAX := 360.0
 ## 이보다 빨리 끝나면 너무 어렵다 (움직이는 플레이 기준)
 const EARLIEST_END := 100.0
-## 가만히 있으면 조준 운석에 계속 맞으므로 더 일찍 끝나도 되지만, 1분은 버텨야 한다
+## 가만히 있으면 심연의 포격에 계속 맞으므로 더 일찍 끝나도 되지만, 1분은 버텨야 한다
 const STILL_EARLIEST_END := 60.0
 ## 무작위로 돌아다니는 플레이의 한 판 길이 중앙값 최소
 const CARELESS_MEDIAN_MIN := 100.0

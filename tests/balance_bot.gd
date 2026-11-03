@@ -6,6 +6,8 @@ extends RefCounted
 ##   collector: 가까운 운석은 피하고, 아니면 가장 가까운 광물을 주우러 감 (보통 플레이어에 가장 가까움)
 
 const STEP := 1.0 / 30.0
+## 심연의 포격 조준선에서 이만큼 안이면 옆으로 피한다 (collector·flee 봇: 예고를 보고 피하는 플레이)
+const BARRAGE_DODGE_MARGIN := 16.0
 
 
 ## 한 판을 끝까지(또는 max_time까지) 돌리고 {time, level, value, alive}를 돌려준다.
@@ -27,7 +29,10 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 					move = Vector2.from_angle(rng.randf() * TAU)
 			"collector":
 				var danger := RunSim.nearest_enemy(sim.player_pos, sim.enemies, 45.0)
-				if danger != null:
+				var escape := sim.barrage_escape(sim.player_pos, BARRAGE_DODGE_MARGIN)
+				if escape != Vector2.ZERO:
+					move = escape
+				elif danger != null:
 					move = (sim.player_pos - danger.pos).normalized()
 				else:
 					move = Vector2.ZERO
@@ -39,7 +44,11 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 							move = (m.pos - sim.player_pos).normalized()
 			"flee":
 				var near := RunSim.nearest_enemy(sim.player_pos, sim.enemies, 80.0)
-				move = (sim.player_pos - near.pos).normalized() if near != null else Vector2.ZERO
+				var escape := sim.barrage_escape(sim.player_pos, BARRAGE_DODGE_MARGIN)
+				if escape != Vector2.ZERO:
+					move = escape
+				else:
+					move = (sim.player_pos - near.pos).normalized() if near != null else Vector2.ZERO
 			_:
 				move = Vector2.ZERO
 		sim.update(STEP, move)

@@ -59,18 +59,24 @@ const DESPAWN_DISTANCE_FACTOR := 1.6
 ## 동시에 존재할 수 있는 최대 적 수 (운석·생명체 합계, 휴대폰 성능 보호)
 const MAX_ENEMIES := 250
 
-# ── 조준 운석 (초반부터 긴장을 주는 위협) ─────────
-## 우주선이 가는 곳을 정확히 노리고 더 빠르게 날아오는 운석 무리. 화면 밖에 있을 때 가장자리에 붉은 "!"가 뜬다.
-## 한 줄로 AIMED_COUNT개가 연달아 와서, 자동 공격만으로는 다 막기 어렵다 (피해야 함).
-## 첫 등장 시각과 등장 간격(시작 → SPAWN_RAMP_TIME에 걸쳐 최소까지 줄어듦)
-const AIMED_FIRST_TIME := 12.0
-const AIMED_INTERVAL_START := 10.0
-const AIMED_INTERVAL_MIN := 5.0
-## 보통 운석보다 이 배수만큼 빠르다
-const AIMED_SPEED_MULT := 1.8
-## 한 번에 오는 개수와 줄지어 오는 간격(픽셀)
-const AIMED_COUNT := 3
-const AIMED_GAP := 22.0
+# ── 심연의 포격 (보이지 않는 최종 보스의 에너지포) ─
+## 화면 밖 먼 곳의 무언가가 우주선을 노려 에너지탄 BARRAGE_SHOTS발을 연달아 쏜다.
+## 자동 공격으로 부술 수 없으므로 반드시 피해야 한다. 그래서 예고를 충분히 보여 준다.
+## 흐름: 예고(붉은 조준선, BARRAGE_WARN_TIME) → 충전(조준선이 밝고 굵어짐, BARRAGE_CHARGE_TIME) → 발사(BARRAGE_SHOT_GAP 간격)
+## 첫 포격 시각과 포격 간격(시작 → SPAWN_RAMP_TIME에 걸쳐 최소까지 줄어듦)
+const BARRAGE_FIRST_TIME := 12.0
+const BARRAGE_INTERVAL_START := 12.0
+const BARRAGE_INTERVAL_MIN := 6.0
+const BARRAGE_WARN_TIME := 1.0
+const BARRAGE_CHARGE_TIME := 0.5
+const BARRAGE_SHOTS := 3
+const BARRAGE_SHOT_GAP := 0.15
+const BARRAGE_SHOT_SPEED := 160.0
+const BARRAGE_SHOT_DAMAGE := 10.0
+## 에너지탄 맞는 범위(반지름)
+const BARRAGE_SHOT_RADIUS := 4.0
+## 조준: 예고를 시작할 때 우주선이 이 시간(초) 뒤에 있을 곳을 노린다 (움직이면 앞을 막고, 멈춰 있으면 그 자리)
+const BARRAGE_LEAD_TIME := 0.6
 
 # ── 쫓아오는 생명체 ─────────────────────────────────
 ## 종류별: 이름, 반지름, 체력(탄 몇 발, 운석처럼 시간에 따라 계단식 증가), 부딪혔을 때 데미지,

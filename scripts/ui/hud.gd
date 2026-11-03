@@ -21,14 +21,14 @@ const COLOR_GOLD := Color("#ffcc33")
 ## 체력 낮음일 때 체력 막대가 깜빡이는 밝은 색과 깜빡임 속도(초당)
 const COLOR_HP_BLINK := Color("#ffd0d0")
 const HP_BLINK_RATE := 3.0
-## 조준 운석 경고 색
+## 위험 경고 색 (심연의 포격, 습격)
 const COLOR_DANGER := Color("#ff4040")
 ## 습격 방향 표시: 가장자리 빛의 반지름
 const RAID_GLOW_RADIUS := 70.0
 ## 알림 배너 글자 위치 (왼쪽 위 광물·가치 줄보다 아래)
 const BANNER_Y := 88.0
-## 조준 운석 표시를 하나로 묶는 거리: 한 줄로 오는 무리는 "!" 하나만
-const AIMED_MARKER_MERGE := 24.0
+## 포격 표시를 하나로 묶는 거리 (거의 같은 곳에서 쏘면 "!" 하나만)
+const BARRAGE_MARKER_MERGE := 24.0
 const COLOR_BAR_BG := Color("#2a2a40")
 
 var sim: RunSim
@@ -76,7 +76,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(MARGIN, size.y - XP_BAR_HEIGHT - 4), "Lv %d" % sim.level, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_XP)
 	_draw_raid_direction()
 	_draw_golden_markers()
-	_draw_aimed_markers()
+	_draw_barrage_markers()
 	_draw_banner(font)
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
@@ -146,19 +146,17 @@ static func hp_bar_color(danger: DangerAlert, time: float) -> Color:
 	return COLOR_HP
 
 
-## 화면 밖에서 다가오는 조준 운석마다 가장자리에 붉은 "!"를 띄운다.
-func _draw_aimed_markers() -> void:
+## 심연의 포격을 쏘는 곳(화면 밖)이 있는 쪽 가장자리에 붉은 화살표와 "!"를 띄운다 (예고·충전·발사 동안).
+func _draw_barrage_markers() -> void:
 	var center := sim.player_pos.round()
 	var font := get_theme_default_font()
 	var drawn: Array[Vector2] = []
-	for a in sim.enemies:
-		if not a.aimed:
-			continue
-		var marker: Variant = Offscreen.edge_marker(center, a.pos, size, MARKER_MARGIN, a.radius)
-		if marker == null or _near_any(marker, drawn, AIMED_MARKER_MERGE):
+	for b in sim.barrages:
+		var marker: Variant = Offscreen.edge_marker(center, b.origin, size, MARKER_MARGIN)
+		if marker == null or _near_any(marker, drawn, BARRAGE_MARKER_MERGE):
 			continue
 		drawn.append(marker)
-		var dir := (a.pos - center).normalized()
+		var dir := (b.origin - center).normalized()
 		draw_colored_polygon(arrow_points(marker, dir), COLOR_DANGER)
 		var label_pos: Vector2 = marker - dir * (MARKER_BACK + 8.0)
 		draw_string(font, (label_pos + Vector2(-6, 5)).round(), "!", HORIZONTAL_ALIGNMENT_CENTER, 12, FONT_SIZE, COLOR_DANGER)

@@ -18,6 +18,16 @@ const PICKUP_RING_RADIUS := [0.0, 10.0, 14.0, 24.0]
 const POPUP_TIME := 0.8
 const POPUP_RISE := 14.0
 const FONT := preload("res://assets/fonts/galmuri/Galmuri11.ttf")
+## 심연의 포격 색: 조준선(예고), 충전 중 밝은 색, 에너지탄 핵·빛
+const BARRAGE_RED := Color("#ff2a4a")
+const BARRAGE_HOT := Color("#ffd0e8")
+const SHOT_CORE := Color("#fff0fa")
+const SHOT_GLOW := Color("#ff3c8c")
+## 조준선 굵기(픽셀): 예고 때 → 충전이 끝날 때. 휴대폰 세로 화면에서도 놓치지 않게 굵고 밝게.
+const BARRAGE_LINE_WARN := 3.0
+const BARRAGE_LINE_CHARGE := 7.0
+## 조준선 길이 (쏘는 곳에서 화면 반대편 밖까지 넉넉히)
+const BARRAGE_LINE_LENGTH := 2000.0
 
 var sim: RunSim
 ## 이번 프레임에 움직이는 중인지 (엔진 불꽃 표시용)
@@ -77,6 +87,7 @@ func _draw() -> void:
 		_draw_mineral(m)
 	for d in _debris:
 		draw_rect(Rect2((d[0] as Vector2).round(), Vector2.ONE), d[3])
+	_draw_barrages()
 	for b in sim.bullets:
 		var p := b.pos.round()
 		draw_rect(Rect2(p - Vector2(1, 1), Vector2(3, 3)), PixelArt.BULLET_COLORS[1])
@@ -85,6 +96,32 @@ func _draw() -> void:
 		_draw_pickup_fx(fx)
 	if sim.alive:
 		_draw_ship()
+
+
+## 심연의 포격: 예고 때는 맥박치는 붉은 조준선, 충전 때는 점점 굵고 밝아지는 선, 발사 후엔 에너지탄.
+func _draw_barrages() -> void:
+	for b in sim.barrages:
+		if not b.is_telegraphing() and b.phase != Barrage.Phase.FIRE:
+			continue
+		var start := b.origin
+		var end := b.origin + b.dir * BARRAGE_LINE_LENGTH
+		var width := lerpf(BARRAGE_LINE_WARN, BARRAGE_LINE_CHARGE, b.charge_progress())
+		var pulse := 0.5 + 0.5 * sin(sim.time * TAU * 4.0)
+		var alpha := 0.55 + 0.35 * pulse if b.phase == Barrage.Phase.WARN else 0.9
+		if b.phase == Barrage.Phase.FIRE:
+			alpha = 0.5  # 쏘는 동안엔 길만 은은하게 남긴다
+		# 바깥 빛 → 붉은 선 → 밝은 가운데 줄 (어두운 배경에서도, 작은 화면에서도 잘 보이게)
+		draw_line(start, end, Color(BARRAGE_RED, alpha * 0.3), width + 4.0)
+		draw_line(start, end, Color(BARRAGE_RED, alpha), width)
+		draw_line(start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
+	for s in sim.shots:
+		var dir := s.vel.normalized()
+		# 꼬리 잔상
+		for i in range(3, 0, -1):
+			draw_circle((s.pos - dir * i * 4.0).round(), 5.0 - i, Color(SHOT_GLOW, 0.25))
+		draw_circle(s.pos.round(), 7.0, Color(SHOT_GLOW, 0.35))
+		draw_circle(s.pos.round(), 4.0, SHOT_GLOW)
+		draw_circle(s.pos.round(), 2.0, SHOT_CORE)
 
 
 ## 우주 해파리: 몸통이 오므렸다 펴지며(맥박) 촉수가 물결치듯 흔들린다.

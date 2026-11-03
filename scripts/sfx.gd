@@ -1,6 +1,6 @@
 extends Node
 ## 효과음 (자동 로드: Sfx). 외부 음원 없이 코드로 8비트 소리를 만들어 쓴다.
-## 광물을 주울 때의 등급별 효과음, 체력 낮음 경고음, 습격 경고음이 있다.
+## 광물을 주울 때의 등급별 효과음, 체력 낮음 경고음, 습격 경고음, 심연의 포격 충전·발사음이 있다.
 
 const MIX_RATE := 22050
 ## 효과음 음량 (데시벨)
@@ -23,7 +23,13 @@ const WARNING_SOUND := {"wave": "square", "notes": [[880.0, 0.09], [620.0, 0.09]
 ## 습격 경고: 낮게 울리는 경적 두 번
 const RAID_SOUND := {"wave": "square", "notes": [[220.0, 0.22], [165.0, 0.22], [220.0, 0.22], [165.0, 0.3]], "volume": 0.3}
 
+## 심연의 포격: 충전(점점 높아지는 웅웅거림, 충전 시간과 같은 길이), 발사(내려가는 짧은 쇳소리)
+const CHARGE_SOUND := {"wave": "square", "notes": [[110.0, 0.1], [131.0, 0.1], [156.0, 0.1], [185.0, 0.1], [220.0, 0.1]], "volume": 0.3}
+const FIRE_SOUND := {"wave": "square", "notes": [[988.0, 0.03], [740.0, 0.03], [494.0, 0.05]], "volume": 0.25}
+
 var _pickup_players: Array[AudioStreamPlayer] = []
+var _charge_player: AudioStreamPlayer
+var _fire_player: AudioStreamPlayer
 var _raid_player: AudioStreamPlayer
 var _warning_player: AudioStreamPlayer
 
@@ -40,10 +46,39 @@ func _ready() -> void:
 	_warning_player.stream = synth(WARNING_SOUND["notes"], WARNING_SOUND["wave"], WARNING_SOUND["volume"])
 	_warning_player.volume_db = VOLUME_DB
 	add_child(_warning_player)
+	_charge_player = _make_player(CHARGE_SOUND)
+	_fire_player = _make_player(FIRE_SOUND)
 	_raid_player = AudioStreamPlayer.new()
 	_raid_player.stream = synth(RAID_SOUND["notes"], RAID_SOUND["wave"], RAID_SOUND["volume"])
 	_raid_player.volume_db = VOLUME_DB
 	add_child(_raid_player)
+
+
+func _make_player(sound: Dictionary) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.stream = synth(sound["notes"], sound["wave"], sound["volume"])
+	player.volume_db = VOLUME_DB
+	player.max_polyphony = MAX_POLYPHONY
+	add_child(player)
+	return player
+
+
+## 심연의 포격 충전음·발사음
+func play_charge() -> void:
+	_charge_player.play()
+
+
+func play_fire() -> void:
+	_fire_player.play()
+
+
+## 포격 소리 (테스트용)
+func charge_stream() -> AudioStreamWAV:
+	return _charge_player.stream
+
+
+func fire_stream() -> AudioStreamWAV:
+	return _fire_player.stream
 
 
 ## 습격 경고음

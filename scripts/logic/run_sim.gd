@@ -20,7 +20,6 @@ class Enemy:
 	var max_hp: float
 	var variant: int  ## 모양 변형 번호 (그리기용)
 	var golden := false  ## 황금 운석인지
-	var aimed := false  ## 우주선을 정확히 노리는 조준 운석인지
 	var kind := ROCK  ## 종류: ROCK(운석) 또는 Balance.CREATURES의 키 ("jelly", "bug")
 	var age := 0.0  ## 나온 뒤 지난 시간
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
@@ -31,6 +30,14 @@ class Mineral:
 	var pos: Vector2
 	var grade: int  ## Balance.MINERAL_GRADES 인덱스 (0 일반 ~ 3 전설)
 	var attracted := false  ## 자석에 끌려오는 중인지 (한번 끌리면 끝까지 따라옴)
+
+
+## 심연의 포격 에너지탄 한 개 (자동 공격으로 부술 수 없음)
+class Shot:
+	var pos: Vector2
+	var prev_pos: Vector2  ## 이번 프레임 이동 전 위치 (지나간 선분으로 충돌 판정)
+	var vel: Vector2
+	var life: float  ## 남은 비행 시간
 
 
 ## 탄 한 개
@@ -45,7 +52,7 @@ class Bullet:
 var rng := RandomNumberGenerator.new()
 ## 우주선 위치 (월드 좌표)
 var player_pos := Vector2.ZERO
-## 우주선 속도 (조준 운석이 앞질러 노릴 때 씀)
+## 우주선 속도 (포격·날벌레가 앞질러 노릴 때 씀)
 var player_vel := Vector2.ZERO
 var hp := Balance.SHIP_MAX_HP
 var max_hp := Balance.SHIP_MAX_HP
@@ -64,7 +71,8 @@ var bullets: Array[Bullet] = []
 var destroyed: Array[Enemy] = []
 ## 이번 프레임에 주운 광물 {pos, grade} (줍기 연출·효과음용)
 var picked: Array[Dictionary] = []
-## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden", "aimed",
+## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden",
+## "barrage_warning"·"barrage_charge"·"barrage_fire"(심연의 포격), "new_barrage"(첫 포격),
 ## "new_jelly"·"new_bug"(처음 등장), "raid_warning", "raid_start", "raid_end"
 var events: PackedStringArray = []
 ## 탄으로 부순 적 수 (운석·황금 운석·생명체)
@@ -97,8 +105,11 @@ var upgrade_levels: Dictionary = {}
 var _spawn_timer := 0.0
 ## 다음 황금 운석까지 남은 시간
 var _golden_timer := Balance.GOLDEN_FIRST_TIME
-## 다음 조준 운석까지 남은 시간
-var _aimed_timer := Balance.AIMED_FIRST_TIME
+## 다음 심연의 포격까지 남은 시간
+var _barrage_timer := Balance.BARRAGE_FIRST_TIME
+## 진행 중인 포격 (예고·충전·발사)과 날아가는 에너지탄
+var barrages: Array[Barrage] = []
+var shots: Array[Shot] = []
 ## 다음 발사까지 남은 시간 (0 이하면 대상이 생기는 즉시 발사)
 var _fire_timer := 0.0
 ## 생명체 등장 타이머
@@ -149,6 +160,7 @@ func update(delta: float, move: Vector2) -> void:
 			spawn_golden()
 		_golden_timer += golden_interval(time)
 
+	_update_barrages(delta)
 	_move_enemies(delta)
 	_auto_fire(delta)
 	_move_bullets(delta)
@@ -157,7 +169,7 @@ func update(delta: float, move: Vector2) -> void:
 	_update_minerals(delta)
 
 
-## 평소 등장: 운석, 조준 운석, 우주 해파리, 날벌레 떼.
+## 평소 등장: 운석, 심연의 포격, 우주 해파리, 날벌레 떼.
 ## hold(숨 돌릴 틈)이면 시간은 그대로 흐르되 나오지 않고 "준비됨"에서 기다렸다가, 틈이 끝나면 한 번씩 나온다.
 ## (타이머를 멈추면 이후 등장 시각이 모두 밀리므로 멈추지 않는다)
 func _spawn_regular(delta: float, hold: bool) -> void:
@@ -166,11 +178,10 @@ func _spawn_regular(delta: float, hold: bool) -> void:
 		if enemies.size() < Balance.MAX_ENEMIES:
 			spawn_asteroid()
 		_spawn_timer += spawn_interval(time)
-	_aimed_timer = _tick(_aimed_timer, delta, hold)
-	while _aimed_timer <= 0.0:
-		if enemies.size() + Balance.AIMED_COUNT <= Balance.MAX_ENEMIES:
-			spawn_aimed()
-		_aimed_timer += aimed_interval(time)
+	_barrage_timer = _tick(_barrage_timer, delta, hold)
+	while _barrage_timer <= 0.0:
+		start_barrage()
+		_barrage_timer += barrage_interval(time)
 	_jelly_timer = _tick(_jelly_timer, delta, hold)
 	while _jelly_timer <= 0.0:
 		if enemies.size() < Balance.MAX_ENEMIES:
@@ -271,26 +282,67 @@ func spawn_asteroid(angle: float = INF) -> Enemy:
 	return a
 
 
-## 조준 운석 무리를 만든다: 같은 방향에서 한 줄로 AIMED_COUNT개가, 우주선이 갈 곳을 노리고 빠르게 온다.
-## 만든 운석 목록을 돌려준다.
-func spawn_aimed() -> Array[Enemy]:
-	var group: Array[Enemy] = []
-	var lead := spawn_asteroid()
-	var speed := lead.vel.length() * Balance.AIMED_SPEED_MULT
-	var dir := Vector2.from_angle(intercept_angle(lead.pos, player_pos, player_vel, speed))
-	for i in Balance.AIMED_COUNT:
-		var a := lead if i == 0 else spawn_asteroid()
-		a.type = lead.type
-		a.radius = lead.radius
-		a.damage = lead.damage
-		a.max_hp = lead.max_hp
-		a.hp = lead.hp
-		a.aimed = true
-		a.pos = lead.pos - dir * Balance.AIMED_GAP * i  # 줄지어 뒤따라옴
-		a.vel = dir * speed
-		group.append(a)
-	events.append("aimed")
-	return group
+## 심연의 포격을 시작한다: 화면 밖 먼 곳에서 우주선이 갈 곳을 노리는 조준선이 먼저 보인다.
+func start_barrage() -> Barrage:
+	var from := spawn_position(rng, player_pos, view_size, 0.0)
+	var b := Barrage.new(from, Barrage.aim_direction(from, player_pos, player_vel, Balance.BARRAGE_LEAD_TIME))
+	barrages.append(b)
+	events.append("barrage_warning")
+	if not introduced.has("barrage"):
+		introduced["barrage"] = true
+		events.append("new_barrage")
+	return b
+
+
+## 포격 진행: 충전·발사, 에너지탄 이동, 우주선과 충돌 (무적이면 지나감, 맞으면 탄은 사라짐)
+func _update_barrages(delta: float) -> void:
+	var kept: Array[Barrage] = []
+	var fired := false
+	for b in barrages:
+		var r := b.step(delta)
+		if r["charge"]:
+			events.append("barrage_charge")
+		for i in int(r["fired"]):
+			var s := Shot.new()
+			s.pos = b.origin
+			s.prev_pos = b.origin
+			s.vel = b.dir * Balance.BARRAGE_SHOT_SPEED
+			# 우주선 쪽을 지나 화면 반대편 밖까지 날아갈 만큼
+			s.life = (b.origin.distance_to(player_pos) + despawn_distance(view_size)) / Balance.BARRAGE_SHOT_SPEED
+			shots.append(s)
+			fired = true
+		if b.phase != Barrage.Phase.DONE:
+			kept.append(b)
+	barrages = kept
+	if fired:
+		events.append("barrage_fire")
+	var kept_shots: Array[Shot] = []
+	for s in shots:
+		s.prev_pos = s.pos
+		s.pos += s.vel * delta
+		s.life -= delta
+		if s.life <= 0.0:
+			continue
+		var touching := segment_distance(s.prev_pos, s.pos, player_pos) < Balance.BARRAGE_SHOT_RADIUS + Balance.SHIP_RADIUS
+		if touching and alive and damage_player(Balance.BARRAGE_SHOT_DAMAGE):
+			continue  # 맞은 탄은 사라진다
+		kept_shots.append(s)
+	shots = kept_shots
+
+
+## 우주선이 지금 위험한 조준선 위에 있으면, 그 선에서 벗어나는 방향 (아니면 ZERO). 밸런스 봇용.
+func barrage_escape(pos: Vector2, margin: float) -> Vector2:
+	for b in barrages:
+		var d := Barrage.distance_from_line(b.origin, b.dir, pos)
+		if d < margin:
+			var side := Vector2(-b.dir.y, b.dir.x)
+			return side if (pos - b.origin).dot(side) >= 0.0 else -side
+	for s in shots:
+		var d := Barrage.distance_from_line(s.pos, s.vel.normalized(), pos)
+		if d < margin:
+			var side := Vector2(-s.vel.y, s.vel.x).normalized()
+			return side if (pos - s.pos).dot(side) >= 0.0 else -side
+	return Vector2.ZERO
 
 
 ## 황금 운석 하나를 화면 밖에 만든다. 우주선 근처를 비스듬히 지나가도록 날아간다.
@@ -511,10 +563,10 @@ static func drops_of(a: Enemy) -> Array:
 	return [{"grade": info["grade"], "count": info["minerals"]}]
 
 
-## 지금 시간의 조준 운석 등장 간격: 시간이 지날수록 짧아진다.
-static func aimed_interval(t: float) -> float:
+## 지금 시간의 심연의 포격 간격: 시간이 지날수록 짧아진다.
+static func barrage_interval(t: float) -> float:
 	var k := clampf(t / Balance.SPAWN_RAMP_TIME, 0.0, 1.0)
-	return lerpf(Balance.AIMED_INTERVAL_START, Balance.AIMED_INTERVAL_MIN, k)
+	return lerpf(Balance.BARRAGE_INTERVAL_START, Balance.BARRAGE_INTERVAL_MIN, k)
 
 
 ## 지금 시간의 황금 운석 등장 간격: 시간이 지날수록 조금씩 짧아진다.

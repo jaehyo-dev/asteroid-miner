@@ -116,6 +116,7 @@ func test_운석은_화면_밖에서_나타나_우주선_쪽으로_옴() -> void
 func test_시간이_지나면_운석이_계속_나타남() -> void:
 	var sim := RunSim.new(99)
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	sim.max_hp = 1.0e9
 	var spawned := 0
 	for i in 600:  # 10초
@@ -129,6 +130,7 @@ func test_시간이_지나면_운석이_계속_나타남() -> void:
 func test_운석_최대_개수를_넘지_않음() -> void:
 	var sim := RunSim.new(5)
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	sim.view_size = Vector2(10000, 10000)  # 아무것도 멀어져서 사라지지 않게
 	sim.time = 10000.0
 	for i in 2000:
@@ -658,8 +660,9 @@ func test_황금_운석은_정해진_시각에_처음_나오고_점점_자주_�
 	assert_true(is_equal_approx(RunSim.golden_interval(99999.0), Balance.GOLDEN_INTERVAL_MIN), "최소 간격에서 멈춤")
 	var sim := _quiet_sim()
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	var first := -1.0
-	while sim.time < Balance.GOLDEN_FIRST_TIME + 1.0:
+	while sim.time < Balance.GOLDEN_FIRST_TIME + 1.0 and sim.alive:
 		sim.update(0.1, Vector2.ZERO)
 		if first < 0.0 and sim.events.has("golden"):
 			first = sim.time
@@ -670,6 +673,7 @@ func test_황금_운석은_정해진_시각에_처음_나오고_점점_자주_�
 func test_황금_운석은_동시에_최대_개수까지만() -> void:
 	var sim := _quiet_sim()
 	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9  # 강화를 골라도 체력이 최대 체력으로 깎이지 않게
 	sim.view_size = Vector2(100000, 100000)  # 멀어져서 사라지지 않게
 	sim.time = 1000.0
 	for i in 2000:
