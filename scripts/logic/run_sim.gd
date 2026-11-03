@@ -299,6 +299,7 @@ func _update_barrages(delta: float) -> void:
 	var kept: Array[Barrage] = []
 	var fired := false
 	for b in barrages:
+		var was_firing := b.phase != Barrage.Phase.DONE
 		var r := b.step(delta)
 		if r["charge"]:
 			events.append("barrage_charge")
@@ -311,7 +312,12 @@ func _update_barrages(delta: float) -> void:
 			s.life = (b.origin.distance_to(player_pos) + despawn_distance(view_size)) / Balance.BARRAGE_SHOT_SPEED
 			shots.append(s)
 			fired = true
-		if b.phase != Barrage.Phase.DONE:
+		if was_firing and b.phase == Barrage.Phase.DONE:
+			# 마지막 탄이 우주선 쪽을 지나갈 때까지 조준선을 남긴다 (예고가 사라진 뒤 탄이 보이기 전 빈틈이 없게)
+			b.linger = b.origin.distance_to(player_pos) / Balance.BARRAGE_SHOT_SPEED + Balance.BARRAGE_LINGER_EXTRA
+		elif b.phase == Barrage.Phase.DONE:
+			b.linger -= delta
+		if not b.finished():
 			kept.append(b)
 	barrages = kept
 	if fired:
@@ -333,6 +339,8 @@ func _update_barrages(delta: float) -> void:
 ## 우주선이 지금 위험한 조준선 위에 있으면, 그 선에서 벗어나는 방향 (아니면 ZERO). 밸런스 봇용.
 func barrage_escape(pos: Vector2, margin: float) -> Vector2:
 	for b in barrages:
+		if b.phase == Barrage.Phase.DONE:
+			continue  # 다 쏜 뒤 남겨 둔 선은 표시일 뿐, 위험은 날아가는 탄(아래)에서 본다
 		var d := Barrage.distance_from_line(b.origin, b.dir, pos)
 		if d < margin:
 			var side := Vector2(-b.dir.y, b.dir.x)

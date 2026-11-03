@@ -288,3 +288,36 @@ func test_파괴된_뒤_게임_오버_화면이_붉게_남지_않음() -> void:
 	assert_eq(run.alert.flash_strength(), 0.0, "붉은 번쩍임이 남지 않음")
 	assert_eq(run.alert.shake, 0.0)
 	run.queue_free()
+
+
+func test_조준선은_쏘는_곳에서부터_그어짐() -> void:
+	var b := Barrage.new(Vector2.ZERO, Vector2.RIGHT)
+	assert_eq(b.draw_progress(), 0.0, "처음엔 안 그어짐")
+	b.step(Balance.BARRAGE_WARN_TIME * Balance.BARRAGE_DRAW_RATIO / 2.0)
+	assert_true(b.draw_progress() > 0.3 and b.draw_progress() < 0.7, "절반쯤 그어짐 %f" % b.draw_progress())
+	b.step(Balance.BARRAGE_WARN_TIME * Balance.BARRAGE_DRAW_RATIO)
+	assert_eq(b.draw_progress(), 1.0, "다 그어짐 (예고 시간 안에)")
+	assert_eq(b.phase, Barrage.Phase.WARN, "아직 예고 중")
+
+
+func test_다_쏜_뒤에도_탄이_우주선을_지날_때까지_조준선이_남음() -> void:
+	var sim := RunSim.new(24)
+	for tm in ["_spawn_timer", "_barrage_timer", "_golden_timer", "_jelly_timer", "_bug_timer"]:
+		sim.set(tm, 1.0e9)
+	sim.raid.timer = 1.0e9
+	sim.set("hp", 1.0e9)
+	sim.max_hp = 1.0e9
+	var b := sim.start_barrage()
+	var t := 0.0
+	var shot_reached := -1.0
+	var line_gone := -1.0
+	while t < 6.0:
+		sim.update(1.0 / 60.0, Vector2(0, 0))
+		t += 1.0 / 60.0
+		if shot_reached < 0.0 and b.phase == Barrage.Phase.DONE:
+			# 마지막 탄 기준: 쏜 곳에서 우주선까지 걸리는 시간
+			shot_reached = t + b.origin.distance_to(sim.player_pos) / Balance.BARRAGE_SHOT_SPEED
+		if line_gone < 0.0 and not sim.barrages.has(b):
+			line_gone = t
+	assert_true(shot_reached > 0.0 and line_gone > 0.0)
+	assert_true(line_gone >= shot_reached, "조준선(%f초)이 마지막 탄 도착(%f초)보다 먼저 사라지지 않음" % [line_gone, shot_reached])

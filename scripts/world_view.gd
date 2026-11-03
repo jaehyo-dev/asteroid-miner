@@ -23,9 +23,12 @@ const BARRAGE_RED := Color("#ff2a4a")
 const BARRAGE_HOT := Color("#ffd0e8")
 const SHOT_CORE := Color("#fff0fa")
 const SHOT_GLOW := Color("#ff3c8c")
-## 조준선 굵기(픽셀): 예고 때 → 충전이 끝날 때. 휴대폰 세로 화면에서도 놓치지 않게 굵고 밝게.
-const BARRAGE_LINE_WARN := 3.0
-const BARRAGE_LINE_CHARGE := 7.0
+## 조준선 굵기(픽셀): 예고 때 → 충전이 끝날 때, 바깥 빛 추가 굵기. 휴대폰 세로 화면에서도 놓치지 않게 굵고 밝게.
+const BARRAGE_LINE_WARN := 4.0
+const BARRAGE_LINE_CHARGE := 8.0
+const BARRAGE_LINE_GLOW := 6.0
+## 다 쏜 뒤 남겨 두는 조준선의 진하기
+const BARRAGE_LINE_AFTER_ALPHA := 0.4
 ## 조준선 길이 (쏘는 곳에서 화면 반대편 밖까지 넉넉히)
 const BARRAGE_LINE_LENGTH := 2000.0
 
@@ -101,17 +104,16 @@ func _draw() -> void:
 ## 심연의 포격: 예고 때는 맥박치는 붉은 조준선, 충전 때는 점점 굵고 밝아지는 선, 발사 후엔 에너지탄.
 func _draw_barrages() -> void:
 	for b in sim.barrages:
-		if not b.is_telegraphing() and b.phase != Barrage.Phase.FIRE:
-			continue
 		var start := b.origin
-		var end := b.origin + b.dir * BARRAGE_LINE_LENGTH
+		# 예고가 시작되면 쏘는 곳에서부터 쭉 그어진다
+		var end := b.origin + b.dir * BARRAGE_LINE_LENGTH * b.draw_progress()
 		var width := lerpf(BARRAGE_LINE_WARN, BARRAGE_LINE_CHARGE, b.charge_progress())
 		var pulse := 0.5 + 0.5 * sin(sim.time * TAU * 4.0)
 		var alpha := 0.55 + 0.35 * pulse if b.phase == Barrage.Phase.WARN else 0.9
-		if b.phase == Barrage.Phase.FIRE:
-			alpha = 0.5  # 쏘는 동안엔 길만 은은하게 남긴다
+		if b.phase == Barrage.Phase.FIRE or b.phase == Barrage.Phase.DONE:
+			alpha = BARRAGE_LINE_AFTER_ALPHA  # 쏜 뒤에는 탄이 지나갈 때까지 길만 은은하게 남긴다
 		# 바깥 빛 → 붉은 선 → 밝은 가운데 줄 (어두운 배경에서도, 작은 화면에서도 잘 보이게)
-		draw_line(start, end, Color(BARRAGE_RED, alpha * 0.3), width + 4.0)
+		draw_line(start, end, Color(BARRAGE_RED, alpha * 0.3), width + BARRAGE_LINE_GLOW)
 		draw_line(start, end, Color(BARRAGE_RED, alpha), width)
 		draw_line(start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
 	for s in sim.shots:

@@ -15,6 +15,8 @@ var phase := Phase.WARN
 var timer := Balance.BARRAGE_WARN_TIME
 ## 아직 쏘지 않은 탄 수
 var shots_left := Balance.BARRAGE_SHOTS
+## 다 쏜 뒤 조준선을 남겨 둘 남은 시간 (마지막 탄이 우주선 쪽을 지나갈 때까지). 0이 되면 끝.
+var linger := 0.0
 
 
 func _init(from: Vector2 = Vector2.ZERO, direction: Vector2 = Vector2.RIGHT) -> void:
@@ -43,6 +45,18 @@ func step(delta: float) -> Dictionary:
 				else:
 					timer += Balance.BARRAGE_SHOT_GAP
 	return result
+
+
+## 다 쏜 뒤 남겨 둔 시간이 끝났는지 (RunSim이 목록에서 뺄 때)
+func finished() -> bool:
+	return phase == Phase.DONE and linger <= 0.0
+
+
+## 조준선이 그어진 비율 0~1: 예고 시작 뒤 BARRAGE_DRAW_RATIO 동안 쏘는 곳에서부터 쭉 뻗는다.
+func draw_progress() -> float:
+	if phase != Phase.WARN:
+		return 1.0
+	return clampf(warn_progress() / Balance.BARRAGE_DRAW_RATIO, 0.0, 1.0)
 
 
 ## 예고·충전 중인지 (조준선을 보여 줄 때)
