@@ -204,6 +204,7 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 	# 메뉴(일시 정지·레벨업·게임 오버)가 떠 있는 동안 붉은 화면 효과가 멈춘 채 남지 않게 끈다
 	alert.clear_effects()
 	Sfx.pause_gate_sounds(true)
+	gate_view.process_mode = Node.PROCESS_MODE_DISABLED  # 빛 알갱이(입자)는 따로 움직이므로 메뉴 동안 멈춘다
 	joystick.enabled = false
 	pause_button.hide()
 	world.moving = false
@@ -213,6 +214,7 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 func _close_menu() -> void:
 	current_menu = Menu.NONE
 	Sfx.pause_gate_sounds(false)
+	gate_view.process_mode = Node.PROCESS_MODE_INHERIT
 	menu.hide()
 	joystick.enabled = true
 	pause_button.show()

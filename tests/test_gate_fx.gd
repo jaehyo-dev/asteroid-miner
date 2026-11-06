@@ -240,3 +240,16 @@ func _wait_until(run: Node, cond: Callable) -> void:
 			return
 		run.sim.hp = run.sim.max_hp
 		await wait_frames(1)
+
+
+func test_닫히는_순간_파편은_한_번만_흩어진다() -> void:
+	var view := GateView.new()
+	view.sim = RunSim.new()
+	add_child(view)
+	view.step(STEP, PackedStringArray(["gate_close"]))
+	var burst := view._chips.size()
+	assert_true(burst > 0, "닫히면 파편이 흩어짐")
+	view.step(STEP, PackedStringArray())
+	view.step(STEP, PackedStringArray())
+	assert_eq(view._chips.size(), burst, "다음 프레임에 또 터지지 않음")
+	view.queue_free()

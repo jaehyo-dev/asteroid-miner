@@ -113,15 +113,15 @@ func step(delta: float, events: PackedStringArray) -> PackedStringArray:
 	particles.emitting = fx.vortex_open() > 0.5 and fx.collapse < 0.0 and not sim.returned
 	particles.speed_scale = 1.0 + 2.0 * g.charge_progress()
 	particles.modulate = Color.WHITE.lerp(Color(1.0, 0.4, 0.4), heat)
-	_update_chips(delta, heat)
+	_update_chips(delta, heat, events.has("gate_close"))
 	queue_redraw()
 	front.queue_redraw()
 	return out
 
 
 ## 닫히기 직전에는 고리에서 작은 파편이 떨어져 나가고, 닫힐 때는 한꺼번에 흩어진다
-func _update_chips(delta: float, heat: float) -> void:
-	if fx.collapse >= 0.0 and fx.collapse <= delta:
+func _update_chips(delta: float, heat: float, closed_now: bool) -> void:
+	if closed_now:
 		for i in 16:
 			_spawn_chip(1.6)
 	elif heat > 0.3:
