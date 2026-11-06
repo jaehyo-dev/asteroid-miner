@@ -54,7 +54,7 @@ var moving := false
 
 ## 파편 효과: [위치, 속도, 남은 시간, 색]
 var _debris: Array = []
-## 줍기 연출: {pos, grade, gain(화물칸에서 늘어난 가치), t(지난 시간)}
+## 줍기 연출: {pos, grade, gain(화물칸에서 늘어난 가치에 광물 보너스를 적용한 값), color(그때 보너스 색), t(지난 시간)}
 var _pickups: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
 ## 우주선 기울기 (-1 왼쪽으로 돌 때 ~ 1 오른쪽으로 돌 때)
@@ -81,7 +81,7 @@ func step(delta: float) -> void:
 	_last_facing = sim.facing
 	bank = move_toward(bank, turn, SHIP_BANK_RATE * delta)
 	for p in sim.picked:
-		_pickups.append({"pos": p["pos"], "grade": p["grade"], "gain": p["gain"], "t": 0.0})
+		_pickups.append({"pos": p["pos"], "grade": p["grade"], "gain": RiskBonus.applied(p["gain"], sim.time), "color": Hud.bonus_color(sim.time), "t": 0.0})
 	var kept: Array = []
 	for d in _debris:
 		d[0] += d[1] * delta
@@ -358,7 +358,7 @@ func _draw_pickup_fx(fx: Dictionary) -> void:
 	var value: int = fx["gain"]
 	if grade >= 1 and value > 0 and t < POPUP_TIME:
 		var rise := POPUP_RISE * t / POPUP_TIME
-		var text_color := Color(PixelArt.MINERAL_COLORS[grade][0], 1.0 - t / POPUP_TIME)
+		var text_color := Color(fx["color"], 1.0 - t / POPUP_TIME)
 		draw_string(FONT, (pos + Vector2(-12, -6 - rise)).round(), "+%d" % value, HORIZONTAL_ALIGNMENT_CENTER, 24, 12, text_color)
 
 

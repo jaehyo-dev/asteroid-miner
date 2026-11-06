@@ -122,7 +122,7 @@ func test_위험도_배율은_시간에_따라_오르고_상한이_있다() -> v
 	assert_eq(RunSim.risk_mult(Balance.RISK_RAMP_TIME), Balance.RISK_MAX)
 	assert_eq(RunSim.risk_mult(Balance.RISK_RAMP_TIME * 3.0), Balance.RISK_MAX, "상한")
 	assert_eq(RunSim.risk_mult(-5.0), 1.0)
-	assert_eq(Hud.risk_text(1.5), "x1.50")
+	assert_eq(Hud.bonus_text(Balance.RISK_RAMP_TIME / 2.0), "광물 보너스 +50%")
 
 
 # ── 화물칸 ───────────────────────────────────────────

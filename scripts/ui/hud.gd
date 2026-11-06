@@ -1,7 +1,7 @@
 class_name Hud
 extends Control
 ## 출격 중 화면 정보: 체력 막대, 버틴 시간, 부순 적 수(운석·생명체), 화물칸(등급별 개수·칸수·가치),
-## 위험도 배율, 워프 게이트(남은 시간·방향·충전), 레벨과 경험치 막대, 화면 밖 황금 운석의 방향 표시.
+## 광물 보너스(위험도 배율), 워프 게이트(지금 귀환하면 얻는 가치 포함)(남은 시간·방향·충전), 레벨과 경험치 막대, 화면 밖 황금 운석의 방향 표시.
 
 const MARGIN := 8.0
 const BAR_SIZE := Vector2(80, 6)
@@ -36,11 +36,12 @@ const COLOR_GATE := Color("#7cf0ff")
 const CARGO_FONT_SIZE := 16
 ## 화물칸이 꽉 찼을 때 글자 색
 const COLOR_FULL := Color("#ff9a2e")
-## 위험도 배율 글자 크기와 색 (x1.0 기본 색 → 최대일 때 붉은 주황)
-const RISK_FONT_SIZE := 24
-const COLOR_RISK_MAX := Color("#ff6a3d")
-## 오른쪽 위 일시 정지 버튼 자리 (위험도 배율은 그 왼쪽에 쓴다)
-const PAUSE_BUTTON_SPACE := 34.0
+## 광물 보너스 색: 낮음 노랑 → 중간 주황 → 최대 빨강
+const BONUS_COLORS := [Color("#ffd34f"), Color("#ff9a2e"), Color("#ff4040")]
+## 광물 보너스 말풍선 (처음 보너스가 오를 때 한 번만): 문구, 보이는 시간, 배경색
+const TIP_LINES := ["오래 버틸수록 광물 보너스가 올라가요!", "대신 적도 강해져요"]
+const TIP_TIME := 5.0
+const COLOR_TIP_BG := Color(0.05, 0.05, 0.12, 0.92)
 
 var sim: RunSim
 ## 피격·위험 표시 상태 (체력 낮음이면 체력 막대가 깜빡임)
@@ -51,6 +52,12 @@ var banner_color := Color.WHITE
 var banner_time := 0.0
 ## 화면 전체 하얀 번쩍임 0~1 (귀환 성공 연출)
 var white := 0.0
+## 광물 보너스 표시 상태 (오를 때 커지는 연출)
+var bonus := RiskBonus.new()
+## 광물 보너스 말풍선 남은 시간
+var tip_time := 0.0
+## 광물 보너스 글자 왼쪽 위치 (말풍선 꼬리가 가리킴)
+var _bonus_pos := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -82,8 +89,9 @@ func _draw() -> void:
 		var text := str(cargo.counts[grade])
 		draw_string(font, Vector2(x + icon.get_width() + 2, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 		x += icon.get_width() + 2 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
-	draw_string(font, Vector2(MARGIN, MARGIN + 62), cargo_text(cargo), HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, COLOR_FULL if cargo.is_full() else COLOR_VALUE)
-	_draw_risk(font)
+	var cargo_line := cargo_text(cargo)
+	draw_string(font, Vector2(MARGIN, MARGIN + 62), cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, COLOR_FULL if cargo.is_full() else COLOR_VALUE)
+	_draw_bonus(font, Vector2(MARGIN + font.get_string_size(cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE).x + 8, MARGIN + 62))
 	_draw_gate_info(font)
 	# 레벨과 경험치 막대 (화면 맨 아래 전체 너비)
 	var need := Upgrades.xp_to_next(sim.level)
@@ -95,6 +103,7 @@ func _draw() -> void:
 	_draw_gate_marker()
 	_draw_barrage_markers()
 	_draw_banner(font)
+	_draw_tip(font)
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
 	if white > 0.0:
@@ -124,20 +133,86 @@ static func cargo_text(cargo: Cargo) -> String:
 	return "화물 %s%d/%d · 가치 %d" % [label, cargo.size(), cargo.capacity, cargo.value()]
 
 
-## 위험도 배율을 오른쪽 위(일시 정지 버튼 왼쪽)에 크게 쓴다. 배율이 오를수록 붉어진다.
-func _draw_risk(font: Font) -> void:
-	var mult := RunSim.risk_mult(sim.time)
-	var k := (mult - 1.0) / maxf(Balance.RISK_MAX - 1.0, 0.001)
-	draw_string(font, Vector2(0, MARGIN + 16), risk_text(mult), HORIZONTAL_ALIGNMENT_RIGHT, size.x - PAUSE_BUTTON_SPACE, RISK_FONT_SIZE, COLOR_TEXT.lerp(COLOR_RISK_MAX, k))
+## 화물칸 가치 옆에 작게: [광물 아이콘 + 위쪽 화살표] "광물 보너스 +40%".
+## 오를 때만 잠깐 커졌다 돌아오고, 높을수록 노랑 → 주황 → 빨강. 오른쪽 게이트 글자와 겹치면(휴대폰 세로) 다음 줄에 쓴다.
+func _draw_bonus(font: Font, pos: Vector2) -> void:
+	var text := bonus_text(sim.time)
+	var icon := PixelArt.mineral(3)
+	var text_x := icon.get_width() + 9.0
+	# 오른쪽 위 게이트 글자(남은 시간, 지금 귀환하면 …)와 겹치지 않을 만큼만 쓴다
+	var right := 0.0
+	for line in [gate_text(sim.gate), return_text(sim)]:
+		right = maxf(right, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x)
+	if pos.x + text_x + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x > size.x - MARGIN - right - 8.0:
+		pos = Vector2(MARGIN, pos.y + 16)
+	_bonus_pos = pos
+	var color := bonus_color(sim.time)
+	# 글자 가운데 높이를 기준으로 커진다
+	var s := bonus.scale()
+	draw_set_transform(pos + Vector2(0, -4), 0.0, Vector2(s, s))
+	draw_texture(icon, Vector2(0, -floorf(icon.get_height() / 2.0)))
+	var ax := icon.get_width() + 3.0
+	draw_colored_polygon(PackedVector2Array([Vector2(ax, -7), Vector2(ax - 2.5, -3), Vector2(ax + 2.5, -3)]), color)
+	draw_string(font, Vector2(text_x, 4), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, color)
+	draw_set_transform(Vector2.ZERO)
 
 
-static func risk_text(mult: float) -> String:
-	return "x%.2f" % mult
+static func bonus_text(t: float) -> String:
+	return "광물 보너스 +%d%%" % RiskBonus.percent(t)
+
+
+## 광물 보너스 색: 0% 노랑 → 절반 주황 → 최대 빨강
+static func bonus_color(t: float) -> Color:
+	var k := RiskBonus.ratio(t) * 2.0
+	if k <= 1.0:
+		return BONUS_COLORS[0].lerp(BONUS_COLORS[1], k)
+	return BONUS_COLORS[1].lerp(BONUS_COLORS[2], k - 1.0)
+
+
+## 광물 보너스 말풍선을 띄운다
+func show_tip() -> void:
+	tip_time = TIP_TIME
+
+
+## 말풍선: 보너스 글자 아래에 두 줄, 꼬리가 보너스 글자를 가리킨다. 처음과 끝은 서서히.
+func _draw_tip(font: Font) -> void:
+	if tip_time <= 0.0:
+		return
+	var a := clampf(minf(tip_time, TIP_TIME - tip_time) / 0.3, 0.0, 1.0)
+	var w := 0.0
+	for line in TIP_LINES:
+		w = maxf(w, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x)
+	var box := Rect2(Vector2(clampf(_bonus_pos.x - 6, MARGIN, size.x - MARGIN - w - 12), _bonus_pos.y + 12), Vector2(w + 12, 34))
+	var color := bonus_color(sim.time)
+	var tail_x := _bonus_pos.x + 10
+	draw_colored_polygon(PackedVector2Array([Vector2(tail_x, box.position.y - 6), Vector2(tail_x - 5, box.position.y), Vector2(tail_x + 5, box.position.y)]), Color(color, a))
+	draw_rect(box, Color(COLOR_TIP_BG, COLOR_TIP_BG.a * a))
+	draw_rect(box, Color(color, a), false, 1.0)
+	for i in TIP_LINES.size():
+		draw_string(font, box.position + Vector2(6, 14 + i * 15), TIP_LINES[i], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOR_TEXT, a))
+
+
+## 숫자에 천 단위 쉼표: 1240 → "1,240"
+static func thousands(n: int) -> String:
+	var digits := str(absi(n))
+	var out := ""
+	while digits.length() > 3:
+		out = "," + digits.right(3) + out
+		digits = digits.left(digits.length() - 3)
+	return ("-" if n < 0 else "") + digits + out
+
+
+## 워프 게이트가 열려 있을 때: "지금 귀환하면 1,240 확보" (화물칸 가치 × 지금 배율). 아니면 빈 글자.
+static func return_text(run: RunSim) -> String:
+	if run.gate.state != WarpGate.State.OPEN:
+		return ""
+	return "지금 귀환하면 %s 확보" % thousands(run.final_value())
 
 
 ## 오른쪽 위 게이트 정보: 다음 게이트까지 남은 시간 / 열린 게이트가 닫힐 때까지 / 충전 진행도
 func _draw_gate_info(font: Font) -> void:
 	draw_string(font, Vector2(0, MARGIN + 34), gate_text(sim.gate), HORIZONTAL_ALIGNMENT_RIGHT, size.x - MARGIN, FONT_SIZE, COLOR_GATE)
+	draw_string(font, Vector2(0, MARGIN + 50), return_text(sim), HORIZONTAL_ALIGNMENT_RIGHT, size.x - MARGIN, FONT_SIZE, COLOR_VALUE)
 
 
 static func gate_text(gate: WarpGate) -> String:
@@ -181,6 +256,7 @@ func show_banner(text: String, color: Color) -> void:
 ## 배너 시간 진행 (게임이 진행될 때만 부름)
 func step(delta: float) -> void:
 	banner_time = maxf(banner_time - delta, 0.0)
+	tip_time = maxf(tip_time - delta, 0.0)
 
 
 func _draw_banner(font: Font) -> void:

@@ -13,6 +13,8 @@ static var path := "user://save.json"
 var credits := 0
 ## 공용 업그레이드 id → 단계
 var upgrades: Dictionary = {}
+## 광물 보너스 말풍선을 이미 봤는지 (한 번만 보여 준다)
+var risk_tip_seen := false
 
 
 func level_of(id: String) -> int:
@@ -25,7 +27,7 @@ func add_credits(amount: int) -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate()}
+	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen}
 
 
 ## 저장된 Dictionary → SaveData. 모르는 업그레이드는 버리고, 단계는 0~최대, 광물은 0 이상으로 고친다.
@@ -34,6 +36,8 @@ static func from_dict(d: Variant) -> SaveData:
 	if typeof(d) != TYPE_DICTIONARY:
 		return s
 	s.credits = maxi(_to_int(d.get("credits", 0)), 0)
+	var tip: Variant = d.get("risk_tip_seen", false)
+	s.risk_tip_seen = typeof(tip) == TYPE_BOOL and tip  # 참/거짓이 아니면 안 본 것으로
 	var ups: Variant = d.get("upgrades", {})
 	if typeof(ups) == TYPE_DICTIONARY:
 		for u in Balance.BASE_UPGRADES:

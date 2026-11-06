@@ -63,6 +63,7 @@ func _process(delta: float) -> void:
 		if alert.update(delta, sim.events.has("hit"), sim.hp / sim.max_hp):
 			Sfx.play_warning()
 		hud.step(delta)
+		_update_bonus(delta)
 		_announce(sim.events)
 		danger.time = sim.time
 		if not sim.alive:
@@ -143,6 +144,14 @@ func _announce(events: PackedStringArray) -> void:
 			hud.show_banner("새로운 위협: %s" % Balance.CREATURES[creature]["name"], PixelArt.JELLY_COLORS[0] if creature == "jelly" else PixelArt.BUG_COLORS[0])
 
 
+## 광물 보너스가 올랐는지 확인한다. 처음 오를 때 한 번만 말풍선을 띄우고, 봤다는 것을 저장한다.
+func _update_bonus(delta: float) -> void:
+	if hud.bonus.update(delta, sim.time) and not save.risk_tip_seen:
+		save.risk_tip_seen = true
+		save.save_file()
+		hud.show_tip()
+
+
 ## 이번 프레임에 주운 광물의 효과음. 같은 등급은 한 프레임에 한 번만 낸다 (한꺼번에 주워도 시끄럽지 않게).
 func _play_pickup_sounds() -> void:
 	var played := {}
@@ -187,9 +196,9 @@ func _show_game_over() -> void:
 	var home := sim.brought_home()
 	var kept := "화물칸 광물 100% 귀환" if sim.returned else "광물 %d%% 보존 (%d/%d개, 비싼 것부터)" % [
 		roundi(Cargo.keep_ratio(sim.insurance_level) * 100.0), Cargo.total(home), sim.cargo.size()]
-	var body := "버틴 시간 %s · 레벨 %d · 부순 적 %d개\n%s\n(%s)\n광물 가치 %d × 위험도 x%.2f = %d" % [
+	var body := "버틴 시간 %s · 레벨 %d · 부순 적 %d개\n%s\n(%s)\n광물 가치 %d + 광물 보너스 %d%% = %d" % [
 		Hud.format_time(sim.time), sim.level, sim.kills, kept, Hud.minerals_text(home),
-		RunSim.value_of(home), RunSim.risk_mult(sim.time), earned]
+		RunSim.value_of(home), RiskBonus.percent(sim.time), earned]
 	body += "\n기지로 +%d → 보유 광물 %d" % [earned, save.credits]
 	_open_menu(Menu.GAME_OVER, "귀환 성공!" if sim.returned else "우주선 파괴", body, ["다시 출격", "기지로"])
 
