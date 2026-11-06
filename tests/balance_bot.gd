@@ -17,7 +17,7 @@ static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
 	rng.seed = seed_value * 31 + 7
 	var move := Vector2.ZERO
 	var turn := 0.0
-	while sim.alive and sim.time < max_time:
+	while not sim.is_over() and sim.time < max_time:  # 귀환해도 판이 끝난다
 		if not sim.choices.is_empty():
 			sim.choose(rng.randi_range(0, sim.choices.size() - 1))
 			continue

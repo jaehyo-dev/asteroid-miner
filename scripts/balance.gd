@@ -276,3 +276,28 @@ const LOW_HP_BORDER_TIME := 2.0
 const LOW_HP_REHIT_BORDER_TIME := 0.6
 ## 경고음은 이 시간(초)에 한 번만 울린다
 const LOW_HP_SOUND_COOLDOWN := 10.0
+
+# ── 귀환 (워프 게이트, 충전, 위험도, 화물칸, 사망 보존) ─
+## 워프 게이트: GATE_FIRST_TIME에 처음 열리고 GATE_INTERVAL마다 다시 열린다. 열린 뒤 GATE_OPEN_TIME이 지나면 닫힌다.
+## (습격 경고(57초, 117초 …) 전에 닫히도록 40초, 100초, 160초 …에 열린다)
+const GATE_FIRST_TIME := 40.0
+const GATE_INTERVAL := 60.0
+const GATE_OPEN_TIME := 15.0
+## 게이트는 열릴 때 우주선에서 이만큼 떨어진 곳에 생긴다 (휴대폰 세로 화면에서는 화면 밖)
+const GATE_DISTANCE := 200.0
+## 열리기 이 시간(초) 전부터 화면 가장자리에 다음 게이트가 열릴 방향과 남은 시간을 보여 준다
+const GATE_HINT_TIME := 10.0
+## 이 반지름 안에 들어가면 워프 충전을 시작한다
+const GATE_RADIUS := 28.0
+## 워프 충전 시간: 충전 중에도 움직이고 공격할 수 있지만 게이트를 벗어나면 취소된다
+const WARP_CHARGE_TIME := 5.0
+## 위험도 배율: 출격 후 RISK_RAMP_TIME에 걸쳐 1.0 → RISK_MAX까지 오른다. 귀환·사망 때 가져가는 광물 가치에 곱한다.
+## (적의 수와 체력도 같은 시간에 따라 늘어난다: spawn_interval, asteroid_hp)
+const RISK_MAX := 2.0
+const RISK_RAMP_TIME := 300.0
+## 화물칸 칸수 (광물 1개 = 1칸). 꽉 차면 더 좋은 광물만 가장 싼 광물과 바꿔 싣는다.
+const CARGO_CAPACITY := 80
+## 죽으면 화물칸 광물 개수의 이 비율만(내림) 비싼 것부터 남긴다. 비상 보험 단계마다 늘고 최대 DEATH_KEEP_MAX.
+const DEATH_KEEP_BASE := 0.5
+const DEATH_KEEP_PER_LEVEL := 0.05
+const DEATH_KEEP_MAX := 0.75

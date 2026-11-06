@@ -42,6 +42,11 @@ const GUARD_GLOW := Color("#ffb347")
 const GUARD_SHOT_CORE := Color("#fff4d6")
 const GUARD_SHOT_GLOW := Color("#ff9a2e")
 const GUARD_NOSE := 6.0
+## 워프 게이트: 테두리 색, 안쪽 소용돌이 색, 테두리 점 수, 도는 빠르기(라디안/초)
+const GATE_RING := Color("#7cf0ff")
+const GATE_CORE := Color("#8a5cff")
+const GATE_DOTS := 16
+const GATE_SPIN := 1.5
 ## 우주선 기울기: 돌 때 옆으로 눌려 보이는 최대 비율, 기울기가 따라가는 빠르기
 const SHIP_BANK_SQUASH := 0.35
 const SHIP_BANK_RATE := 10.0
@@ -52,7 +57,7 @@ var moving := false
 
 ## 파편 효과: [위치, 속도, 남은 시간, 색]
 var _debris: Array = []
-## 줍기 연출: {pos, grade, t(지난 시간)}
+## 줍기 연출: {pos, grade, gain(화물칸에서 늘어난 가치), t(지난 시간)}
 var _pickups: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
 ## 우주선 기울기 (-1 왼쪽으로 돌 때 ~ 1 오른쪽으로 돌 때)
@@ -79,7 +84,7 @@ func step(delta: float) -> void:
 	_last_facing = sim.facing
 	bank = move_toward(bank, turn, SHIP_BANK_RATE * delta)
 	for p in sim.picked:
-		_pickups.append({"pos": p["pos"], "grade": p["grade"], "t": 0.0})
+		_pickups.append({"pos": p["pos"], "grade": p["grade"], "gain": p["gain"], "t": 0.0})
 	var kept: Array = []
 	for d in _debris:
 		d[0] += d[1] * delta
@@ -98,6 +103,8 @@ func step(delta: float) -> void:
 func _draw() -> void:
 	if sim == null:
 		return
+	if sim.gate.state == WarpGate.State.OPEN:
+		_draw_gate(sim.gate)
 	for a in sim.enemies:
 		if a.kind == "jelly":
 			_draw_jelly(a)
@@ -126,6 +133,35 @@ func _draw() -> void:
 		_draw_pickup_fx(fx)
 	if sim.alive:
 		_draw_ship()
+
+
+## 워프 게이트: 하늘색 점 테두리가 돌고 안쪽에 보랏빛 소용돌이. 충전 중이면 테두리를 따라 진행도 호가 차오른다.
+## 닫히기 3초 전부터는 깜빡여 곧 사라짐을 알린다.
+func _draw_gate(g: WarpGate) -> void:
+	var c := g.pos.round()
+	var r := Balance.GATE_RADIUS
+	var blink := 1.0
+	if g.charge < 0.0 and g.timer < 3.0 and int(g.timer * 6.0) % 2 == 0:
+		blink = 0.35
+	var spin := sim.time * GATE_SPIN
+	# 안쪽 소용돌이: 겹친 원 + 돌아가는 나선 팔 3개
+	draw_circle(c, r, Color(GATE_CORE, 0.18 * blink))
+	draw_circle(c, r * 0.55, Color(GATE_CORE, 0.22 * blink))
+	for arm in 3:
+		var prev := c
+		for j in range(1, 6):
+			var p := c + Vector2.from_angle(-spin * 2.0 + arm * TAU / 3.0 + j * 0.45) * r * j / 6.0
+			draw_line(prev, p, Color(GATE_RING, 0.45 * blink), 1.0)
+			prev = p
+	# 테두리 점들
+	for i in GATE_DOTS:
+		var p := c + Vector2.from_angle(spin + i * TAU / GATE_DOTS) * r
+		draw_rect(Rect2(p.round() - Vector2.ONE, Vector2(2, 2)), Color(GATE_RING, blink))
+	var k := g.charge_progress()
+	if k > 0.0:
+		# 충전 진행도: 위쪽에서 시계 방향으로 차오르는 굵은 호, 안쪽이 점점 밝아짐
+		draw_arc(c, r + 3.0, -PI / 2.0, -PI / 2.0 + TAU * k, 32, GATE_RING, 2.0)
+		draw_circle(c, r * 0.8, Color(1, 1, 1, 0.12 * k))
 
 
 ## 심연의 포격: 예고 때는 맥박치는 붉은 조준선, 충전 때는 점점 굵고 밝아지는 선, 발사 후엔 에너지탄.
@@ -350,8 +386,9 @@ func _draw_pickup_fx(fx: Dictionary) -> void:
 				draw_rect(Rect2((pos + dir * PICKUP_RING_RADIUS[grade] * k * 0.8).round(), Vector2.ONE), Color(1, 1, 1, alpha))
 		if grade == 3:
 			draw_circle(pos, 10.0 * (1.0 - k), Color(1.0, 0.95, 0.6, 0.5 * alpha))
-	if grade >= 1 and t < POPUP_TIME:
-		var value := int(Balance.MINERAL_GRADES[grade]["value"])
+	# 화물칸에서 늘어난 가치만 띄운다 (꽉 차서 바꿔 실으면 가치 차이, 못 실으면 띄우지 않음)
+	var value: int = fx["gain"]
+	if grade >= 1 and value > 0 and t < POPUP_TIME:
 		var rise := POPUP_RISE * t / POPUP_TIME
 		var text_color := Color(PixelArt.MINERAL_COLORS[grade][0], 1.0 - t / POPUP_TIME)
 		draw_string(FONT, (pos + Vector2(-12, -6 - rise)).round(), "+%d" % value, HORIZONTAL_ALIGNMENT_CENTER, 24, 12, text_color)

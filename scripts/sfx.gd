@@ -28,11 +28,18 @@ const CHARGE_SOUND := {"wave": "square", "notes": [[110.0, 0.1], [131.0, 0.1], [
 const FIRE_SOUND := {"wave": "square", "notes": [[988.0, 0.03], [740.0, 0.03], [494.0, 0.05]], "volume": 0.25}
 ## 고대 경비선 발사음: 낮고 짧은 "퉁" (포격보다 작게)
 const GUARD_SOUND := {"wave": "triangle", "notes": [[330.0, 0.04], [220.0, 0.06]], "volume": 0.35}
+## 워프 게이트: 열림(맑게 올라가는 세 음), 충전(5초 동안 천천히 올라가는 웅웅거림), 귀환(높이 솟는 소리)
+const GATE_SOUND := {"wave": "triangle", "notes": [[523.0, 0.08], [784.0, 0.08], [1047.0, 0.16]], "volume": 0.45}
+const WARP_CHARGE_SOUND := {"wave": "triangle", "notes": [[196.0, 1.0], [233.0, 1.0], [277.0, 1.0], [330.0, 1.0], [392.0, 1.0]], "volume": 0.35}
+const WARP_DONE_SOUND := {"wave": "square", "notes": [[392.0, 0.06], [523.0, 0.06], [659.0, 0.06], [784.0, 0.06], [1047.0, 0.25]], "volume": 0.3}
 
 var _pickup_players: Array[AudioStreamPlayer] = []
 var _charge_player: AudioStreamPlayer
 var _fire_player: AudioStreamPlayer
 var _guard_player: AudioStreamPlayer
+var _gate_player: AudioStreamPlayer
+var _warp_charge_player: AudioStreamPlayer
+var _warp_done_player: AudioStreamPlayer
 var _raid_player: AudioStreamPlayer
 var _warning_player: AudioStreamPlayer
 
@@ -52,6 +59,9 @@ func _ready() -> void:
 	_charge_player = _make_player(CHARGE_SOUND)
 	_fire_player = _make_player(FIRE_SOUND)
 	_guard_player = _make_player(GUARD_SOUND)
+	_gate_player = _make_player(GATE_SOUND)
+	_warp_charge_player = _make_player(WARP_CHARGE_SOUND)
+	_warp_done_player = _make_player(WARP_DONE_SOUND)
 	_raid_player = AudioStreamPlayer.new()
 	_raid_player.stream = synth(RAID_SOUND["notes"], RAID_SOUND["wave"], RAID_SOUND["volume"])
 	_raid_player.volume_db = VOLUME_DB
@@ -92,6 +102,29 @@ func charge_stream() -> AudioStreamWAV:
 
 func fire_stream() -> AudioStreamWAV:
 	return _fire_player.stream
+
+
+## 워프 게이트 열림·충전·귀환 소리. 충전음은 취소되거나 판이 끝나면 멈춘다.
+func play_gate() -> void:
+	_gate_player.play()
+
+
+func play_warp_charge() -> void:
+	_warp_charge_player.play()
+
+
+func stop_warp_charge() -> void:
+	_warp_charge_player.stop()
+
+
+func play_warp_done() -> void:
+	_warp_charge_player.stop()
+	_warp_done_player.play()
+
+
+## 워프 소리 (테스트용)
+func warp_streams() -> Array[AudioStreamWAV]:
+	return [_gate_player.stream, _warp_charge_player.stream, _warp_done_player.stream]
 
 
 ## 습격 경고음

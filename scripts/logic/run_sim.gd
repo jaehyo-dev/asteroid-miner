@@ -83,20 +83,29 @@ var enemies: Array[Enemy] = []
 var bullets: Array[Bullet] = []
 ## 이번 프레임에 탄으로 부서진 운석 (효과·보상용)
 var destroyed: Array[Enemy] = []
-## 이번 프레임에 주운 광물 {pos, grade} (줍기 연출·효과음용)
+## 이번 프레임에 주운 광물 {pos, grade, gain(화물칸에서 늘어난 가치)} (줍기 연출·효과음용)
 var picked: Array[Dictionary] = []
 ## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden",
 ## "barrage_warning"·"barrage_charge"·"barrage_fire"(심연의 포격), "new_barrage"(첫 포격),
 ## "new_jelly"·"new_bug"·"new_guard"(처음 등장), "guard_charge"·"guard_fire"(고대 경비선),
-## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석)
+## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석),
+## "gate_open"·"gate_close"(워프 게이트), "warp_charge"·"warp_cancel"·"warp_done"(워프 충전)
 var events: PackedStringArray = []
 ## 탄으로 부순 적 수 (운석·황금 운석·생명체)
 var kills := 0
 var minerals: Array[Mineral] = []
-## 이번 판에 주운 광물 수 (등급별)
+## 이번 판에 주운 광물 수 (등급별, 화물칸에 못 실은 것 포함)
 var collected := PackedInt32Array([0, 0, 0, 0])
-## 이번 판에 주운 광물의 총 가치
+## 이번 판에 주운 광물의 총 가치 (화물칸에 못 실은 것 포함)
 var mineral_value := 0
+## 화물칸 (귀환하면 이 광물을 가져간다)
+var cargo := Cargo.new()
+## 워프 게이트와 충전
+var gate := WarpGate.new()
+## 워프 충전을 마쳐 귀환했는지 (귀환하면 판이 끝난다)
+var returned := false
+## 비상 보험 단계 (기지 업그레이드에서 정함, 6단계). 죽었을 때 남기는 비율을 올린다.
+var insurance_level := 0
 
 # 능력치 (레벨업 강화로 바뀜, apply_upgrades 참고)
 var fire_interval := Balance.FIRE_INTERVAL
@@ -153,8 +162,8 @@ func update(delta: float, move: Vector2) -> void:
 	events.clear()
 	destroyed.clear()
 	picked.clear()
-	if not alive or not choices.is_empty():
-		return  # 파괴됐거나 강화를 고르는 중이면 멈춘다
+	if is_over() or not choices.is_empty():
+		return  # 판이 끝났거나 강화를 고르는 중이면 멈춘다
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
 	time += delta
 	invuln = maxf(invuln - delta, 0.0)
@@ -162,6 +171,10 @@ func update(delta: float, move: Vector2) -> void:
 	player_pos += player_vel * delta
 	if move != Vector2.ZERO:
 		facing = turn_toward(facing, move.angle(), Balance.SHIP_TURN_SPEED * delta)
+	events.append_array(gate.update(delta, rng, player_pos))
+	if gate.done:
+		returned = true
+		return  # 귀환 완료: 이 순간의 화물칸을 그대로 가져간다
 
 	for e in raid.update(delta, rng, time >= Balance.BUG_FIRST_TIME):
 		events.append(e)
@@ -631,19 +644,37 @@ func _update_minerals(delta: float) -> void:
 			m.pos = m.pos.move_toward(player_pos, Balance.MAGNET_SPEED * delta)
 			dist = m.pos.distance_to(player_pos)
 		if dist <= Balance.PICKUP_RADIUS:
-			picked.append({"pos": m.pos, "grade": m.grade})
-			collect(m.grade)
+			picked.append({"pos": m.pos, "grade": m.grade, "gain": collect(m.grade)})
 		else:
 			kept.append(m)
 	minerals = kept
 
 
-## 광물을 줍는다.
-func collect(grade: int) -> void:
+## 광물을 줍는다. 경험치는 화물칸이 꽉 찼어도 항상 받는다. 화물칸에서 늘어난 가치를 돌려준다.
+func collect(grade: int) -> int:
 	collected[grade] += 1
 	mineral_value += int(Balance.MINERAL_GRADES[grade]["value"])
 	events.append("pickup")
+	var gain := cargo.add(grade)
 	gain_xp(mineral_xp(grade))
+	return gain
+
+
+## 판이 끝났는지 (파괴 또는 귀환)
+func is_over() -> bool:
+	return not alive or returned
+
+
+## 가져가는 광물 (등급별 개수): 귀환·진행 중이면 화물칸 전부, 파괴되면 보존 비율만큼 비싼 것부터
+func brought_home() -> PackedInt32Array:
+	if alive:
+		return cargo.counts.duplicate()
+	return Cargo.preserved(cargo.counts, Cargo.keep_ratio(insurance_level))
+
+
+## 가져가는 광물의 최종 가치 = 가치 × 지금 위험도 배율 (반올림)
+func final_value() -> int:
+	return roundi(value_of(brought_home()) * risk_mult(time))
 
 
 ## 우주선과 부딪힌 운석: 무적이 아니면 데미지를 주고 부서진다. 무적 중에는 그냥 지나간다.
@@ -670,6 +701,11 @@ static func drops_of(a: Enemy) -> Array:
 		return [{"grade": c["grade"], "count": c["minerals"]}]
 	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
 	return [{"grade": info["grade"], "count": info["minerals"]}]
+
+
+## 위험도 배율: 출격 후 RISK_RAMP_TIME에 걸쳐 1.0 → RISK_MAX
+static func risk_mult(t: float) -> float:
+	return lerpf(1.0, Balance.RISK_MAX, clampf(t / Balance.RISK_RAMP_TIME, 0.0, 1.0))
 
 
 ## 지금 시간의 심연의 포격 간격: 시간이 지날수록 짧아진다.

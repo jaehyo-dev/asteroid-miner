@@ -6,6 +6,8 @@ const MAIN_SCENE := "res://scenes/main.tscn"
 
 ## "??? 의 포격" 배너 색 (심연의 붉은 보라)
 const BARRAGE_BANNER_COLOR := Color("#ff6aa8")
+## 워프 게이트 배너 색
+const GATE_BANNER_COLOR := Color("#7cf0ff")
 
 ## 메뉴 종류
 enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
@@ -39,7 +41,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	sim.view_size = get_viewport_rect().size
-	if current_menu == Menu.NONE and sim.alive:
+	if current_menu == Menu.NONE and not sim.is_over():
 		var keys := MoveInput.keyboard_vector(
 			Input.is_action_pressed("move_left"), Input.is_action_pressed("move_right"),
 			Input.is_action_pressed("move_up"), Input.is_action_pressed("move_down"))
@@ -53,7 +55,7 @@ func _process(delta: float) -> void:
 		hud.step(delta)
 		_announce(sim.events)
 		danger.time = sim.time
-		if not sim.alive:
+		if sim.is_over():
 			_show_game_over()
 		elif not sim.choices.is_empty():
 			_show_level_up()
@@ -93,6 +95,16 @@ func _announce(events: PackedStringArray) -> void:
 			Sfx.play_fire()
 		elif e == "guard_fire":
 			Sfx.play_guard()
+		elif e == "gate_open":
+			hud.show_banner("워프 게이트 열림!", GATE_BANNER_COLOR)
+			Sfx.play_gate()
+		elif e == "warp_charge":
+			Sfx.play_warp_charge()
+		elif e == "warp_cancel":
+			Sfx.stop_warp_charge()
+			hud.show_banner("워프 충전 취소", Hud.COLOR_DANGER)
+		elif e == "warp_done":
+			Sfx.play_warp_done()
 		elif e == "raid_golden":
 			hud.show_banner("습격 속에 황금 운석!", Hud.COLOR_GOLD)
 		elif e == "new_guard":
@@ -125,20 +137,26 @@ static func number_key_index(keycode: Key) -> int:
 
 func _notification(what: int) -> void:
 	# 휴대폰에서 다른 앱으로 가거나 탭을 바꾸면 자동으로 멈춘다.
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready() and current_menu == Menu.NONE and sim.alive:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready() and current_menu == Menu.NONE and not sim.is_over():
 		pause()
 
 
 func pause() -> void:
-	if current_menu != Menu.NONE or not sim.alive:
+	if current_menu != Menu.NONE or sim.is_over():
 		return
 	_open_menu(Menu.PAUSE, "일시 정지", "", ["계속하기", "처음으로"])
 
 
+## 판이 끝났을 때 (귀환 성공 또는 파괴): 가져가는 광물과 위험도 배율을 곱한 최종 가치를 보여 준다.
 func _show_game_over() -> void:
-	var body := "버틴 시간 %s · 레벨 %d\n부순 적 %d개\n모은 광물 가치 %d\n(%s)" % [
-		Hud.format_time(sim.time), sim.level, sim.kills, sim.mineral_value, Hud.minerals_text(sim.collected)]
-	_open_menu(Menu.GAME_OVER, "우주선 파괴", body, ["다시 출격", "처음으로"])
+	Sfx.stop_warp_charge()
+	var home := sim.brought_home()
+	var kept := "화물칸 광물 100% 귀환" if sim.returned else "광물 %d%% 보존 (%d/%d개, 비싼 것부터)" % [
+		roundi(Cargo.keep_ratio(sim.insurance_level) * 100.0), Cargo.total(home), sim.cargo.size()]
+	var body := "버틴 시간 %s · 레벨 %d · 부순 적 %d개\n%s\n(%s)\n광물 가치 %d × 위험도 x%.2f = %d" % [
+		Hud.format_time(sim.time), sim.level, sim.kills, kept, Hud.minerals_text(home),
+		RunSim.value_of(home), RunSim.risk_mult(sim.time), sim.final_value()]
+	_open_menu(Menu.GAME_OVER, "귀환 성공!" if sim.returned else "우주선 파괴", body, ["다시 출격", "처음으로"])
 
 
 ## 레벨업 강화 선택 메뉴
