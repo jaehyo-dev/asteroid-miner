@@ -57,7 +57,7 @@ func _build_upgrades() -> void:
 		var id: String = u["id"]
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
-		var name_label := _label(COLOR_TEXT, 92)
+		var name_label := _label(COLOR_TEXT, 104)
 		var desc := _label(COLOR_DIM, 96)
 		desc.text = BaseUpgrades.describe(id)
 		var button := Button.new()
