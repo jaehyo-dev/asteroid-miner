@@ -110,11 +110,22 @@ func play_gate() -> void:
 
 
 func play_warp_charge() -> void:
+	_warp_charge_player.stream_paused = false
 	_warp_charge_player.play()
 
 
 func stop_warp_charge() -> void:
 	_warp_charge_player.stop()
+
+
+## 메뉴가 떠 있는 동안 충전음을 잠깐 멈췄다가, 닫으면 멈춘 곳부터 이어서 낸다 (충전 진행과 맞게).
+func pause_warp_charge(paused: bool) -> void:
+	_warp_charge_player.stream_paused = paused
+
+
+## 충전음이 들리고 있는지 (테스트용)
+func warp_charge_audible() -> bool:
+	return _warp_charge_player.playing and not _warp_charge_player.stream_paused
 
 
 func play_warp_done() -> void:

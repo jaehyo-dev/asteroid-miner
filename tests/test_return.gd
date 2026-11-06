@@ -288,3 +288,34 @@ func test_파괴되면_보존_정보가_나온다() -> void:
 	assert_eq(run.menu.title_text(), "우주선 파괴")
 	assert_true(run.menu.body_text().contains("50% 보존 (2/4개"), run.menu.body_text())
 	run.queue_free()
+
+
+func test_충전음은_메뉴가_뜨면_멈추고_닫으면_이어지며_화면을_떠나면_꺼진다() -> void:
+	var run: Node = RunScene.instantiate()
+	add_child(run)
+	await wait_frames(2)
+	Sfx.play_warp_charge()
+	assert_true(Sfx.warp_charge_audible(), "충전 중")
+	run.pause()
+	assert_false(Sfx.warp_charge_audible(), "일시 정지 중에는 멈춤")
+	run._close_menu()
+	assert_true(Sfx.warp_charge_audible(), "닫으면 이어짐")
+	run.queue_free()
+	await wait_frames(1)
+	assert_false(Sfx.warp_charge_audible(), "출격 화면을 떠나면 꺼짐")
+
+
+func test_게이트_예고_화살표와_열린_게이트를_오류_없이_그린다() -> void:
+	# 그리기 함수 밖에서 그리거나 값이 잘못되면 엔진 오류가 나고, 테스트 실행기가 실패로 잡는다.
+	var run: Node = RunScene.instantiate()
+	add_child(run)
+	await wait_frames(2)
+	run.sim.gate.timer = Balance.GATE_HINT_TIME / 2.0  # 예고 화살표가 보이는 때
+	await wait_frames(2)
+	assert_false(is_nan(run.sim.gate.direction), "예고 방향이 정해짐")
+	run.sim.gate.timer = 0.0
+	await wait_frames(2)
+	assert_eq(run.sim.gate.state, WarpGate.State.OPEN)
+	run.sim.gate.timer = 2.0  # 닫히기 직전 깜빡임
+	await wait_frames(2)
+	run.queue_free()

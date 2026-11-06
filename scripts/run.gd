@@ -135,6 +135,10 @@ static func number_key_index(keycode: Key) -> int:
 	return -1
 
 
+func _exit_tree() -> void:
+	Sfx.stop_warp_charge()  # 출격 화면을 떠나면 (처음으로, 다시 출격) 충전음이 남지 않게
+
+
 func _notification(what: int) -> void:
 	# 휴대폰에서 다른 앱으로 가거나 탭을 바꾸면 자동으로 멈춘다.
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready() and current_menu == Menu.NONE and not sim.is_over():
@@ -176,6 +180,7 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 	current_menu = kind
 	# 메뉴(일시 정지·레벨업·게임 오버)가 떠 있는 동안 붉은 화면 효과가 멈춘 채 남지 않게 끈다
 	alert.clear_effects()
+	Sfx.pause_warp_charge(true)
 	joystick.enabled = false
 	pause_button.hide()
 	world.moving = false
@@ -184,6 +189,7 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 
 func _close_menu() -> void:
 	current_menu = Menu.NONE
+	Sfx.pause_warp_charge(false)
 	menu.hide()
 	joystick.enabled = true
 	pause_button.show()
