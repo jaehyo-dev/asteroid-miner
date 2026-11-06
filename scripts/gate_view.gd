@@ -214,10 +214,12 @@ func _draw_front() -> void:
 		_draw_beam(sim.player_pos - g.pos.round())
 	var flash := fx.lock_flash()
 	if flash > 0.0:
-		# 퍼져 나가는 빛 고리 + 가운데 반짝이는 별 (가로세로 긴 빛, 대각선 짧은 빛)
-		var radius := lerpf(PixelArt.GATE_RING_IN, GAUGE_RADIUS + 10.0, 1.0 - flash)
-		front.draw_arc(Vector2.ZERO, radius, 0.0, TAU, 40, Color(GAUGE_CHARGE, flash), 2.0)
-		front.draw_circle(Vector2.ZERO, 3.0 + 3.0 * flash, Color(1, 1, 1, flash))
+		# 사방으로 튀는 불꽃 + 가운데 반짝이는 별 (가로세로 긴 빛, 대각선 짧은 빛)
+		var radius := lerpf(6.0, GAUGE_RADIUS + 6.0, 1.0 - flash)
+		for i in 12:
+			var spark := (Vector2.from_angle(i * TAU / 12.0 + 0.26) * radius).round()
+			front.draw_rect(Rect2(spark, Vector2(2, 2) if i % 2 == 0 else Vector2.ONE), Color(GAUGE_CHARGE, flash))
+		front.draw_circle(Vector2.ZERO, 2.0 + 3.0 * flash, Color(1, 1, 1, flash))
 		var arm := 6.0 + 14.0 * flash
 		for dir in [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP]:
 			front.draw_line(Vector2.ZERO, dir * arm, Color(1, 1, 1, flash), 1.0)
