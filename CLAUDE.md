@@ -2,9 +2,10 @@
 
 소행성 광부: Godot 4 (GDScript)로 만드는 픽셀 아트 로그라이트 채굴 슈터. 게임 설계는 [GAME_SPEC.md](GAME_SPEC.md)를 따른다.
 
-- 너는 이 프로젝트의 리더야. 계획을 세우고 작업을 나눠.
+- 나는 웹 개발을 공부하는 학생이야. 한국어로 대화해.
+- 너는 이 프로젝트의 리더야. 계획을 세우고 작업을 나누고 최종 판단을 해.
 - 코드에는 한국어 주석을 달아줘.
-- 내가 Codex를 쓰라고 직접 요청할 때만 `codex exec`나 `codex review`를 써.
+- Codex는 아래 "Codex 협업" 규칙대로 써.
 - 기본 브랜치는 `main`이야.
 
 ## 판단 기준
@@ -21,7 +22,7 @@
 ## 단계별 진행
 
 - 한 번에 한 단계만 만들어. 끝나면(최종 검토 통과 + main 배포까지) 멈춰서, 내가 플레이해 볼 수 있게 보고해.
-- 다음 단계는 내가 "다음"이라고 할 때 시작해. 그 전에는 다음 단계 기능을 미리 만들지 마.
+- 다음 단계는 내가 "다음"이라고 할 때 시작해. 그 전에는 다음 단계 기능을 미리 만들지 마. 내가 자동 진행을 허락한 경우에만 "다음" 없이 이어서 진행해.
 - 단계 순서:
 
   | 단계 | 내용 | 배포 버전 |
@@ -94,6 +95,7 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 - 작업 브랜치(main이 아닌 브랜치)에는 최종 검토 전이라도 작업 보존용으로 푸시해도 돼.
 - main에는 최종 검토 "통과" 후에만 푸시해. 통과하면 자동으로 main에 푸시해.
 - 불통과 상태이거나 테스트가 실패하면 main에는 절대 푸시하지 마.
+- 커밋 이메일은 GitHub 비공개 이메일(350977072+jaehyo-dev@users.noreply.github.com)만 써.
 - 비밀번호, API 키, 토큰이 들어간 파일은 절대 커밋하거나 푸시하지 마. (Supabase는 공개용 anon 키만 클라이언트에 넣고, 데이터 접근은 Row Level Security로 막아.)
 - 푸시한 뒤에는 저장소 주소와 게임 주소를 나한테 알려줘.
   - 저장소: https://github.com/jaehyo-dev/asteroid-miner
@@ -115,10 +117,26 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 - 이전 버전 보관: 빌드 결과물(.wasm 등)은 저장소에 커밋하지 마. 배포할 때 워크플로가 버전 태그마다 그 시점 코드를 다시 빌드해서 `versions/v버전/`에 올리고 `versions/` 목록 페이지를 만들어. 그러니 버전 태그는 지우거나 옮기지 마.
 - Godot 버전을 올릴 때는 워크플로의 `GODOT_VERSION`, `project.godot`의 `config/features`, CREDITS.md를 함께 바꾸고, 이전 버전 태그들도 새 Godot로 빌드되는지 확인해.
 
+## Codex 협업 (ChatGPT 구독)
+
+- codex나 /ponytail-review를 쓸 수 없는 환경이면 건너뛰고 보고에 적어.
+- 이미지: 그림이 필요하면 `codex exec --sandbox read-only "<요청>"`로 Codex의 내장 이미지 생성을 써. 요청 끝에 항상 "내장 이미지 생성 도구만 사용하고, 스크립트를 만들거나 API를 호출하지 마"를 붙여. API 키는 절대 쓰지 마.
+  - 결과는 `~/.codex/generated_images/`의 가장 최근 파일을 찾아 `assets/raw/`로 복사해.
+  - 투명 배경이 안 되니 단색 배경으로 만들게 하고 rembg로 배경을 지워 `assets/sprites/`에 저장해.
+  - 같은 캐릭터는 기준 그림을 `--image`로 넘겨서 모습을 유지해.
+  - 만들기 전에 몇 장을 만들지 계획하고, 요청문은 ASSET_PROMPTS.md에 기록해.
+- 코드: 같은 버그를 2번 고쳐도 안 풀리면 `codex exec`로 의견을 받아. 큰 기능을 끝내면 `codex review`로 리뷰받고 수용/거절과 이유를 정리해. 최종 판단은 네가 해.
+- Codex를 실행할 때는 먼저 `logs/codex.log`에 "=== [시간] Codex 작업: <요약> ===" 한 줄을 쓰고, 명령 끝에 `2>&1 | tee -a logs/codex.log`를 붙여. `logs/`는 .gitignore에 있어.
+
+## 코드 정리
+
+- 기능을 완성하면 /ponytail-review로 줄일 수 있는 부분을 확인해. 단, 내가 요청한 기능과 게임의 재미를 위한 연출은 줄이지 마. (쓸 수 없는 환경이면 건너뛰고 보고에 적어.)
+
 ## 오픈소스 사용 규칙
 
 외부 코드·에셋(글꼴, 그림, 소리, 음악, 셰이더, Godot 애드온, 라이브러리)은 아래 규칙을 지킬 때만 써.
 
+- 필요한 기능은 먼저 검증된 애드온, 라이브러리, 에셋이 있는지 찾아보고 쓰는 게 나으면 써.
 - 쓸 수 있는 라이선스: MIT, BSD, Apache-2.0, zlib, CC0, CC-BY 3.0/4.0(저작자 표시), SIL OFL 1.1(글꼴)
 - 나한테 먼저 물어볼 라이선스: CC-BY-SA, MPL-2.0, LGPL, 그 밖에 위 목록에 없는 라이선스
 - 쓰지 않는 것:
@@ -132,7 +150,7 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
   - 라이선스 전문을 에셋 옆에 `LICENSE.txt`(또는 원래 이름)로 함께 넣어. 에셋은 `assets/종류/이름/` 폴더에 둬.
   - CREDITS.md 표에 이름, 버전, 만든 사람, 라이선스, 출처 주소, 쓰는 곳, 수정 여부를 기록해. 기록하지 않은 외부 에셋은 커밋하지 마.
   - 배포할 때 워크플로가 CREDITS.md, `assets/` 안의 라이선스 파일, Godot 엔진 라이선스를 사이트의 `licenses/`에 올려.
-- 직접 만든 에셋도 CREDITS.md "직접 만든 것"에 적어.
+- 직접 만든 에셋도 CREDITS.md "직접 만든 것"에 적어. Codex로 만든 AI 그림도 여기에 적고, 요청문은 ASSET_PROMPTS.md에 남겨.
 - 개발·배포에만 쓰는 도구(GitHub Actions 등)도 CREDITS.md 아래쪽 표에 적어.
 
 ## 프로젝트 구조
