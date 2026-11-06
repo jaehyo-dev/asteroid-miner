@@ -25,6 +25,10 @@ enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
 
 var sim: RunSim
 var current_menu := Menu.NONE
+## 기지 저장 (출격 전 업그레이드 적용, 판이 끝나면 광물을 더해 저장)
+var save: SaveData
+## 이번 판 결과를 저장에 더했는지 (한 판에 한 번만)
+var banked := false
 ## 피격·위험 표시 상태
 var alert := DangerAlert.new()
 var _shake_rng := RandomNumberGenerator.new()
@@ -32,6 +36,8 @@ var _shake_rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	sim = RunSim.new()
+	save = SaveData.load_file()
+	sim.apply_base(save.upgrades)
 	world.sim = sim
 	gate_view.sim = sim
 	world.gate_fx = gate_view.fx
@@ -170,20 +176,32 @@ func _notification(what: int) -> void:
 func pause() -> void:
 	if current_menu != Menu.NONE or sim.is_over():
 		return
-	_open_menu(Menu.PAUSE, "일시 정지", "", ["계속하기", "처음으로"])
+	_open_menu(Menu.PAUSE, "일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", ["계속하기", "포기하고 기지로"])
 
 
 ## 판이 끝났을 때 (귀환 성공 또는 파괴): 가져가는 광물과 위험도 배율을 곱한 최종 가치를 보여 준다.
 func _show_game_over() -> void:
 	Sfx.stop_warp_charge()
 	Sfx.stop_gate_hum()
+	var earned := bank_result()
 	var home := sim.brought_home()
 	var kept := "화물칸 광물 100% 귀환" if sim.returned else "광물 %d%% 보존 (%d/%d개, 비싼 것부터)" % [
 		roundi(Cargo.keep_ratio(sim.insurance_level) * 100.0), Cargo.total(home), sim.cargo.size()]
 	var body := "버틴 시간 %s · 레벨 %d · 부순 적 %d개\n%s\n(%s)\n광물 가치 %d × 위험도 x%.2f = %d" % [
 		Hud.format_time(sim.time), sim.level, sim.kills, kept, Hud.minerals_text(home),
-		RunSim.value_of(home), RunSim.risk_mult(sim.time), sim.final_value()]
-	_open_menu(Menu.GAME_OVER, "귀환 성공!" if sim.returned else "우주선 파괴", body, ["다시 출격", "처음으로"])
+		RunSim.value_of(home), RunSim.risk_mult(sim.time), earned]
+	body += "\n기지로 +%d → 보유 광물 %d" % [earned, save.credits]
+	_open_menu(Menu.GAME_OVER, "귀환 성공!" if sim.returned else "우주선 파괴", body, ["다시 출격", "기지로"])
+
+
+## 판이 끝나면 가져온 광물의 최종 가치를 기지 보유 광물에 더하고 저장한다 (한 판에 한 번만). 더한 값을 돌려준다.
+func bank_result() -> int:
+	var earned := sim.final_value()
+	if not banked:
+		banked = true
+		save.add_credits(earned)
+		save.save_file()
+	return earned
 
 
 ## 레벨업 강화 선택 메뉴

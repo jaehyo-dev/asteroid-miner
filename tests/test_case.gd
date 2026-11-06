@@ -7,6 +7,15 @@ extends Node
 ## 현재 실행 중인 테스트 함수의 실패 메시지 목록
 var failures: PackedStringArray = []
 
+## 테스트용 저장 파일. 실제 플레이 저장(user://save.json)을 건드리지 않는다.
+const TEST_SAVE_PATH := "user://test_save.json"
+
+
+## 테스트 함수마다 빈 저장에서 시작한다.
+func _enter_tree() -> void:
+	SaveData.path = TEST_SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE_PATH))
+
 
 ## 조건이 참이어야 한다.
 func assert_true(condition: bool, message: String = "") -> void:

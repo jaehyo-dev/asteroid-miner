@@ -104,8 +104,10 @@ var cargo := Cargo.new()
 var gate := WarpGate.new()
 ## 워프 충전을 마쳐 귀환했는지 (귀환하면 판이 끝난다)
 var returned := false
-## 비상 보험 단계 (기지 업그레이드에서 정함, 6단계). 죽었을 때 남기는 비율을 올린다.
+## 비상 보험 단계 (기지 업그레이드에서 정함). 죽었을 때 남기는 비율을 올린다.
 var insurance_level := 0
+## 기지 공용 업그레이드 id → 단계 (apply_base로 정함, 판 동안 바뀌지 않음)
+var base_levels: Dictionary = {}
 
 # 능력치 (레벨업 강화로 바뀜, apply_upgrades 참고)
 var fire_interval := Balance.FIRE_INTERVAL
@@ -607,15 +609,26 @@ func choose(index: int) -> void:
 		choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT)
 
 
-## 강화 단계에 맞게 능력치를 다시 계산한다 (항상 기본값에서 계산해 오차가 쌓이지 않게).
+## 출격 전에 기지 공용 업그레이드를 적용한다: 능력치를 다시 계산하고 체력을 가득 채운다.
+func apply_base(levels: Dictionary) -> void:
+	base_levels = levels.duplicate()
+	var blv := func(id: String) -> int: return int(base_levels.get(id, 0))
+	insurance_level = blv.call("insurance")
+	cargo.capacity = Balance.CARGO_CAPACITY + Balance.BASE_CARGO_ADD * blv.call("cargo")
+	apply_upgrades()
+	hp = max_hp
+
+
+## 강화 단계(레벨업 + 기지)에 맞게 능력치를 다시 계산한다 (항상 기본값에서 계산해 오차가 쌓이지 않게).
 func apply_upgrades() -> void:
 	var lv := func(id: String) -> int: return int(upgrade_levels.get(id, 0))
+	var blv := func(id: String) -> int: return int(base_levels.get(id, 0))
 	fire_interval = Balance.FIRE_INTERVAL * pow(Balance.UP_FIRE_INTERVAL_MULT, lv.call("fire_rate"))
 	bullet_count = Balance.BULLET_COUNT + Balance.UP_BULLET_COUNT_ADD * lv.call("multishot")
-	bullet_damage = Balance.BULLET_DAMAGE + Balance.UP_DAMAGE_ADD * lv.call("damage")
-	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + Balance.UP_MAGNET_ADD * lv.call("magnet"))
-	move_speed = Balance.SHIP_SPEED * (1.0 + Balance.UP_SPEED_ADD * lv.call("speed"))
-	max_hp = Balance.SHIP_MAX_HP + Balance.UP_MAX_HP_ADD * lv.call("max_hp")
+	bullet_damage = (Balance.BULLET_DAMAGE + Balance.UP_DAMAGE_ADD * lv.call("damage")) * (1.0 + Balance.BASE_DAMAGE_MULT_ADD * blv.call("damage"))
+	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + Balance.UP_MAGNET_ADD * lv.call("magnet") + Balance.BASE_MAGNET_ADD * blv.call("magnet"))
+	move_speed = Balance.SHIP_SPEED * (1.0 + Balance.UP_SPEED_ADD * lv.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed"))
+	max_hp = Balance.SHIP_MAX_HP + Balance.UP_MAX_HP_ADD * lv.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp")
 	fire_range = Balance.FIRE_RANGE * (1.0 + Balance.UP_RANGE_ADD * lv.call("range"))
 	hp = minf(hp, max_hp)
 

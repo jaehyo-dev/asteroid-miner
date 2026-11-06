@@ -11,8 +11,10 @@ const BARRAGE_DODGE_MARGIN := 16.0
 
 
 ## 한 판을 끝까지(또는 max_time까지) 돌리고 {time, level, value, alive}를 돌려준다.
-static func play(style: String, seed_value: int, max_time: float) -> Dictionary:
+## base: 기지 공용 업그레이드 단계 (id → 단계)
+static func play(style: String, seed_value: int, max_time: float, base: Dictionary = {}) -> Dictionary:
 	var sim := RunSim.new(seed_value)
+	sim.apply_base(base)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 31 + 7
 	var move := Vector2.ZERO
@@ -73,9 +75,9 @@ static func average_levels(style: String, seeds: Array, marks: Array) -> Array[f
 
 
 ## 여러 판의 생존 시간 [최소, 중앙값, 최대]
-static func survival_stats(style: String, seeds: Array, max_time: float) -> Array[float]:
+static func survival_stats(style: String, seeds: Array, max_time: float, base: Dictionary = {}) -> Array[float]:
 	var times: Array[float] = []
 	for s in seeds:
-		times.append(float(play(style, s, max_time)["time"]))
+		times.append(float(play(style, s, max_time, base)["time"]))
 	times.sort()
 	return [times[0], times[times.size() / 2], times[times.size() - 1]]

@@ -301,3 +301,25 @@ const CARGO_CAPACITY := 80
 const DEATH_KEEP_BASE := 0.5
 const DEATH_KEEP_PER_LEVEL := 0.05
 const DEATH_KEEP_MAX := 0.75
+
+# ── 기지 (판과 판 사이의 영구 업그레이드, 6단계) ─────
+## 판이 끝나면 가져온 광물의 최종 가치(가치 × 위험도 배율)가 기지 보유 광물에 더해지고,
+## 그 광물로 모든 판에 적용되는 공용 업그레이드를 산다.
+## 비용 = cost × BASE_COST_GROWTH^(현재 단계) (반올림). 한 판 수익(보통 300~1000)으로 2~3판마다 하나씩 살 수 있게 맞췄다.
+## (채굴 드론은 v0.7.0에서 추가)
+const BASE_UPGRADES := [
+	{"id": "damage", "name": "공격력", "max": 5, "cost": 200},
+	{"id": "max_hp", "name": "체력", "max": 5, "cost": 150},
+	{"id": "speed", "name": "이동 속도", "max": 5, "cost": 150},
+	{"id": "cargo", "name": "화물칸", "max": 5, "cost": 120},
+	{"id": "insurance", "name": "비상 보험", "max": 5, "cost": 180},
+	{"id": "magnet", "name": "자석 범위", "max": 5, "cost": 100},
+]
+const BASE_COST_GROWTH := 1.6
+## 단계당 효과
+const BASE_DAMAGE_MULT_ADD := 0.1  ## 탄 피해 +10% (레벨업 강화까지 합친 값에 곱함)
+const BASE_MAX_HP_ADD := 10.0  ## 최대 체력 +10
+const BASE_SPEED_ADD := 0.05  ## 이동 속도 +5% (기본값 기준, 레벨업 강화와 더함)
+const BASE_CARGO_ADD := 10  ## 화물칸 +10칸
+const BASE_MAGNET_ADD := 0.15  ## 자석 범위 +15% (기본값 기준, 레벨업 강화와 더함)
+## 비상 보험은 단계마다 사망 보존 +DEATH_KEEP_PER_LEVEL (위 귀환 항목)

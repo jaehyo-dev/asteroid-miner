@@ -53,3 +53,13 @@ func test_광물을_주우면_레벨업_속도가_알맞음() -> void:
 	var levels := BalanceBot.average_levels("collector", LEVEL_SEEDS, [120.0, 240.0])
 	assert_true(levels[0] >= LEVEL_AT_120[0] and levels[0] <= LEVEL_AT_120[1], "2분 평균 레벨 %.1f" % levels[0])
 	assert_true(levels[1] >= LEVEL_AT_240[0] and levels[1] <= LEVEL_AT_240[1], "4분 평균 레벨 %.1f" % levels[1])
+
+
+func test_기지_업그레이드를_모두_올리면_더_버티지만_10분_안에_끝남() -> void:
+	var maxed := {}
+	for u in Balance.BASE_UPGRADES:
+		maxed[u["id"]] = u["max"]
+	var plain := BalanceBot.survival_stats("collector", SEEDS, HARD_LIMIT + 1.0)
+	var strong := BalanceBot.survival_stats("collector", SEEDS, HARD_LIMIT + 1.0, maxed)
+	assert_true(strong[2] <= HARD_LIMIT, "최대 %.0f초 (10분 안에 끝나야 함)" % strong[2])
+	assert_true(strong[1] > plain[1], "중앙값 %.0f초 → %.0f초 (업그레이드하면 더 버텨야 함)" % [plain[1], strong[1]])
