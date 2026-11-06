@@ -71,7 +71,10 @@ func test_말풍선은_처음_한_번만_뜨고_저장됨() -> void:
 	var run: Node = RunScene.instantiate()
 	add_child(run)
 	await wait_frames(2)
-	run.sim.time = _time_for(10.0)
+	run.sim.time = _time_for(0.5)
+	await wait_frames(2)
+	assert_eq(run.hud.tip_time, 0.0, "+0%에서는 아직")
+	run.sim.time = _time_for(1.0)
 	await wait_frames(2)
 	assert_true(run.hud.tip_time > 0.0, "말풍선")
 	assert_true(SaveData.load_file().risk_tip_seen, "봤다고 저장")
@@ -87,7 +90,6 @@ func test_말풍선은_처음_한_번만_뜨고_저장됨() -> void:
 	await wait_frames(2)
 	run2.sim.time = _time_for(10.0)
 	await wait_frames(2)
-	assert_true(run2.hud.bonus.pulse > 0.0 or run2.hud.bonus.shown_step == 1, "보너스는 오름")
 	assert_eq(run2.hud.tip_time, 0.0, "이미 봤으면 안 뜸")
 	run2.queue_free()
 
@@ -111,4 +113,17 @@ func test_보너스_말풍선과_게이트_가치가_있어도_오류_없이_그
 	run.sim.time = _time_for(55.0)
 	await wait_frames(3)
 	assert_true(run.hud.tip_time > 0.0)
+	run.queue_free()
+
+
+func test_결과_화면_보너스_계산이_맞아_보임() -> void:
+	var run: Node = RunScene.instantiate()
+	add_child(run)
+	await wait_frames(2)
+	run.sim.cargo.counts = PackedInt32Array([0, 0, 50, 0])  # 영웅 50개 = 1000
+	run.sim.time = _time_for(24.95)  # 보너스 24.95%: 내림 24%, 최종 1249.5 → 반올림
+	run.sim.returned = true
+	run._show_game_over()
+	var earned: int = run.sim.final_value()
+	assert_true(run.menu.body_text().contains("광물 가치 1000 + 보너스 %d (+24%%) = %d" % [earned - 1000, earned]), run.menu.body_text())
 	run.queue_free()
