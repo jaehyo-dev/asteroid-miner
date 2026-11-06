@@ -49,6 +49,8 @@ var alert: DangerAlert
 var banner_text := ""
 var banner_color := Color.WHITE
 var banner_time := 0.0
+## 화면 전체 하얀 번쩍임 0~1 (귀환 성공 연출)
+var white := 0.0
 
 
 func _ready() -> void:
@@ -95,6 +97,8 @@ func _draw() -> void:
 	_draw_banner(font)
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
+	if white > 0.0:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(1, 1, 1, white))
 
 
 ## 화면 밖 황금 운석마다 가장자리에 금색 화살표를 띄운다 (카메라는 우주선을 따라감).

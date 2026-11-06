@@ -42,16 +42,13 @@ const GUARD_GLOW := Color("#ffb347")
 const GUARD_SHOT_CORE := Color("#fff4d6")
 const GUARD_SHOT_GLOW := Color("#ff9a2e")
 const GUARD_NOSE := 6.0
-## 워프 게이트: 테두리 색, 안쪽 소용돌이 색, 테두리 점 수, 도는 빠르기(라디안/초)
-const GATE_RING := Color("#7cf0ff")
-const GATE_CORE := Color("#8a5cff")
-const GATE_DOTS := 16
-const GATE_SPIN := 1.5
 ## 우주선 기울기: 돌 때 옆으로 눌려 보이는 최대 비율, 기울기가 따라가는 빠르기
 const SHIP_BANK_SQUASH := 0.35
 const SHIP_BANK_RATE := 10.0
 
 var sim: RunSim
+## 워프 게이트 연출 (귀환할 때 우주선이 빨려 들어가는 모습에 씀)
+var gate_fx: GateFx
 ## 이번 프레임에 움직이는 중인지 (엔진 불꽃 표시용)
 var moving := false
 
@@ -103,8 +100,6 @@ func step(delta: float) -> void:
 func _draw() -> void:
 	if sim == null:
 		return
-	if sim.gate.state == WarpGate.State.OPEN:
-		_draw_gate(sim.gate)
 	for a in sim.enemies:
 		if a.kind == "jelly":
 			_draw_jelly(a)
@@ -131,37 +126,10 @@ func _draw() -> void:
 		draw_rect(Rect2(p, Vector2.ONE), PixelArt.BULLET_COLORS[0])
 	for fx in _pickups:
 		_draw_pickup_fx(fx)
-	if sim.alive:
+	if sim.returned:
+		_draw_ship_warp()
+	elif sim.alive:
 		_draw_ship()
-
-
-## 워프 게이트: 하늘색 점 테두리가 돌고 안쪽에 보랏빛 소용돌이. 충전 중이면 테두리를 따라 진행도 호가 차오른다.
-## 닫히기 3초 전부터는 깜빡여 곧 사라짐을 알린다.
-func _draw_gate(g: WarpGate) -> void:
-	var c := g.pos.round()
-	var r := Balance.GATE_RADIUS
-	var blink := 1.0
-	if g.charge < 0.0 and g.timer < 3.0 and int(g.timer * 6.0) % 2 == 0:
-		blink = 0.35
-	var spin := sim.time * GATE_SPIN
-	# 안쪽 소용돌이: 겹친 원 + 돌아가는 나선 팔 3개
-	draw_circle(c, r, Color(GATE_CORE, 0.18 * blink))
-	draw_circle(c, r * 0.55, Color(GATE_CORE, 0.22 * blink))
-	for arm in 3:
-		var prev := c
-		for j in range(1, 6):
-			var p := c + Vector2.from_angle(-spin * 2.0 + arm * TAU / 3.0 + j * 0.45) * r * j / 6.0
-			draw_line(prev, p, Color(GATE_RING, 0.45 * blink), 1.0)
-			prev = p
-	# 테두리 점들
-	for i in GATE_DOTS:
-		var p := c + Vector2.from_angle(spin + i * TAU / GATE_DOTS) * r
-		draw_rect(Rect2(p.round() - Vector2.ONE, Vector2(2, 2)), Color(GATE_RING, blink))
-	var k := g.charge_progress()
-	if k > 0.0:
-		# 충전 진행도: 위쪽에서 시계 방향으로 차오르는 굵은 호, 안쪽이 점점 밝아짐
-		draw_arc(c, r + 3.0, -PI / 2.0, -PI / 2.0 + TAU * k, 32, GATE_RING, 2.0)
-		draw_circle(c, r * 0.8, Color(1, 1, 1, 0.12 * k))
 
 
 ## 심연의 포격: 예고 때는 맥박치는 붉은 조준선, 충전 때는 점점 굵고 밝아지는 선, 발사 후엔 에너지탄.
@@ -392,6 +360,20 @@ func _draw_pickup_fx(fx: Dictionary) -> void:
 		var rise := POPUP_RISE * t / POPUP_TIME
 		var text_color := Color(PixelArt.MINERAL_COLORS[grade][0], 1.0 - t / POPUP_TIME)
 		draw_string(FONT, (pos + Vector2(-12, -6 - rise)).round(), "+%d" % value, HORIZONTAL_ALIGNMENT_CENTER, 24, 12, text_color)
+
+
+## 귀환 성공: 우주선이 게이트 쪽으로 길게 늘어나며 가운데로 빨려 들어간다
+func _draw_ship_warp() -> void:
+	var k := gate_fx.suck() if gate_fx != null else 1.0
+	if k >= 1.0:
+		return
+	var target := sim.gate.pos
+	var pos := sim.player_pos.lerp(target, k * k)
+	var angle := (target - sim.player_pos).angle() if sim.player_pos.distance_to(target) > 0.5 else sim.facing
+	var tex := PixelArt.ship()
+	draw_set_transform(pos.round(), angle + PI / 2.0, Vector2(1.0 - 0.75 * k, 1.0 + 3.5 * k))
+	draw_texture(tex, -(tex.get_size() / 2.0).floor(), Color(1, 1, 1, 1.0 - smoothstep(0.7, 1.0, k)))
+	draw_set_transform(Vector2.ZERO)
 
 
 func _draw_ship() -> void:

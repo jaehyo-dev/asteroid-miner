@@ -245,3 +245,78 @@ static func bug(frame: int, white: bool = false) -> ImageTexture:
 			colors = {"b": Color.WHITE, "e": Color.WHITE, "w": Color.WHITE}
 		_cache[key] = from_pattern(BUG_FRAMES[frame % 2], colors)
 	return _cache[key]
+
+
+# ── 워프 게이트 (광부 조합이 설치한 기계식 고리) ───────
+## 고리는 45도마다 한 조각씩 8조각. 0·90·180·270도(짝수 번호)는 노랑·검정 경고 줄무늬가 있는 두꺼운 집게,
+## 나머지는 리벳과 통풍구가 있는 장갑판. 조각마다 따로 그려서 모여 맞물리고 떨어져 나가는 연출에 쓴다.
+## 그림 크기(정사각형 한 변), 고리 안쪽·바깥쪽 반지름, 집게 바깥쪽 반지름 (픽셀)
+const GATE_TEX_SIZE := 68
+const GATE_RING_IN := 22.0
+const GATE_RING_OUT := 30.0
+const GATE_CLAMP_OUT := 33.0
+const GATE_SEGMENTS := 8
+## 금속 색: 밝은 면, 기본, 어두운 면, 윤곽
+const GATE_METAL := [Color("#a3a9bd"), Color("#6f748a"), Color("#4a4e63"), Color("#202234")]
+## 경고 줄무늬 (노랑, 검정)
+const GATE_HAZARD := [Color("#f2b630"), Color("#2b2b38")]
+
+
+## 고리 조각 하나 (index 0 = 오른쪽, 시계 방향으로 45도씩). 게이트 가운데가 그림 가운데다.
+static func gate_segment(index: int) -> ImageTexture:
+	var key := "gate_%d" % index
+	if _cache.has(key):
+		return _cache[key]
+	var img := Image.create(GATE_TEX_SIZE, GATE_TEX_SIZE, false, Image.FORMAT_RGBA8)
+	var center := Vector2(GATE_TEX_SIZE, GATE_TEX_SIZE) / 2.0
+	var step := TAU / GATE_SEGMENTS
+	var is_clamp := index % 2 == 0
+	for y in GATE_TEX_SIZE:
+		for x in GATE_TEX_SIZE:
+			var p := Vector2(x + 0.5, y + 0.5) - center
+			var r := p.length()
+			var a := p.angle()
+			if posmod(roundi(a / step), GATE_SEGMENTS) != index:
+				continue
+			var d := wrapf(a - index * step, -PI, PI)  # 조각 가운데에서 벗어난 각도
+			var arc := absf(d) * r  # 조각 가운데에서 둘레를 따라 떨어진 거리
+			var half := step / 2.0 * r
+			if arc > half - 0.8:
+				continue  # 조각 사이 이음새 틈
+			var wide := is_clamp and absf(d) < deg_to_rad(13.0)
+			var outer := GATE_CLAMP_OUT if wide else GATE_RING_OUT
+			if r < GATE_RING_IN or r > outer:
+				continue
+			var c: Color
+			if r < GATE_RING_IN + 1.0 or r > outer - 1.0 or arc > half - 1.8:
+				c = GATE_METAL[3]  # 윤곽
+			else:
+				# 왼쪽 위에서 빛이 온다: 바깥쪽 가장자리가 밝고 안쪽이 어둡다
+				var lit := p.normalized().dot(Vector2(-0.6, -0.8))
+				c = GATE_METAL[1]
+				if r > outer - 2.5 and lit > -0.3:
+					c = GATE_METAL[0]
+				elif r < GATE_RING_IN + 1.8 or lit < -0.75:
+					c = GATE_METAL[2]
+				if wide and r > GATE_RING_OUT - 4.0 and r < outer - 1.5 and absf(d) < deg_to_rad(10.0):
+					c = GATE_HAZARD[(floori((x + y) / 2.0)) % 2]  # 경고 줄무늬
+				elif not is_clamp and absf(r - 26.0) < 0.8 and absf(arc - 12.0 * r * PI / 180.0) < 0.9:
+					c = GATE_METAL[0]  # 리벳
+				elif not is_clamp and r > 23.5 and r < 25.5 and absf(d) < deg_to_rad(9.0) and int(arc) % 2 == 0:
+					c = GATE_METAL[3]  # 통풍구
+			img.set_pixel(x, y, c)
+	_cache[key] = ImageTexture.create_from_image(img)
+	return _cache[key]
+
+
+## 고리 표시등 자리 [{pos(게이트 가운데 기준), clamp(집게 표시등인지)}]: 장갑판마다 청록 1개, 집게마다 주황 2개
+static func gate_lights() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var step := TAU / GATE_SEGMENTS
+	for i in GATE_SEGMENTS:
+		if i % 2 == 0:
+			for side in [-1.0, 1.0]:
+				result.append({"pos": Vector2.from_angle(i * step + side * deg_to_rad(18.0)) * 26.0, "clamp": true, "segment": i})
+		else:
+			result.append({"pos": Vector2.from_angle(i * step) * 27.5, "clamp": false, "segment": i})
+	return result

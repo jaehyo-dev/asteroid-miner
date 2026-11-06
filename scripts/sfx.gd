@@ -28,16 +28,26 @@ const CHARGE_SOUND := {"wave": "square", "notes": [[110.0, 0.1], [131.0, 0.1], [
 const FIRE_SOUND := {"wave": "square", "notes": [[988.0, 0.03], [740.0, 0.03], [494.0, 0.05]], "volume": 0.25}
 ## 고대 경비선 발사음: 낮고 짧은 "퉁" (포격보다 작게)
 const GUARD_SOUND := {"wave": "triangle", "notes": [[330.0, 0.04], [220.0, 0.06]], "volume": 0.35}
-## 워프 게이트: 열림(맑게 올라가는 세 음), 충전(5초 동안 천천히 올라가는 웅웅거림), 귀환(높이 솟는 소리)
-const GATE_SOUND := {"wave": "triangle", "notes": [[523.0, 0.08], [784.0, 0.08], [1047.0, 0.16]], "volume": 0.45}
+## 워프 게이트 상태별 소리 (음표 [주파수, 길이] 또는 [시작 주파수, 길이, 끝 주파수]로 미끄러지는 소리, 주파수 0은 쉼)
+## 등장: 금속 조각이 맞물리는 "철컥" 세 번 (잡음) / 맞물림: 맑게 올라가는 세 음 / 열려 있음: 낮게 맥박치는 웅웅거림(반복)
+## 충전: 5초 동안 천천히 올라가는 소리 / 닫히기 직전: 빠른 경보 / 닫힘: 무너지며 내려가는 잡음 / 귀환: 높이 솟는 휘익 소리
+const GATE_ASSEMBLE_SOUND := {"wave": "noise", "notes": [[1800.0, 0.04], [0.0, 0.1], [1500.0, 0.04], [0.0, 0.1], [1200.0, 0.07]], "volume": 0.35}
+const GATE_LOCK_SOUND := {"wave": "triangle", "notes": [[523.0, 0.08], [784.0, 0.08], [1047.0, 0.16]], "volume": 0.45}
+const GATE_HUM_SOUND := {"wave": "triangle", "notes": [[82.0, 0.5], [87.0, 0.5]], "volume": 0.25}
 const WARP_CHARGE_SOUND := {"wave": "triangle", "notes": [[196.0, 1.0], [233.0, 1.0], [277.0, 1.0], [330.0, 1.0], [392.0, 1.0]], "volume": 0.35}
-const WARP_DONE_SOUND := {"wave": "square", "notes": [[392.0, 0.06], [523.0, 0.06], [659.0, 0.06], [784.0, 0.06], [1047.0, 0.25]], "volume": 0.3}
+const GATE_ALARM_SOUND := {"wave": "square", "notes": [[988.0, 0.08], [0.0, 0.06], [988.0, 0.08], [0.0, 0.06], [988.0, 0.08], [0.0, 0.06], [988.0, 0.08]], "volume": 0.22}
+const GATE_COLLAPSE_SOUND := {"wave": "noise", "notes": [[2400.0, 0.5, 300.0]], "volume": 0.3}
+const WARP_DONE_SOUND := {"wave": "square", "notes": [[220.0, 0.55, 1760.0], [1760.0, 0.25]], "volume": 0.28}
 
 var _pickup_players: Array[AudioStreamPlayer] = []
 var _charge_player: AudioStreamPlayer
 var _fire_player: AudioStreamPlayer
 var _guard_player: AudioStreamPlayer
-var _gate_player: AudioStreamPlayer
+var _gate_assemble_player: AudioStreamPlayer
+var _gate_lock_player: AudioStreamPlayer
+var _gate_hum_player: AudioStreamPlayer
+var _gate_alarm_player: AudioStreamPlayer
+var _gate_collapse_player: AudioStreamPlayer
 var _warp_charge_player: AudioStreamPlayer
 var _warp_done_player: AudioStreamPlayer
 var _raid_player: AudioStreamPlayer
@@ -59,7 +69,14 @@ func _ready() -> void:
 	_charge_player = _make_player(CHARGE_SOUND)
 	_fire_player = _make_player(FIRE_SOUND)
 	_guard_player = _make_player(GUARD_SOUND)
-	_gate_player = _make_player(GATE_SOUND)
+	_gate_assemble_player = _make_player(GATE_ASSEMBLE_SOUND)
+	_gate_lock_player = _make_player(GATE_LOCK_SOUND)
+	_gate_hum_player = _make_player(GATE_HUM_SOUND)
+	var hum := _gate_hum_player.stream as AudioStreamWAV
+	hum.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	hum.loop_end = hum.data.size() / 2  # 16비트 모노: 2바이트 = 1샘플
+	_gate_alarm_player = _make_player(GATE_ALARM_SOUND)
+	_gate_collapse_player = _make_player(GATE_COLLAPSE_SOUND)
 	_warp_charge_player = _make_player(WARP_CHARGE_SOUND)
 	_warp_done_player = _make_player(WARP_DONE_SOUND)
 	_raid_player = AudioStreamPlayer.new()
@@ -104,9 +121,30 @@ func fire_stream() -> AudioStreamWAV:
 	return _fire_player.stream
 
 
-## 워프 게이트 열림·충전·귀환 소리. 충전음은 취소되거나 판이 끝나면 멈춘다.
-func play_gate() -> void:
-	_gate_player.play()
+## 워프 게이트 상태별 소리. 웅웅거림과 충전음은 게이트가 닫히거나 판이 끝나면 멈춘다.
+func play_gate_assemble() -> void:
+	_gate_assemble_player.play()
+
+
+func play_gate_lock() -> void:
+	_gate_lock_player.play()
+
+
+func start_gate_hum() -> void:
+	_gate_hum_player.stream_paused = false
+	_gate_hum_player.play()
+
+
+func stop_gate_hum() -> void:
+	_gate_hum_player.stop()
+
+
+func play_gate_alarm() -> void:
+	_gate_alarm_player.play()
+
+
+func play_gate_collapse() -> void:
+	_gate_collapse_player.play()
 
 
 func play_warp_charge() -> void:
@@ -118,9 +156,15 @@ func stop_warp_charge() -> void:
 	_warp_charge_player.stop()
 
 
-## 메뉴가 떠 있는 동안 충전음을 잠깐 멈췄다가, 닫으면 멈춘 곳부터 이어서 낸다 (충전 진행과 맞게).
-func pause_warp_charge(paused: bool) -> void:
+## 메뉴가 떠 있는 동안 충전음·웅웅거림을 잠깐 멈췄다가, 닫으면 멈춘 곳부터 이어서 낸다 (충전 진행과 맞게).
+func pause_gate_sounds(paused: bool) -> void:
 	_warp_charge_player.stream_paused = paused
+	_gate_hum_player.stream_paused = paused
+
+
+## 게이트 웅웅거림이 들리고 있는지 (테스트용)
+func gate_hum_audible() -> bool:
+	return _gate_hum_player.playing and not _gate_hum_player.stream_paused
 
 
 ## 충전음이 들리고 있는지 (테스트용)
@@ -135,7 +179,8 @@ func play_warp_done() -> void:
 
 ## 워프 소리 (테스트용)
 func warp_streams() -> Array[AudioStreamWAV]:
-	return [_gate_player.stream, _warp_charge_player.stream, _warp_done_player.stream]
+	return [_gate_assemble_player.stream, _gate_lock_player.stream, _gate_hum_player.stream, _gate_alarm_player.stream,
+		_gate_collapse_player.stream, _warp_charge_player.stream, _warp_done_player.stream]
 
 
 ## 습격 경고음
@@ -170,16 +215,30 @@ func pickup_stream(grade: int) -> AudioStreamWAV:
 
 
 ## 음표 목록으로 16비트 모노 소리를 만든다. 음표마다 짧게 커졌다 줄어드는 음량(엔벨로프)을 준다.
+## 음표: [주파수, 길이] 또는 [시작 주파수, 길이, 끝 주파수](미끄러짐). 주파수 0은 쉼.
+## wave: "square", "triangle", "noise"(주파수만큼 자주 바뀌는 잡음: 높을수록 "치익", 낮을수록 "우르르")
 static func synth(notes: Array, wave: String, volume: float) -> AudioStreamWAV:
 	var data := PackedByteArray()
+	var noise := RandomNumberGenerator.new()
+	noise.seed = 12345  # 잡음도 매번 같은 소리
 	for note in notes:
 		var freq: float = note[0]
+		var end_freq: float = note[2] if note.size() > 2 else freq
 		var length := int(MIX_RATE * float(note[1]))
+		var phase := 0.0
+		var held := 0.0
 		for i in length:
-			var t := float(i) / MIX_RATE
-			var phase := fposmod(t * freq, 1.0)
+			var f := lerpf(freq, end_freq, float(i) / maxf(length, 1))
+			var last_phase := phase
+			phase = fposmod(phase + f / MIX_RATE, 1.0)
 			var sample := 0.0
-			if wave == "triangle":
+			if f <= 0.0:
+				sample = 0.0
+			elif wave == "noise":
+				if phase < last_phase or i == 0:
+					held = noise.randf_range(-1.0, 1.0)  # 한 주기마다 새 값
+				sample = held
+			elif wave == "triangle":
 				sample = 4.0 * absf(phase - 0.5) - 1.0
 			else:
 				sample = 1.0 if phase < 0.5 else -1.0

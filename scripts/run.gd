@@ -14,6 +14,7 @@ enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
 
 
 @onready var world: WorldView = $World
+@onready var gate_view: GateView = $Gate
 @onready var camera: Camera2D = $Camera
 @onready var starfield: Starfield = $Background/Starfield
 @onready var hud: Hud = $UI/Hud
@@ -32,6 +33,8 @@ var _shake_rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	sim = RunSim.new()
 	world.sim = sim
+	gate_view.sim = sim
+	world.gate_fx = gate_view.fx
 	hud.sim = sim
 	hud.alert = alert
 	danger.alert = alert
@@ -49,16 +52,24 @@ func _process(delta: float) -> void:
 		world.moving = move != Vector2.ZERO
 		sim.update(delta, move)
 		world.step(delta)
+		_announce(gate_view.step(delta, sim.events))
 		_play_pickup_sounds()
 		if alert.update(delta, sim.events.has("hit"), sim.hp / sim.max_hp):
 			Sfx.play_warning()
 		hud.step(delta)
 		_announce(sim.events)
 		danger.time = sim.time
-		if sim.is_over():
+		if not sim.alive:
 			_show_game_over()
 		elif not sim.choices.is_empty():
 			_show_level_up()
+	elif current_menu == Menu.NONE and sim.returned:
+		# 귀환 성공 연출: 우주선이 빨려 들어가고 화면이 하얗게 번쩍인 뒤 결과 화면
+		gate_view.step(delta, PackedStringArray())
+		hud.white = gate_view.fx.white_flash()
+		if gate_view.fx.warp_finished():
+			hud.white = 0.0
+			_show_game_over()
 	camera.position = sim.player_pos.round()
 	# 맞았을 때 화면 흔들림 (카메라만 살짝 밀고, 배경 별은 흔들지 않음)
 	camera.offset = alert.shake_offset(_shake_rng) if current_menu == Menu.NONE else Vector2.ZERO
@@ -97,13 +108,22 @@ func _announce(events: PackedStringArray) -> void:
 			Sfx.play_guard()
 		elif e == "gate_open":
 			hud.show_banner("워프 게이트 열림!", GATE_BANNER_COLOR)
-			Sfx.play_gate()
+			Sfx.play_gate_assemble()
+		elif e == "gate_locked":
+			Sfx.play_gate_lock()
+			Sfx.start_gate_hum()
+		elif e == "gate_closing":
+			Sfx.play_gate_alarm()
+		elif e == "gate_close":
+			Sfx.stop_gate_hum()
+			Sfx.play_gate_collapse()
 		elif e == "warp_charge":
 			Sfx.play_warp_charge()
 		elif e == "warp_cancel":
 			Sfx.stop_warp_charge()
 			hud.show_banner("워프 충전 취소", Hud.COLOR_DANGER)
 		elif e == "warp_done":
+			Sfx.stop_gate_hum()
 			Sfx.play_warp_done()
 		elif e == "raid_golden":
 			hud.show_banner("습격 속에 황금 운석!", Hud.COLOR_GOLD)
@@ -136,7 +156,9 @@ static func number_key_index(keycode: Key) -> int:
 
 
 func _exit_tree() -> void:
-	Sfx.stop_warp_charge()  # 출격 화면을 떠나면 (처음으로, 다시 출격) 충전음이 남지 않게
+	# 출격 화면을 떠나면 (처음으로, 다시 출격) 충전음·게이트 웅웅거림이 남지 않게
+	Sfx.stop_warp_charge()
+	Sfx.stop_gate_hum()
 
 
 func _notification(what: int) -> void:
@@ -154,6 +176,7 @@ func pause() -> void:
 ## 판이 끝났을 때 (귀환 성공 또는 파괴): 가져가는 광물과 위험도 배율을 곱한 최종 가치를 보여 준다.
 func _show_game_over() -> void:
 	Sfx.stop_warp_charge()
+	Sfx.stop_gate_hum()
 	var home := sim.brought_home()
 	var kept := "화물칸 광물 100% 귀환" if sim.returned else "광물 %d%% 보존 (%d/%d개, 비싼 것부터)" % [
 		roundi(Cargo.keep_ratio(sim.insurance_level) * 100.0), Cargo.total(home), sim.cargo.size()]
@@ -180,7 +203,7 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 	current_menu = kind
 	# 메뉴(일시 정지·레벨업·게임 오버)가 떠 있는 동안 붉은 화면 효과가 멈춘 채 남지 않게 끈다
 	alert.clear_effects()
-	Sfx.pause_warp_charge(true)
+	Sfx.pause_gate_sounds(true)
 	joystick.enabled = false
 	pause_button.hide()
 	world.moving = false
@@ -189,7 +212,7 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 
 func _close_menu() -> void:
 	current_menu = Menu.NONE
-	Sfx.pause_warp_charge(false)
+	Sfx.pause_gate_sounds(false)
 	menu.hide()
 	joystick.enabled = true
 	pause_button.show()

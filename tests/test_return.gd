@@ -269,6 +269,15 @@ func test_귀환하면_귀환_성공_메뉴() -> void:
 	run.sim.player_pos = run.sim.gate.pos
 	await wait_frames(3)
 	assert_true(run.sim.returned)
+	assert_false(run.menu.visible, "빨려 들어가는 연출 동안은 결과 화면을 띄우지 않음")
+	var white_seen := false
+	for i in 300:  # 연출(약 1.2초)이 끝날 때까지
+		await wait_frames(1)
+		white_seen = white_seen or run.hud.white > 0.5
+		if run.menu.visible:
+			break
+	assert_true(white_seen, "화면이 하얗게 번쩍임")
+	assert_eq(run.hud.white, 0.0, "결과 화면에서는 번쩍임이 꺼짐")
 	assert_true(run.menu.visible)
 	assert_eq(run.menu.title_text(), "귀환 성공!")
 	assert_true(run.menu.body_text().contains("100% 귀환"), run.menu.body_text())
