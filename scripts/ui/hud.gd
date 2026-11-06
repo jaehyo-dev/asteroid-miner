@@ -32,6 +32,8 @@ const BARRAGE_MARKER_MERGE := 24.0
 const COLOR_BAR_BG := Color("#2a2a40")
 ## 워프 게이트 색 (화살표, 남은 시간, 충전)
 const COLOR_GATE := Color("#7cf0ff")
+## 화물칸 칸수·가치 글자 크기 (다른 정보보다 크게)
+const CARGO_FONT_SIZE := 16
 ## 화물칸이 꽉 찼을 때 글자 색
 const COLOR_FULL := Color("#ff9a2e")
 ## 위험도 배율 글자 크기와 색 (x1.0 기본 색 → 최대일 때 붉은 주황)
@@ -78,7 +80,7 @@ func _draw() -> void:
 		var text := str(cargo.counts[grade])
 		draw_string(font, Vector2(x + icon.get_width() + 2, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 		x += icon.get_width() + 2 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
-	draw_string(font, Vector2(MARGIN, MARGIN + 58), cargo_text(cargo), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_FULL if cargo.is_full() else COLOR_VALUE)
+	draw_string(font, Vector2(MARGIN, MARGIN + 62), cargo_text(cargo), HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, COLOR_FULL if cargo.is_full() else COLOR_VALUE)
 	_draw_risk(font)
 	_draw_gate_info(font)
 	# 레벨과 경험치 막대 (화면 맨 아래 전체 너비)
