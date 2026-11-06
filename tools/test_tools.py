@@ -124,8 +124,15 @@ class WorkflowTest(unittest.TestCase):
     def test_경로_필터_없이_모든_푸시에서_테스트(self):
         # 경로 필터가 있으면 CHANGELOG를 안 바꾼 푸시에서 실행되지 않는다.
         self.assertNotIn("paths:", self.yml)
-        self.assertIn("res://tests/run_tests.gd", self.yml)
+        self.assertIn("bash tests/run_tests.sh", self.yml)
         self.assertIn('python3 -m unittest discover -s tools -p "test_*.py"', self.yml)
+
+    def test_테스트_실행기는_깨져도_실패로_끝남(self):
+        # Godot는 -s 스크립트가 파싱에 실패해도 종료 코드 0이라, 래퍼가 "결과:" 줄을 확인해야 한다.
+        self.assertIn("결과: 통과", read("tests/run_tests.sh"))
+        self.assertIn("exit 1", read("tests/run_tests.sh"))
+        # 실행기가 전역 클래스 이름을 쓰면 클래스 캐시 없이 파싱이 깨져 오류를 알릴 수 없다.
+        self.assertNotRegex(read("tests/run_tests.gd"), r":\s*TestCase\b")
 
     def test_워크플로와_프로젝트의_Godot_버전이_맞음(self):
         engine = re.search(r'GODOT_VERSION: "(\d+\.\d+)(?:\.\d+)?"', self.yml)

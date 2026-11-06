@@ -33,7 +33,7 @@ jobs:
         run: godot --headless --path . --import
 
       - name: 게임 자동 테스트
-        run: godot --headless --path . -s res://tests/run_tests.gd
+        run: bash tests/run_tests.sh
 
       - name: 도구·버전 자동 테스트
         run: python3 -m unittest discover -s tools -p "test_*.py" -v

@@ -50,11 +50,13 @@
 
 Godot 4.7.2 (`.github/workflows/deploy.yml`의 `GODOT_VERSION`과 같은 버전)를 쓴다. 명령의 `godot`은 Godot 실행 파일 경로로 바꿔도 돼.
 
+아래 순서대로 실행해. **1) 리소스 가져오기를 반드시 먼저 실행**해야 2)가 `TestCase` 같은 클래스를 찾을 수 있어 (새로 받은 저장소, `.godot/`를 지운 뒤, 에셋·`class_name`을 추가·변경한 뒤).
+
 ```bash
-# 1) 리소스 가져오기 (처음 한 번, 에셋을 추가·변경한 뒤)
+# 1) 리소스 가져오기 (반드시 먼저)
 godot --headless --path . --import
-# 2) 게임 자동 테스트 (tests/test_*.gd)
-godot --headless --path . -s res://tests/run_tests.gd
+# 2) 게임 자동 테스트 (tests/test_*.gd). Godot 경로가 다르면 GODOT=경로 bash tests/run_tests.sh
+bash tests/run_tests.sh
 # 3) 도구·버전 자동 테스트 (tools/test_*.py)
 python3 -m unittest discover -s tools -p "test_*.py" -v
 # 4) 웹 내보내기 확인 (웹 내보내기 템플릿 필요, build/는 .gdignore로 Godot 리소스에서 빠져 있음)
@@ -63,6 +65,7 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 ```
 
 - 테스트는 실패하면 종료 코드 1로 끝나. 종료 코드까지 확인해.
+- 게임 테스트는 `godot ... -s res://tests/run_tests.gd`로 직접 부르지 말고 `tests/run_tests.sh`로 실행해. Godot는 실행기 스크립트가 파싱에 실패해도 종료 코드 0으로 끝나서, 래퍼가 "결과:" 줄이 있는지 확인해 실패로 바꿔 줘. 1)을 건너뛰면 실행기가 안내를 찍고 종료 코드 1로 끝나.
 - 게임 자동 테스트 작성법: `tests/test_이름.gd`에서 `extends TestCase`, `test_`로 시작하는 함수 안에서 `assert_eq`, `assert_true` 등을 써. 씬은 `instantiate()` 후 `add_child()`하고 `await wait_frames()`로 확인해.
 - 조작감·속도·난이도 같은 게임 플레이 수치는 `scripts/balance.gd` 한곳에 모아 둬 (색·여백 같은 화면 꾸밈 값은 각 화면 파일에 둬도 돼).
 - 진행 기록: 단계를 끝낼 때마다 PROGRESS.md에 만든 것, 내가 판단한 것, 검토 결과, 플레이하며 확인할 부분을 짧게 기록해.
@@ -161,7 +164,7 @@ export_presets.cfg       웹 내보내기 설정 (스레드 없음: GitHub Pages
 scenes/                  씬 (.tscn)
 scripts/                 게임 스크립트 (.gd). 수치는 balance.gd, 로직은 logic/, 화면 부품은 ui/
 assets/                  외부·직접 만든 에셋 (폴더마다 라이선스 파일)
-tests/                   게임 자동 테스트 (run_tests.gd 실행기, test_*.gd)
+tests/                   게임 자동 테스트 (run_tests.sh → run_tests.gd 실행기, test_*.gd)
 tools/                   변경 기록·버전 페이지·라이선스 도구와 그 테스트
 .github/workflows/       자동 테스트, 태그·릴리스, GitHub Pages 배포
 .claude/agents/          final-reviewer 최종 검토자

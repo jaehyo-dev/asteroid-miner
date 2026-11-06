@@ -1,8 +1,10 @@
 extends SceneTree
 ## 자동 테스트 실행기.
-## 실행: godot --headless --path . -s res://tests/run_tests.gd
+## 실행: bash tests/run_tests.sh (리소스 가져오기 godot --headless --path . --import 를 먼저 실행)
 ## tests/ 폴더의 test_*.gd 파일을 모두 찾아 test_ 로 시작하는 함수를 실행하고,
 ## 하나라도 실패하면 종료 코드 1로 끝난다 (GitHub Actions가 실패로 처리).
+## 이 파일 자체가 깨지면 Godot가 종료 코드 0으로 끝나므로, run_tests.sh가 "결과:" 줄이 있는지도 확인한다.
+## 그래서 이 파일은 전역 클래스 이름(TestCase 등)을 쓰지 않는다: 클래스 캐시가 없어도 파싱되어야 오류를 알릴 수 있다.
 
 const TEST_DIR := "res://tests"
 
@@ -42,6 +44,11 @@ func _initialize() -> void:
 func _run() -> void:
 	var passed := 0
 	var failed := 0
+	# 리소스 가져오기를 안 하면 클래스 캐시가 없어 test_*.gd가 TestCase를 찾지 못한다.
+	if not ProjectSettings.get_global_class_list().any(func(c): return c["class"] == "TestCase"):
+		printerr("TestCase 클래스를 찾지 못했습니다. 리소스 가져오기를 먼저 실행하세요: godot --headless --path . --import")
+		quit(1)
+		return
 	var files := _test_files()
 	if files.is_empty():
 		printerr("테스트 파일을 찾지 못했습니다: %s/test_*.gd" % TEST_DIR)
@@ -49,9 +56,13 @@ func _run() -> void:
 		return
 
 	for file in files:
+		_catcher.take()
 		var script: GDScript = load(file)
-		if script == null or not script.can_instantiate():
+		var load_errors := _catcher.take()
+		if script == null or not script.can_instantiate() or not load_errors.is_empty():
 			printerr("실패  %s - 스크립트를 불러올 수 없음 (문법 오류 확인)" % file)
+			for error in load_errors:
+				printerr("      - " + error)
 			failed += 1
 			continue
 		for method in script.get_script_method_list():
@@ -59,7 +70,7 @@ func _run() -> void:
 			if not name.begins_with("test_"):
 				continue
 			# 테스트 함수마다 새 인스턴스를 만들어 서로 영향을 주지 않게 한다.
-			var test: TestCase = script.new()
+			var test: Node = script.new()
 			root.add_child(test)
 			_catcher.take()
 			await test.call(name)

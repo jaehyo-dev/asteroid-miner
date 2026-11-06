@@ -14,6 +14,6 @@ Godot 4.7.2로 엽니다. 테스트 명령과 작업 규칙은 [CLAUDE.md](CLAUD
 
 ```bash
 godot --headless --path . --import
-godot --headless --path . -s res://tests/run_tests.gd
+bash tests/run_tests.sh
 python3 -m unittest discover -s tools -p "test_*.py" -v
 ```

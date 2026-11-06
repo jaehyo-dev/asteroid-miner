@@ -20,7 +20,7 @@ tools: Read, Glob, Grep, Bash, PowerShell
 3. 테스트를 직접 실행하고 출력과 종료 코드를 확인해:
    ```bash
    godot --headless --path . --import
-   godot --headless --path . -s res://tests/run_tests.gd
+   GODOT=godot bash tests/run_tests.sh
    python3 -m unittest discover -s tools -p "test_*.py" -v
    mkdir -p build/web
    godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
