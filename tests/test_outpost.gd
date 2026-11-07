@@ -327,6 +327,34 @@ func test_터치로_닫으면_포커스_테두리가_없고_키보드로_닫으�
 	main.queue_free()
 
 
+func test_마우스를_올리면_윤곽선_누르면_번쩍임() -> void:
+	var main: Control = await _main()
+	var b: Button = main.spot_buttons["hangar"]
+	b.mouse_entered.emit()
+	assert_eq(main.view.hover_id, "hangar", "올리면 강조")
+	main.spot_buttons["museum"].mouse_exited.emit()
+	assert_eq(main.view.hover_id, "hangar", "다른 건물에서 나간 것은 무시")
+	b.mouse_exited.emit()
+	assert_eq(main.view.hover_id, "", "나가면 끔")
+	b.button_down.emit()
+	assert_eq(main.view.pressed_id, "hangar")
+	assert_true(main.view.press_time > 0.0, "누르면 번쩍")
+	await get_tree().create_timer(BaseView.PRESS_TIME + 0.1).timeout
+	assert_eq(main.view.press_time, 0.0, "잠깐 뒤 원래대로")
+	main.queue_free()
+
+
+func test_윤곽선은_그림_바로_바깥_칸() -> void:
+	var img := Image.create_empty(3, 3, false, Image.FORMAT_RGBA8)
+	img.set_pixel(1, 1, Color.WHITE)
+	var cells := BaseView.outline_cells(img)
+	assert_eq(cells.size(), 4, "가운데 한 칸 → 상하좌우 4칸")
+	assert_true(cells.has(Vector2i(1, 0)) and cells.has(Vector2i(0, 1)) and cells.has(Vector2i(2, 1)) and cells.has(Vector2i(1, 2)))
+	var edge := Image.create_empty(1, 1, false, Image.FORMAT_RGBA8)
+	edge.set_pixel(0, 0, Color.WHITE)
+	assert_eq(BaseView.outline_cells(edge).size(), 4, "그림 밖 칸까지")
+
+
 func test_건물_화면이_열려_있으면_다른_건물이나_출격을_누를_수_없음() -> void:
 	var main: Control = await _main()
 	main.press("research")

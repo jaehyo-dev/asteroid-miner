@@ -60,12 +60,14 @@ func _ready() -> void:
 		var empty := StyleBoxEmpty.new()
 		for state in ["normal", "hover", "pressed", "disabled"]:
 			b.add_theme_stylebox_override(state, empty)
-		var focus := StyleBoxFlat.new()  # 키보드로 고를 때만 테두리가 보인다
-		focus.draw_center = false
-		focus.border_color = Color("#ffd34f")
-		focus.set_border_width_all(BaseLayout.PIXEL)
-		b.add_theme_stylebox_override("focus", focus)
+		b.add_theme_stylebox_override("focus", empty)  # 고른 표시는 BaseView가 건물 윤곽선으로 그린다
 		b.pressed.connect(press.bind(id))
+		# 마우스를 올리거나 키보드로 고르면 윤곽선이 빛나고, 누르는 순간 번쩍인다
+		b.mouse_entered.connect(_set_hover.bind(id, true))
+		b.mouse_exited.connect(_set_hover.bind(id, false))
+		b.focus_entered.connect(_set_hover.bind(id, true))
+		b.focus_exited.connect(_set_hover.bind(id, false))
+		b.button_down.connect(view.flash.bind(id))
 		spots.add_child(b)
 		spot_buttons[id] = b
 	var toast_bg := StyleBoxFlat.new()
@@ -94,6 +96,14 @@ func _place_spots() -> void:
 		var b: Button = spot_buttons[id]
 		b.position = r.position
 		b.size = r.size
+
+
+## 강조할 건물을 정한다 (빠져나간 건물이 지금 강조 중일 때만 끈다)
+func _set_hover(id: String, on: bool) -> void:
+	if on:
+		view.hover_id = id
+	elif view.hover_id == id:
+		view.hover_id = ""
 
 
 ## 보유 광물과 기지 모습(연구 불빛, 광물 더미)을 저장 내용에 맞춘다.
