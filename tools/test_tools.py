@@ -115,7 +115,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_main_푸시_때만_태그_릴리스_배포(self):
         self.assertIn("github.ref == 'refs/heads/main'", self.yml)
-        self.assertIn("needs: test", self.yml)
+        self.assertIn("needs: [test, changes]", self.yml)
         self.assertIn("python3 tools/changelog.py latest", self.yml)
         self.assertIn('git tag -a "$tag"', self.yml)
         self.assertIn('gh release create "$tag"', self.yml)
@@ -126,6 +126,28 @@ class WorkflowTest(unittest.TestCase):
         self.assertNotIn("paths:", self.yml)
         self.assertIn("bash tests/run_tests.sh", self.yml)
         self.assertIn('python3 -m unittest discover -s tools -p "test_*.py"', self.yml)
+
+    def test_md만_바뀐_푸시는_배포하지_않고_수동_실행은_항상_배포(self):
+        self.assertIn("needs.changes.outputs.code == 'true'", self.yml)
+        self.assertIn("grep -v '\\.md$'", self.yml)
+        self.assertIn("workflow_dispatch", self.yml)
+
+    def test_이전_버전은_릴리스에_저장한_빌드를_쓰고_없을_때만_빌드(self):
+        self.assertIn('gh release download "$tag" -p "web-$tag.zip"', self.yml)
+        self.assertIn("gh release upload", self.yml)
+        self.assertIn('bash "$export_web" "$dir" "$dest" "$version"', self.yml)
+
+    def test_Godot는_캐시해서_받음(self):
+        self.assertIn("actions/cache@v4", read(".github/actions/setup-godot/action.yml"))
+
+    def test_게임_파일_이름에_버전을_붙임(self):
+        script = read("tools/export_web.sh")
+        self.assertIn('name="game-$3"', script)
+        self.assertIn("index.html", script)
+        # 사이트 빌드는 직접 내보내지 않고 이 스크립트로만 내보낸다 (현재 버전과 이전 버전 모두)
+        site_step = self.yml[self.yml.index("사이트 빌드"):]
+        self.assertNotIn("--export-release", site_step)
+        self.assertIn('bash "$export_web" "$PWD" "$site" "$current"', site_step)
 
     def test_테스트_실행기는_깨져도_실패로_끝남(self):
         # Godot는 -s 스크립트가 파싱에 실패해도 종료 코드 0이라, 래퍼가 "결과:" 줄을 확인해야 한다.

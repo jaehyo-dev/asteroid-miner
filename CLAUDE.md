@@ -135,6 +135,17 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 - 코드: 같은 버그를 2번 고쳐도 안 풀리면 `codex exec`로 의견을 받아. 큰 기능을 끝내면 `codex review`로 리뷰받고 수용/거절과 이유를 정리해. 최종 판단은 네가 해.
 - Codex를 실행할 때는 먼저 `logs/codex.log`에 "=== [시간] Codex 작업: <요약> ===" 한 줄을 쓰고, 명령 끝에 `2>&1 | tee -a logs/codex.log`를 붙여. `logs/`는 .gitignore에 있어.
 
+## 배포 워크플로 규칙 (다른 게임 저장소에도 그대로 복사해서 쓸 것)
+
+`.github/workflows/deploy.yml`과 `tools/export_web.sh`가 맡는다. 배포가 느려지거나 옛 버전이 보이면 아래 4가지를 먼저 확인해.
+
+1. **엔진 캐시**: Godot 편집기와 웹 내보내기 템플릿은 `actions/cache@v4`로 저장한다 (`.github/actions/setup-godot`, 키 = Godot 버전). 버전을 올릴 때만 새로 내려받는다.
+2. **이전 버전은 한 번만 빌드**: `versions/v버전/`에 놓을 이전 버전은 그 태그의 GitHub Release에 `web-v버전.zip`으로 저장해 두고, 다음 배포부터는 내려받아 쓴다 (없는 버전만 태그 코드로 빌드해서 저장). 새 버전의 빌드는 태그가 그 커밋일 때 저장한다. 저장소에 빌드 결과물을 커밋하지 않는다. 저장된 빌드를 다시 만들고 싶으면 그 Release에서 `web-v버전.zip`을 지워.
+3. **문서만 바뀐 푸시는 배포 안 함**: `changes` 잡이 이전 커밋과 비교해 `.md` 말고 바뀐 파일이 없으면 `publish`를 건너뛴다 (테스트는 그대로 돈다). 수동 실행(workflow_dispatch)은 항상 배포한다. 버전을 올리는 푸시는 `project.godot`도 바뀌므로 항상 배포된다.
+4. **캐시 무효화**: 모든 웹 내보내기는 `bash tools/export_web.sh <프로젝트> <출력> <버전>`으로 한다. 파일 이름이 `game-<버전>.js/.wasm/.pck`가 되어 버전이 바뀌면 주소가 바뀐다 (진입 파일 `index.html`만 이름 그대로이고, GitHub Pages는 이 파일을 최대 10분 캐시한다).
+
+다른 저장소에 적용할 때: `deploy.yml`의 `changes`·`publish` 잡, `tools/export_web.sh`, `setup-godot` 액션을 복사하고, 프리셋 이름("Web")과 `tools/changelog.py`(버전 읽기)를 그 저장소에 맞춘다.
+
 ## 코드 정리
 
 - 기능을 완성하면 /ponytail-review로 줄일 수 있는 부분을 확인해. 단, 내가 요청한 기능과 게임의 재미를 위한 연출은 줄이지 마. (쓸 수 없는 환경이면 건너뛰고 보고에 적어.)
