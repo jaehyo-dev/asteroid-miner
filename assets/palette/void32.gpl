@@ -1,0 +1,36 @@
+GIMP Palette
+Name: Foozle Void 32
+Columns: 8
+# Foozle Void 팩(CC0) 색에서 k-means로 뽑음.
+  0   0   0	void00 #000000
+ 43  25  37	void01 #2b1925
+ 58  28  87	void02 #3a1c57
+ 60  53  68	void03 #3c3544
+111  38  38	void04 #6f2626
+134  26  89	void05 #861a59
+ 18  89  82	void06 #125952
+ 53  81  72	void07 #355148
+122  48  69	void08 #7a3045
+107  62 117	void09 #6b3e75
+ 92  81 100	void10 #5c5164
+112  82  94	void11 #70525e
+152  70  51	void12 #984633
+203  55  56	void13 #cb3738
+255  37 103	void14 #ff2567
+ 87 126 102	void15 #577e66
+ 29 167 117	void16 #1da775
+ 77 128 205	void17 #4d80cd
+119 147  30	void18 #77931e
+145 116 135	void19 #917487
+242  92 118	void20 #f25c76
+251 107  29	void21 #fb6b1d
+220 127  71	void22 #dc7f47
+168 132 243	void23 #a884f3
+248 148  25	void24 #f89419
+ 48 225 185	void25 #30e1b9
+165 178 157	void26 #a5b29d
+165 204  95	void27 #a5cc5f
+200 215  14	void28 #c8d70e
+246 206  80	void29 #f6ce50
+153 233 230	void30 #99e9e6
+254 248 229	void31 #fef8e5

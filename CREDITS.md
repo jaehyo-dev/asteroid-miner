@@ -11,6 +11,7 @@
 |---|---|---|---|---|---|---|
 | Godot Engine | 4.7.2-stable | Godot Engine contributors, Juan Linietsky, Ariel Manzur | MIT (엔진에 포함된 서드파티 구성 요소는 각자의 라이선스) | https://godotengine.org | 게임 엔진, 웹 내보내기 템플릿 | 없음 |
 | Galmuri11 (갈무리) | v2.40.4 | Lee Minseo (quiple) | SIL Open Font License 1.1 | https://github.com/quiple/galmuri | 게임 전체 글꼴 `assets/fonts/galmuri/Galmuri11.ttf` | 없음 |
+| Foozle Void 시리즈 5종: Main Ship, Fleet Pack 1 (Kla'ed), Fleet Pack 2 (Nairan), Fleet Pack 3 (Nautolan), Environment Pack (모두 v1.0) | 1.0 | Baldur(제작 의뢰받아 그림), Foozle 배포 | CC0 1.0 (공개 도메인, 상업 이용 가능, 표기 의무 없음. 각 팩 Readme.txt에서 확인) | https://foozlecc.itch.io/void-main-ship , https://foozlecc.itch.io/void-fleet-pack-1 , https://foozlecc.itch.io/void-fleet-pack-2 , https://foozlecc.itch.io/void-fleet-pack-3 , https://foozlecc.itch.io/void-environment-pack (2026-11-08 내려받음) | v0.7.0 출격 화면의 내 우주선·적·탄·폭발·운석·배경 후보. 필요한 PNG만 `assets/vendor/foozle/main_ship`, `assets/vendor/foozle/fleet1_klaed`, `assets/vendor/foozle/fleet2_nairan`, `assets/vendor/foozle/fleet3_nautolan`, `assets/vendor/foozle/environment`에 두고 폴더마다 `LICENSE.txt`(원래 Readme.txt)를 함께 둠 | 없음 (원본 그대로. 배경은 쓸 때 어둡게 하는 보정만 함) |
 
 - Godot 엔진과 엔진 구성 요소의 라이선스 전문은 배포할 때 `licenses/godot.txt`로 자동 생성합니다 (`tools/export_licenses.gd`).
 - Galmuri 라이선스 전문: [`assets/fonts/galmuri/LICENSE.txt`](assets/fonts/galmuri/LICENSE.txt)
@@ -37,3 +38,4 @@
 - 기지 길·가로등·드론·운석·이름표·이륙 불꽃(`scripts/ui/base_view.gd`, 2픽셀 격자), 업그레이드·자물쇠·포격 아이콘(`scripts/pixel_art.gd`), 건물 열기·이륙·버튼 효과음(`scripts/sfx.gd`): 이 프로젝트에서 직접 만듦
 - 기지 콘셉트 그림 3장 `assets/raw/base_concept_v063.png`(v0.6.3 승인본) 과 `assets/raw/base_concept_overview.png`, `assets/raw/base_concept_portrait.png`: Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-07. 기지 픽셀 아트와 가로·세로 배치의 참고용으로만 쓰고 게임 빌드에는 들어가지 않음 (`.gdignore`), 수정 없음. 요청문: [ASSET_PROMPTS.md](ASSET_PROMPTS.md)
 - 워프 게이트 콘셉트 그림 2장 `assets/raw/gate_concept_design.png`, `assets/raw/gate_concept_states.png`: Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-06. 게이트 픽셀 아트의 참고용으로만 쓰고 게임 빌드에는 들어가지 않음 (`.gdignore`), 수정 없음. 요청문: [ASSET_PROMPTS.md](ASSET_PROMPTS.md)
+- 팔레트 `assets/palette/void32.gpl`, `void32.png`: Foozle Void 팩(위 CC0)이 쓰는 137색에서 가중 k-means로 뽑은 32색 (2026-11-08, 직접 만듦). Codex로 만드는 새 그림을 이 색으로 줄이는 데 씀
