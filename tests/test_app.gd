@@ -21,3 +21,12 @@ func test_이동과_일시_정지_키가_등록됨() -> void:
 
 func test_자동_로드로_실행됨() -> void:
 	assert_not_null(get_tree().root.get_node_or_null("App"), "App 노드")
+
+
+func test_기지_화면은_2배_기준_해상도() -> void:
+	assert_eq(App.base_size_for(Vector2i(1280, 720), true), Vector2i(1280, 720))
+	assert_eq(App.base_size_for(Vector2i(390, 844), true), Vector2i(720, 1280))
+	App.set_base_mode(true)
+	assert_eq(get_tree().root.content_scale_size, App.base_size_for(get_tree().root.size, true))
+	App.set_base_mode(false)
+	assert_eq(get_tree().root.content_scale_size, App.base_size_for(get_tree().root.size))

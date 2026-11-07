@@ -4,10 +4,12 @@ extends TestCase
 const MainScene := preload("res://scenes/main.tscn")
 const RunScene := preload("res://scenes/run.tscn")
 
-## 확인할 화면 크기 (기준 해상도 단위): PC, 휴대폰 가로(844x390), 휴대폰 세로(390x844), 넓은 가로, 정사각형에 가까운 창
-const SIZES := [Vector2(640, 360), Vector2(779, 360), Vector2(360, 640), Vector2(360, 779), Vector2(853, 360), Vector2(480, 360)]
-## 손가락으로 누르기 쉬운 최소 크기 (기준 해상도 픽셀, 휴대폰에서 약 1.08배)
-const MIN_TOUCH := Vector2(44, 44)
+## 확인할 화면 크기 (기지 화면 기준 해상도 단위 = App.base_size_for(창, true)):
+## PC 1280x720, 휴대폰 가로 844x390 → 1558x720, 휴대폰 세로 390x844 → 720x1558, 16:9 세로 720x1280,
+## 위아래로 긴 PC 창(1000x900 → 1280x1152), 정사각형 창(→ 1280x1280). expand라 가로는 폭 1280, 세로는 높이 1280보다 작아지지 않는다.
+const SIZES := [Vector2(1280, 720), Vector2(1558, 720), Vector2(720, 1558), Vector2(720, 1280), Vector2(1280, 1152), Vector2(1280, 1280)]
+## 손가락으로 누르기 쉬운 최소 크기: 휴대폰은 기준 720 → 화면 약 390px(0.54배)이므로 88이면 약 48px
+const MIN_TOUCH := Vector2(88, 88)
 
 
 func _main() -> Control:
@@ -23,7 +25,7 @@ func _main() -> Control:
 func test_건물과_이름표가_화면_안에_있고_서로_겹치지_않음() -> void:
 	for size in SIZES:
 		var rects := BaseLayout.rects(size)
-		var screen := Rect2(Vector2(0, BaseLayout.TOP_BAR), size - Vector2(0, BaseLayout.TOP_BAR + 22))  # 아래 22는 버전·이전 버전 글자
+		var screen := Rect2(Vector2(0, BaseLayout.TOP_BAR), size - Vector2(0, BaseLayout.TOP_BAR + BaseLayout.BOTTOM_BAR))  # 위: 보유 광물 줄, 아래: 버전 글자
 		var touch := {}
 		for id in BaseLayout.IDS:
 			var t := BaseLayout.touch_rect(id, rects[id])
@@ -38,10 +40,48 @@ func test_건물과_이름표가_화면_안에_있고_서로_겹치지_않음() 
 
 
 func test_세로_화면은_세로_배치() -> void:
-	assert_true(BaseLayout.is_portrait(Vector2(360, 640)))
-	assert_false(BaseLayout.is_portrait(Vector2(640, 360)))
-	var r := BaseLayout.rects(Vector2(360, 640))
+	assert_true(BaseLayout.is_portrait(Vector2(720, 1280)))
+	assert_false(BaseLayout.is_portrait(Vector2(1280, 720)))
+	var r := BaseLayout.rects(Vector2(720, 1280))
 	assert_true(r["research"].position.y < r["ship"].position.y and r["ship"].position.y < r["drone"].position.y, "위 건물 → 착륙장 → 드론 공장")
+
+
+func test_건물_자리와_글자는_3픽셀_격자에_맞음() -> void:
+	assert_eq(BaseLayout.FONT_SIZE, 12 * BaseLayout.PIXEL, "픽셀 글꼴(12px)의 정수 배")
+	for size in SIZES:
+		for id in BaseLayout.IDS:
+			var r: Rect2 = BaseLayout.rects(size)[id]
+			assert_eq(fmod(r.position.x, BaseLayout.PIXEL), 0.0, "%s %s x" % [size, id])
+			assert_eq(fmod(r.position.y, BaseLayout.PIXEL), 0.0, "%s %s y" % [size, id])
+			assert_eq(r.size, BaseLayout.sprite_size(BaseLayout.SPRITES[id]) * BaseLayout.PIXEL, "그림 크기 그대로 3배")
+
+
+func test_기지_그림은_정리된_픽셀_아트() -> void:
+	# tools/pixelate.py로 정리했는지: 투명도는 0 또는 1만, 색은 24가지 이하
+	for file in DirAccess.get_files_at(BaseLayout.SPRITE_DIR):
+		if not file.ends_with(".png"):
+			continue
+		var img: Image = (load(BaseLayout.SPRITE_DIR + file) as Texture2D).get_image()
+		img.decompress()
+		var colors := {}
+		var half_alpha := 0
+		for y in img.get_height():
+			for x in img.get_width():
+				var c := img.get_pixel(x, y)
+				if c.a > 0.01 and c.a < 0.99:
+					half_alpha += 1
+				elif c.a >= 0.99:
+					colors[c.to_rgba32() | 0xff] = true
+		assert_eq(half_alpha, 0, file + " 반투명 픽셀")
+		assert_true(colors.size() <= 24, "%s 색 %d개" % [file, colors.size()])
+
+
+func test_기지_화면에서만_2배_기준_해상도() -> void:
+	var main: Control = await _main()
+	assert_true(App.base_mode, "기지 화면")
+	main.queue_free()
+	await wait_frames()
+	assert_false(App.base_mode, "기지를 나가면 원래대로")
 
 
 func test_누르는_자리_버튼이_그림_자리에_놓임() -> void:
@@ -229,15 +269,15 @@ func test_드론_공장은_안내만_띄움() -> void:
 
 func test_건물_화면을_연_채로_휴대폰을_돌리면_배치가_바뀜() -> void:
 	var main: Control = await _main()
-	main.panel.size = Vector2(640, 360)
+	main.panel.size = Vector2(1280, 720)
 	main.press("research")
 	await wait_frames()
 	var grid: GridContainer = main.panel.find_children("*", "GridContainer", true, false)[0]
-	assert_eq(grid.columns, 3, "가로는 3열")
-	main.panel.size = Vector2(360, 640)  # 세로로 돌림
+	assert_eq(grid.columns, 2, "가로는 2열")
+	main.panel.size = Vector2(720, 1280)  # 세로로 돌림
 	await wait_frames()
 	grid = main.panel.find_children("*", "GridContainer", true, false).filter(func(g): return not g.is_queued_for_deletion())[0]
-	assert_eq(grid.columns, 2, "세로는 2열")
+	assert_eq(grid.columns, 1, "세로는 1열")
 	assert_true(main.panel.visible, "열린 채로")
 	main.queue_free()
 
@@ -255,6 +295,23 @@ func test_건물_화면은_닫기와_Esc로_닫힘() -> void:
 	esc.pressed = true
 	main.panel._unhandled_input(esc)
 	assert_false(main.panel.visible, "Esc")
+	main.queue_free()
+
+
+func test_터치로_닫으면_포커스_테두리가_없고_키보드로_닫으면_우주선에_포커스() -> void:
+	var main: Control = await _main()
+	var touch := InputEventScreenTouch.new()
+	main._input(touch)
+	main.press("research")
+	await wait_frames()
+	main.panel.close_button.pressed.emit()
+	assert_true(main.get_viewport().gui_get_focus_owner() == null, "터치로 닫음 → 테두리 없음")
+	var key := InputEventKey.new()
+	main._input(key)
+	main.press("museum")
+	await wait_frames()
+	main.panel.close()
+	assert_eq(main.get_viewport().gui_get_focus_owner(), main.spot_buttons["ship"], "키보드로 닫음 → 우주선")
 	main.queue_free()
 
 

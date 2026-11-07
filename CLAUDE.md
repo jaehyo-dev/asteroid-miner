@@ -128,6 +128,9 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
   - 결과는 `~/.codex/generated_images/`의 가장 최근 파일을 찾아 `assets/raw/`로 복사해.
   - 투명 배경이 안 되니 단색 배경으로 만들게 하고 rembg로 배경을 지워 `assets/sprites/`에 저장해.
   - 같은 캐릭터는 기준 그림을 `--image`로 넘겨서 모습을 유지해.
+  - 게임에 넣는 그림은 모두 `tools/pixelate.py`로 정리해 (`assets/raw/` 원본 → `assets/sprites/`): 마젠타(#FF00FF) 배경 빼기(깔끔하지 않으면 `--rembg`, rembg는 `~/.local/venvs/rembg`의 isnet-general-use), 디더링 없이 색 줄이기, nearest로 픽셀 격자 맞추기, 투명도 0/255.
+  - 한 화면 안에서는 정수 배율 하나로만 그리고(기지 화면은 그림 3배), 코드로 그리는 도형과 글자(Galmuri11 12px의 같은 배수, 기지 화면 36px)도 같은 격자에 맞춰.
+  - 콘셉트 그림과 완성 화면 캡처를 나란히 붙인 비교 이미지를 만들어 직접 보고, 차이가 큰 부분을 고친 뒤 보고해.
   - 만들기 전에 몇 장을 만들지 계획하고, 요청문은 ASSET_PROMPTS.md에 기록해.
 - 코드: 같은 버그를 2번 고쳐도 안 풀리면 `codex exec`로 의견을 받아. 큰 기능을 끝내면 `codex review`로 리뷰받고 수용/거절과 이유를 정리해. 최종 판단은 네가 해.
 - Codex를 실행할 때는 먼저 `logs/codex.log`에 "=== [시간] Codex 작업: <요약> ===" 한 줄을 쓰고, 명령 끝에 `2>&1 | tee -a logs/codex.log`를 붙여. `logs/`는 .gitignore에 있어.

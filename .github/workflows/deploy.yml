@@ -35,6 +35,9 @@ jobs:
       - name: 게임 자동 테스트
         run: bash tests/run_tests.sh
 
+      - name: 그림 정리 도구용 Pillow 설치
+        run: python3 -m pip install --user pillow==10.4.0
+
       - name: 도구·버전 자동 테스트
         run: python3 -m unittest discover -s tools -p "test_*.py" -v
 

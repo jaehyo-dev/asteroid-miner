@@ -39,9 +39,12 @@ var launching := false
 ## 이륙이 끝나면 출격 화면으로 넘어갈지 (테스트에서는 끈다)
 var auto_start := true
 var _toast_time := 0.0
+## 마지막 입력이 키보드였는지 (건물 화면을 키보드로 닫았을 때만 우주선에 포커스 테두리를 보인다)
+var _keyboard := false
 
 
 func _ready() -> void:
+	App.set_base_mode(true)  # 기지 화면은 1280x720 기준 (그림 1픽셀 = 화면 3픽셀)
 	version_label.text = "v" + game_version()
 	# 이전 버전 링크는 웹(GitHub Pages)에서만 의미가 있으므로 웹에서만 보여 준다.
 	old_versions_button.visible = OS.has_feature("web")
@@ -60,7 +63,7 @@ func _ready() -> void:
 		var focus := StyleBoxFlat.new()  # 키보드로 고를 때만 테두리가 보인다
 		focus.draw_center = false
 		focus.border_color = Color("#ffd34f")
-		focus.set_border_width_all(1)
+		focus.set_border_width_all(BaseLayout.PIXEL)
 		b.add_theme_stylebox_override("focus", focus)
 		b.pressed.connect(press.bind(id))
 		spots.add_child(b)
@@ -68,7 +71,8 @@ func _ready() -> void:
 	var toast_bg := StyleBoxFlat.new()
 	toast_bg.bg_color = Color(0.02, 0.02, 0.06, 0.85)
 	toast_bg.border_color = Color("#ffd34f")
-	toast_bg.set_border_width_all(1)
+	toast_bg.set_border_width_all(BaseLayout.PIXEL)
+	toast_bg.set_content_margin_all(BaseLayout.PIXEL * 3)
 	toast.add_theme_stylebox_override("normal", toast_bg)
 	view.resized.connect(_place_spots)
 	_place_spots()
@@ -81,8 +85,9 @@ static func game_version() -> String:
 	return str(ProjectSettings.get_setting("application/config/version", "0.0.0"))
 
 
-## 건물·우주선 버튼을 그림 자리(이름표 포함)에 맞춘다.
+## 건물·우주선 버튼을 그림 자리(이름표 포함)에 맞춘다. 세로 화면은 위쪽 줄이 좁아 제목을 숨긴다.
 func _place_spots() -> void:
+	%Title.visible = not BaseLayout.is_portrait(view.size)
 	var rects := BaseLayout.rects(view.size)
 	for id in spot_buttons:
 		var r := BaseLayout.touch_rect(id, rects[id])
@@ -149,7 +154,21 @@ func _process(delta: float) -> void:
 
 func _on_panel_closed() -> void:
 	refresh()
-	spot_buttons["ship"].grab_focus()
+	if _keyboard:
+		spot_buttons["ship"].grab_focus()  # 키보드로 닫았으면 이어서 키보드로 고를 수 있게
+	elif get_viewport().gui_get_focus_owner() != null:
+		get_viewport().gui_get_focus_owner().release_focus()  # 터치·마우스로 닫았으면 테두리 없이
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		_keyboard = true
+	elif event is InputEventMouseButton or event is InputEventScreenTouch:
+		_keyboard = false
+
+
+func _exit_tree() -> void:
+	App.set_base_mode(false)  # 출격 화면은 640x360 기준
 
 
 ## 아무것도 고르지 않았을 때: Enter/Space → 출격, 방향키 → 우주선부터 고르기 시작
