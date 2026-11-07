@@ -146,7 +146,6 @@ func _road_points(id: String) -> Array[Vector2]:
 func _build_road(id: String) -> void:
 	var pts := _road_points(id)
 	_path_ends[id] = pts[3]
-	var n := 0
 	for k in 3:
 		var a := pts[k]
 		var b := pts[k + 1]
@@ -173,7 +172,6 @@ func _build_road(id: String) -> void:
 		var psz := Vector2(length + P, P * 2) if horizontal else Vector2(P * 2, length + P)
 		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(psz)), DARK])
 		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(Vector2(psz.x, P) if horizontal else Vector2(P, psz.y))), METAL])
-		n += 1
 	_path_bends[id] = [pts[1], pts[2]]
 
 
