@@ -49,7 +49,7 @@ func test_세로_화면은_세로_배치() -> void:
 
 
 func test_세로_화면은_건물을_착륙장_주변에_모으고_소행성_안에_둠() -> void:
-	# v0.6.4: 5채가 한 기지로 보이게 (착륙장에서 멀리 흩어지지 않음), 소행성(3:4 둥근 모양) 안
+	# v0.6.5: 5채가 한 기지로 보이게 (착륙장에서 멀리 흩어지지 않음), 소행성(바위 모양, 4:5) 안
 	for size: Vector2 in [Vector2(720, 1280), Vector2(720, 1558)]:
 		var r := BaseLayout.rects(size)
 		var pad: Vector2 = r["ship"].get_center()
@@ -58,9 +58,45 @@ func test_세로_화면은_건물을_착륙장_주변에_모으고_소행성_안
 			all = all.merge(r[id])
 			assert_true(absf(r[id].get_center().x - pad.x) <= 260.0 and absf(r[id].get_center().y - pad.y) <= 260.0, "%s %s 착륙장에서 너무 멂" % [size, id])
 			for c: Vector2 in [r[id].position, Vector2(r[id].end.x, r[id].position.y), Vector2(r[id].position.x, r[id].end.y), r[id].end]:
-				var d: Vector2 = (c - size / 2.0) / Vector2(720 * 0.46, 960 * 0.46)
+				var d: Vector2 = (c - size / 2.0) / Vector2(259 * 0.95, 321 * 0.95)  # 소행성 윗면 259x321 그림픽셀 = 518x642
 				assert_true(d.length() <= 1.0, "%s %s 모서리 %s가 소행성 밖" % [size, id, c])
 		assert_true(all.size.x <= 720.0 * 0.75 and all.size.y <= 560.0, "%s 건물 덩어리 %s" % [size, all.size])
+
+
+func test_세로_소행성은_4대5_바위_모양이고_건물이_지면의_70_80퍼센트를_차지() -> void:
+	# 소행성 윗면(불투명한 부분)의 폭:높이 = 4:5, 건물 덩어리(이름표 포함)가 소행성 폭의 70~90%, 높이의 65~85%
+	var img: Image = load(BaseLayout.SPRITE_DIR + "ground_portrait.png").get_image()
+	var box := img.get_used_rect()
+	assert_true(absf(float(box.size.x) / box.size.y - 0.8) < 0.03, "소행성 폭:높이 %s" % box.size)
+	# 좌우 대칭이 아님 (왼쪽·오른쪽 반의 불투명 픽셀 수가 다름)
+	var left := 0
+	var right := 0
+	for y in img.get_height():
+		for x in img.get_width():
+			if img.get_pixel(x, y).a > 0.0:
+				if x < img.get_width() / 2:
+					left += 1
+				else:
+					right += 1
+	assert_true(absf(float(left - right)) / (left + right) > 0.01, "좌우 비대칭이어야 함")
+	var r := BaseLayout.rects(Vector2(720, 1280))
+	var all: Rect2 = r["ship"]
+	for id in BaseLayout.IDS:
+		all = all.merge(BaseLayout.touch_rect(id, r[id], true))
+	var wr := all.size.x / (box.size.x * BaseLayout.PIXEL)
+	var hr := all.size.y / (box.size.y * BaseLayout.PIXEL)
+	assert_true(wr >= 0.7 and wr <= 0.9 and hr >= 0.65 and hr <= 0.85, "건물 덩어리 폭 %.0f%% 높이 %.0f%%" % [wr * 100.0, hr * 100.0])
+
+
+func test_세로_이름표는_모든_건물_위_가운데이고_건물을_가리지_않음() -> void:
+	var r := BaseLayout.rects(Vector2(720, 1280))
+	for id in BaseLayout.IDS:
+		var lr := BaseLayout.label_rect(id, r[id], true)
+		assert_true(lr.end.y <= r[id].position.y, "%s 이름표가 건물 위로 걸침" % id)
+		assert_eq(lr.get_center().x, r[id].get_center().x, "%s 이름표 가운데" % id)
+		for other in BaseLayout.IDS:
+			if other != id:
+				assert_false(lr.intersects(r[other]), "%s 이름표가 %s 건물을 가림" % [id, other])
 
 
 func test_건물_자리와_글자는_2픽셀_격자에_맞음() -> void:
@@ -82,7 +118,7 @@ func test_건물_폭은_화면_폭의_9에서_11퍼센트() -> void:
 
 func test_지면은_무대_크기_한_장이고_건물은_소행성_안에_있음() -> void:
 	assert_eq(BaseLayout.sprite_size("ground_landscape") * BaseLayout.PIXEL, BaseLayout.STAGE, "가로 지면 = 무대")
-	assert_eq(BaseLayout.sprite_size("ground_portrait") * BaseLayout.PIXEL, Vector2(720, 960), "세로 지면 = 720x960 (3:4)")
+	assert_eq(BaseLayout.sprite_size("ground_portrait") * BaseLayout.PIXEL, Vector2(564, 706), "세로 지면 = 564x706 (소행성 약 4:5)")
 	# 소행성 모양(가운데 타원): 건물 그림 네 모서리가 타원 안에 있어야 함 (가로 화면, 소행성은 화면의 약 75%)
 	for id in BaseLayout.IDS:
 		var r: Rect2 = BaseLayout.rects(Vector2(1280, 720))[id]

@@ -117,3 +117,7 @@ Codex 내장 이미지 생성으로 만든 그림과 요청문 기록입니다. 
 
 (첫 시도는 소행성이 거의 정원(가로로 넓음)으로 나와 버려 위 문구로 다시 요청함)
 후처리: `tools/key_asteroid.py`로 우주 배경·떠다니는 돌을 지움(`*_keyed.png`) → `tools/pixelate.py --no-key --width 332` → 360x480 투명 바탕 가운데에 붙여 `assets/sprites/base/ground_portrait.png` (소행성 332x440).
+
+### v0.6.5 (2026-11-08): 세로 화면 소행성 지면 (Codex 요청 없음)
+
+바위 윤곽(4:5, 좌우 비대칭)은 이미지 생성 없이 `tools/make_ground.py`(시드 64)로 만듦: v0.6.4 세로 지면(`assets/raw/base/ground_portrait_v064.png`, Codex 그림)의 바위 질감을 잘라 새 윤곽에 입히고, 절벽 단면·가장자리 명암을 더해 36색으로 줄임.

@@ -13,6 +13,9 @@ const P := BaseLayout.PIXEL
 const DARK := Color("#1c1d30")
 const METAL := Color("#6f748a")
 const METAL_D := Color("#43475c")
+const PIPE := Color("#9aa0b8")  # 배관 윗줄
+const CABLE := Color("#b4742c")  # 케이블
+const PATH_RIM := Color("#2c2e44")  # 세로 화면 금속판 길의 테두리
 const YELLOW := Color("#f2c230")
 const CYAN := Color("#59e4ff")
 const ORANGE := Color("#ff9a2e")
@@ -120,26 +123,17 @@ static func _shadow(r: Rect2) -> Array[Rect2]:
 	return rows
 
 
-## 착륙장에서 건물 입구까지 꺾이는 길 (세로·가로·세로, 건물이 착륙장 옆이면 가로·세로·가로). 점 4개.
-## 세로 화면: 위 줄은 착륙장 윗면에서 양옆(±20칸)으로 올라가고, 전시관은 착륙장 아랫면에서 곧장 내려간다.
+## 착륙장에서 건물 입구까지 꺾이는 길 (가로 화면. 세로 화면은 _build_road_portrait): 위쪽 건물은 세로·가로·세로, 옆·아래 건물은 가로·세로·가로. 점 4개.
 func _road_points(id: String) -> Array[Vector2]:
 	var pr: Rect2 = rects["ship"]
 	var r: Rect2 = rects[id]
-	var portrait := BaseLayout.is_portrait(size)
 	var dx := r.get_center().x - pr.get_center().x
-	var pts: Array[Vector2] = []
-	if portrait and r.position.y >= pr.end.y:
-		# 착륙장 아래 건물(전시관): 착륙장 아랫면에서 내려가 건물 윗문으로
-		var a := Vector2(pr.get_center().x, pr.end.y - P * 8)
-		var b := Vector2(r.get_center().x, r.position.y)
-		var mid := BaseLayout.snap(Vector2(0, (a.y + b.y) / 2.0)).y
-		pts = [a, Vector2(a.x, mid), Vector2(b.x, mid), b]
-	elif r.end.y <= pr.position.y or (not portrait and r.get_center().y < pr.get_center().y):
+	var pts: Array[Vector2]
+	if r.get_center().y < pr.get_center().y:
 		# 착륙장 위쪽 건물: 착륙장 윗면에서 위로 올라가 건물 앞문(그림 아래)으로
-		var ax := pr.get_center().x + (signf(dx) * P * 20 if portrait else clampf(dx, -P * 12, P * 12))
-		var a := Vector2(ax, pr.position.y + P * 8)
+		var a := Vector2(pr.get_center().x + clampf(dx, -P * 12, P * 12), pr.position.y + P * 8)
 		var b := Vector2(r.get_center().x, r.end.y - P * 4)
-		var mid := BaseLayout.snap(Vector2(0, (r.end.y + P * 12) if portrait else (a.y + b.y) / 2.0)).y
+		var mid := BaseLayout.snap(Vector2(0, (a.y + b.y) / 2.0)).y
 		pts = [a, Vector2(a.x, mid), Vector2(b.x, mid), b]
 	else:
 		# 착륙장 옆·아래쪽 건물: 착륙장 옆면에서 옆으로 나가 건물의 안쪽 옆문으로
@@ -153,6 +147,9 @@ func _road_points(id: String) -> Array[Vector2]:
 
 ## 길 칸과 옆을 따라가는 배관·케이블 칸을 미리 계산 (매 프레임 다시 계산하지 않게)
 func _build_road(id: String) -> void:
+	if BaseLayout.is_portrait(size):
+		_build_road_portrait(id)
+		return
 	var pts := _road_points(id)
 	_path_ends[id] = pts[3]
 	for k in 3:
@@ -182,6 +179,75 @@ func _build_road(id: String) -> void:
 		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(psz)), DARK])
 		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(Vector2(psz.x, P) if horizontal else Vector2(P, psz.y))), METAL])
 	_path_bends[id] = [pts[1], pts[2]]
+
+
+## 세로 화면 길 (v0.6.5): 착륙장에서 건물 입구까지 비스듬한 대각선 + 짧은 직선, 금속판(테두리·리벳) 길 + 한쪽 배관 + 반대쪽 물결 케이블, 입구에는 넓은 판.
+## 긴 직선 막대 대신 칸(스탬프)을 이어 찍어 그린다. 길이 건물 입구(_path_ends)에 닿는다.
+func _build_road_portrait(id: String) -> void:
+	var pr: Rect2 = rects["ship"]
+	var r: Rect2 = rects[id]
+	var sgn := signf(r.get_center().x - pr.get_center().x)
+	var a: Vector2
+	var b: Vector2
+	if r.position.y >= pr.end.y:
+		# 전시관: 착륙장 아랫면 왼쪽에서 내려가 건물 지붕 앞 왼쪽 입구로 (가운데는 이름표 자리)
+		a = Vector2(pr.get_center().x - P * 22, pr.end.y - P * 6)
+		b = Vector2(a.x - P * 4, r.position.y + P * 6)
+	elif r.end.y <= pr.position.y + P * 8:
+		# 위 건물: 착륙장 윗면 모서리에서 건물 앞문(그림 아래 가운데)으로
+		a = Vector2(pr.get_center().x + sgn * P * 22, pr.position.y + P * 6)
+		b = Vector2(r.get_center().x, r.end.y - P * 3)
+	else:
+		# 옆 건물: 착륙장 옆면에서 건물 안쪽 옆문으로
+		a = Vector2(pr.get_center().x + sgn * pr.size.x * 0.4, pr.end.y - P * 12)
+		b = Vector2(r.get_center().x - sgn * r.size.x * 0.3, r.end.y - P * 8)
+	_path_ends[id] = b
+	# 대각선 한 번 + 축 방향 직선: 가까운 축이 아닌 먼 축을 따라 마지막 직선을 붙인다
+	var d := b - a
+	var vertical := absf(d.y) >= absf(d.x)
+	var diag := minf(absf(d.x), absf(d.y))  # 대각선으로 가로·세로 차이를 모두 메우고 나머지는 직선
+	var m := a + Vector2(signf(d.x) * diag, signf(d.y) * diag)
+	if vertical:
+		m.x = a.x + signf(d.x) * diag
+	var pts: Array[Vector2] = [a, m, b]
+	if m.distance_to(b) < P:
+		pts = [a, b]
+	var rim: Array = []
+	var fill: Array = []
+	var extra: Array = []
+	var n := 0
+	for k in pts.size() - 1:
+		var p0 := pts[k]
+		var p1 := pts[k + 1]
+		var len := p0.distance_to(p1)
+		var dir := (p1 - p0).normalized()
+		var side := Vector2(-dir.y, dir.x)
+		var steps := int(len / (P * 2.0)) + 1
+		for i in steps:
+			var p := p0 + dir * i * P * 2.0
+			rim.append([Rect2(BaseLayout.snap(p - Vector2(P, P) * 3.5), Vector2(P, P) * 7.0), PATH_RIM])
+			fill.append([Rect2(BaseLayout.snap(p - Vector2(P, P) * 2.5), Vector2(P, P) * 5.0), METAL_D])
+			if n % 4 == 1:  # 금속판 이음 리벳 (양쪽 가장자리)
+				for sd: float in [-2.0, 2.0]:
+					extra.append([Rect2(BaseLayout.snap(p + side * P * sd), Vector2(P, P)), METAL])
+			# 배관: 한쪽 옆에 어두운 관 + 밝은 윗줄
+			var q := p + side * P * 5.0
+			extra.append([Rect2(BaseLayout.snap(q), Vector2(P, P) * 2.0), DARK])
+			extra.append([Rect2(BaseLayout.snap(q), Vector2(P, P)), PIPE])
+			# 케이블: 반대쪽 옆에 물결치는 1칸 선, 가끔 주황 신호
+			var wob := roundf(sin(n * 0.8) * 1.0) * P
+			var c := p - side * (P * 5.0 + wob)
+			extra.append([Rect2(BaseLayout.snap(c), Vector2(P, P)), ORANGE if n % 4 == 0 else CABLE])
+			n += 1
+	# 입구 앞 넓은 판 (노랑·검정 경고 줄)
+	var apron := Rect2(BaseLayout.snap(b - Vector2(P * 7, P * 3)), Vector2(P * 14, P * 6))
+	extra.append([apron, METAL_D])
+	for i in 7:
+		extra.append([Rect2(BaseLayout.snap(apron.position + Vector2(P * 2 * i, 0)), Vector2(P, P)), YELLOW])
+	_path_cells.append_array(rim)
+	_path_cells.append_array(fill)
+	_path_cells.append_array(extra)
+	_path_bends[id] = [m] if pts.size() == 3 else []
 
 
 func ground() -> Texture2D:
@@ -369,7 +435,9 @@ func _draw_sign(r: Rect2) -> void:
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x + P * 4
 	var foot := r.position + SIGN_SPOT * P
 	if BaseLayout.is_portrait(size):
-		foot = Vector2(r.get_center().x, r.end.y + P * 16)  # 세로: 건물 옆 자리가 좁아 건물 바로 아래 가운데
+		# 세로: 건물마다 같은 규칙(건물 위 가운데). 이름표 바로 위에 쌓아 건물을 가리지 않는다.
+		var lr := BaseLayout.label_rect("drone", r, true)
+		foot = Vector2(r.get_center().x, lr.position.y - P)
 	var box := Rect2(BaseLayout.snap(Vector2(foot.x - w / 2.0, foot.y - P * 14)), BaseLayout.snap(Vector2(w, P * 14)))
 	draw_rect(box, YELLOW)
 	draw_rect(Rect2(box.position + Vector2(0, box.size.y - P), Vector2(box.size.x, P)), Color("#a8841e"))

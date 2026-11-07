@@ -28,21 +28,21 @@ const TOP_BAR := 54.0
 const BOTTOM_BAR := 48.0
 ## 이름표 높이 (글자 24 + 위아래 여백)
 const LABEL_HEIGHT := 32.0
-## 세로 화면 이름표는 건물을 덜 가리게 더 낮고, 전시관만 건물 아래에 둔다 (착륙장 이름표는 위: 아래에는 길이 지나감)
+## 세로 화면 이름표는 더 낮고, 모든 건물(착륙장 포함)의 지붕 바로 위 가운데에 건물을 가리지 않게 놓는다 (v0.6.5)
 const PORTRAIT_LABEL_HEIGHT := 28.0
-const PORTRAIT_LABEL_BELOW := ["museum"]
+const PORTRAIT_LABEL_GAP := 2.0
 
 ## 세로 화면은 줄 배치 (소행성 가운데에 모음): 줄마다 건물을 가운데 기준으로 놓는다.
 ## 위 줄 2채는 착륙장 위로 길이 올라가고, 가운데 줄은 착륙장 양옆, 맨 아래 전시관은 착륙장 아래로 길이 내려간다.
 ## (기준 해상도가 화면 비율에 맞춰 늘어나므로(expand) 가로는 폭 720 이상, 세로는 높이 1280 이상이 보장된다)
 const PORTRAIT_ROWS := [["research", "hangar"], ["drone", "ship", "storage"], ["museum"]]
 ## 같은 줄 건물 사이 간격 (가운데 줄은 착륙장과 건물 사이: 길·가로등이 들어갈 만큼)
-const PORTRAIT_SIDE_GAP := 36.0
-const PORTRAIT_TOP_ROW_GAP := 40.0
+const PORTRAIT_SIDE_GAP := 26.0
+const PORTRAIT_TOP_ROW_GAP := 24.0
 ## 줄 사이 간격: 위 줄 아래 → 가운데 줄에서 가장 높은 건물, 가운데 줄 아래 → 전시관 위
-const PORTRAIT_ROW_GAPS := [76.0, 64.0]
+const PORTRAIT_ROW_GAPS := [64.0, 56.0]
 ## 건물 덩어리의 세로 중심을 화면 중심에서 아래로 내리는 양 (소행성이 아래쪽이 더 넓음)
-const PORTRAIT_SHIFT_Y := 24.0
+const PORTRAIT_SHIFT_Y := 8.0
 
 ## 가로 화면 배치 (승인된 콘셉트 v0.6.3, 1280x720 무대 기준): id → [가운데 x, 그림 아래 y]
 ## 무대는 화면 가운데에 놓이고, 더 큰 화면은 별 배경이 채운다. 소행성이 화면의 약 75%로 줄어든 만큼 콘셉트 배치(건물 사이 비율)를 같은 비율로 소행성 중심에 모았다.
@@ -88,14 +88,14 @@ static func rects(size: Vector2) -> Dictionary:
 
 ## 세로 배치: 위 줄 / 가운데 줄(드론 공장·착륙장·광물 창고) / 전시관을 화면 가운데에 모아 놓는다.
 static func _portrait_rects(size: Vector2) -> Dictionary:
-	var out_top := PORTRAIT_LABEL_HEIGHT - PIXEL * 4  # 이름표가 그림 위로 나오는 높이
+	var out_top := PORTRAIT_LABEL_HEIGHT + PORTRAIT_LABEL_GAP  # 이름표가 그림 위로 나오는 높이
 	var heights: Array[float] = []
 	for row in PORTRAIT_ROWS:
 		var h := 0.0
 		for id in row:
 			h = maxf(h, sprite_size(SPRITES[id]).y * PIXEL)
 		heights.append(h)
-	var total := out_top + heights[0] + PORTRAIT_ROW_GAPS[0] + heights[1] + PORTRAIT_ROW_GAPS[1] + heights[2] + out_top
+	var total := out_top + heights[0] + PORTRAIT_ROW_GAPS[0] + heights[1] + PORTRAIT_ROW_GAPS[1] + heights[2]
 	var cx := size.x / 2.0
 	var pad_w := sprite_size(SPRITES["ship"]).x * PIXEL
 	var y := size.y / 2.0 + PORTRAIT_SHIFT_Y - total / 2.0 + out_top  # 위 줄 그림의 윗면
@@ -118,11 +118,12 @@ static func _portrait_rects(size: Vector2) -> Dictionary:
 
 
 ## 이름표 자리: 가로는 건물 위, 착륙장은 아래 (그림에 살짝 걸침).
-## 세로는 모두 위, 전시관만 아래 (착륙장 아래로는 길이 지나가서). 세로 이름표는 더 낮다.
+## 세로는 모두 건물 위 가운데이고 그림에 걸치지 않는다. 세로 이름표는 더 낮다.
 static func label_rect(id: String, rect: Rect2, portrait: bool = false) -> Rect2:
 	var h := PORTRAIT_LABEL_HEIGHT if portrait else LABEL_HEIGHT
-	var below: bool = id in PORTRAIT_LABEL_BELOW if portrait else id == "ship"
-	var y := rect.end.y - PIXEL * 4 if below else rect.position.y - h + PIXEL * 4
+	if portrait:
+		return Rect2(rect.position.x, rect.position.y - h - PORTRAIT_LABEL_GAP, rect.size.x, h)
+	var y := rect.end.y - PIXEL * 4 if id == "ship" else rect.position.y - h + PIXEL * 4
 	return Rect2(rect.position.x, y, rect.size.x, h)
 
 
