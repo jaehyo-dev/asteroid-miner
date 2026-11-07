@@ -22,7 +22,7 @@ import subprocess
 import sys
 import tempfile
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 
 MAGENTA = (255, 0, 255)
 ## 배경색과 이만큼(RGB 거리 제곱) 가까우면 배경으로 본다
@@ -62,6 +62,49 @@ def remove_rembg(path: str) -> Image.Image:
 def crop_to_content(img: Image.Image) -> Image.Image:
     box = img.getchannel("A").point(lambda a: 255 if a >= 128 else 0).getbbox()
     return img.crop(box) if box else img
+
+
+def keep_main_component(img: Image.Image, gap: int = 12) -> Image.Image:
+    """가장 큰 덩어리만 남긴다 (gap 픽셀 안쪽으로 붙어 있으면 한 덩어리). 잘라 온 그림 가장자리에 걸린 배관 조각·옆 물건을 지울 때 쓴다."""
+    step = 4
+    small = img.getchannel("A").point(lambda a: 255 if a >= 128 else 0).resize(
+        (max(1, img.width // step), max(1, img.height // step)), Image.Resampling.BOX).point(lambda a: 255 if a else 0)
+    k = max(1, gap // step) * 2 + 1
+    grown = small.filter(ImageFilter.MaxFilter(k if k % 2 else k + 1))
+    w, h = grown.size
+    px = grown.load()
+    label = [[0] * w for _ in range(h)]
+    sizes = {}
+    n = 0
+    for y0 in range(h):
+        for x0 in range(w):
+            if px[x0, y0] and not label[y0][x0]:
+                n += 1
+                stack = [(x0, y0)]
+                label[y0][x0] = n
+                count = 0
+                while stack:
+                    x, y = stack.pop()
+                    count += 1
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < w and 0 <= ny < h and px[nx, ny] and not label[ny][nx]:
+                            label[ny][nx] = n
+                            stack.append((nx, ny))
+                sizes[n] = count
+    if not sizes:
+        return img
+    best = max(sizes, key=sizes.get)
+    mask = Image.new("L", (w, h))
+    mp = mask.load()
+    for y in range(h):
+        for x in range(w):
+            mp[x, y] = 255 if label[y][x] == best else 0
+    mask = mask.resize(img.size, Image.Resampling.NEAREST)
+    out = img.copy()
+    alpha = ImageChops.multiply(img.getchannel("A"), mask)
+    out.putalpha(alpha)
+    return out
 
 
 def split_columns(img: Image.Image, min_gap: int = 8) -> list[Image.Image]:
@@ -141,13 +184,17 @@ def main(argv: list[str]) -> int:
     p.add_argument("--colors", type=int, default=24)
     p.add_argument("--no-key", action="store_true", help="배경을 지우지 않음 (배경 그림)")
     p.add_argument("--rembg", action="store_true", help="마젠타 대신 rembg로 배경을 지움")
+    p.add_argument("--main-only", action="store_true", help="가장 큰 덩어리만 남김 (잘라 온 그림의 옆 조각 지우기)")
     p.add_argument("--split", action="store_true", help="가로로 늘어놓은 부품을 나눠 이름_번호.png로 저장")
     args = p.parse_args(argv)
 
     if args.no_key:
         img = Image.open(args.src).convert("RGBA")
     elif args.rembg:
-        img = crop_to_content(binarize_alpha(remove_rembg(args.src)))
+        img = binarize_alpha(remove_rembg(args.src))
+        if args.main_only:
+            img = binarize_alpha(keep_main_component(img))
+        img = crop_to_content(img)
     else:
         img = crop_to_content(remove_key(Image.open(args.src)))
     os.makedirs(os.path.dirname(args.dst) or ".", exist_ok=True)

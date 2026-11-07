@@ -54,6 +54,18 @@ class PixelateTest(unittest.TestCase):
         self.assertEqual(out.size, (52, 24))
         self.assertEqual(out.getpixel((10, 0))[:3], (255, 255, 255), "위쪽은 남김")
 
+    def test_가장_큰_덩어리만_남김(self):
+        img = Image.new("RGBA", (80, 40), (0, 0, 0, 0))
+        for x in range(0, 40):
+            for y in range(0, 40):
+                img.putpixel((x, y), (200, 10, 10, 255))
+        for x in range(70, 76):
+            for y in range(4, 10):
+                img.putpixel((x, y), (10, 200, 10, 255))
+        out = px.keep_main_component(img)
+        self.assertEqual(out.getpixel((10, 10))[3], 255)
+        self.assertEqual(out.getpixel((72, 6))[3], 0, "떨어진 조각은 지움")
+
     def test_부품_시트를_왼쪽부터_나눔(self):
         img = Image.new("RGBA", (100, 20), (0, 0, 0, 0))
         for x0, w in [(5, 10), (40, 20), (80, 15)]:

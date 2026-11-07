@@ -24,13 +24,20 @@ const BOTTOM_BAR := 48.0
 ## 이름표 높이 (글자 36 + 위아래 여백)
 const LABEL_HEIGHT := 48.0
 
-## 줄 배치: 줄마다 건물을 왼쪽부터 같은 간격으로 놓고, 남는 높이는 줄 사이에 고르게 나눈다.
-## 가로는 콘셉트 그림 1(위 3채, 아래 창고·착륙장·전시관), 세로는 그림 2(위 2채, 착륙장, 아래 2채, 맨 아래 1채)를 따른다.
+## 세로 화면은 줄 배치: 줄마다 건물을 왼쪽부터 같은 간격으로 놓고, 남는 높이는 줄 사이에 고르게 나눈다.
+## 세로는 그림 2(위 2채, 착륙장, 아래 2채, 맨 아래 1채)를 따른다.
 ## (기준 해상도가 화면 비율에 맞춰 늘어나므로(expand) 가로는 폭 1280 이상, 세로는 높이 1280 이상이 보장된다)
-const LANDSCAPE_ROWS := [["research", "hangar", "drone"], ["storage", "ship", "museum"]]
 const PORTRAIT_ROWS := [["research", "hangar"], ["ship"], ["storage", "museum"], ["drone"]]
 ## 이름표가 그림 밖으로 나오는 높이 (이름표 높이 - 그림에 걸치는 만큼)
 const LABEL_OUT := LABEL_HEIGHT - PIXEL * 4
+
+## 가로 화면 배치 (승인된 콘셉트 v0.6.3, 1280x720 무대 기준): id → [가운데 x, 그림 아래 y]
+## 무대는 화면 가운데에 놓이고, 더 큰 화면은 배경만 이어 붙는다. 위 줄은 이름표가 위쪽 줄(TOP_BAR)과 안 겹치게 콘셉트보다 조금 내렸다.
+const STAGE := Vector2(1280, 720)
+const LANDSCAPE_POS := {
+	"research": [303, 285], "hangar": [636, 240], "drone": [981, 288],
+	"ship": [640, 447], "storage": [297, 555], "museum": [975, 561],
+}
 
 static var _sizes: Dictionary = {}
 
@@ -55,7 +62,15 @@ static func snap(v: Vector2) -> Vector2:
 ## id → 그림 자리 Rect2 (화면 픽셀, 격자에 맞춤)
 ## 줄마다 누르는 자리(그림 + 이름표)의 아래쪽을 맞추고, 남는 높이를 위·사이·아래 틈에 고르게 나눈다.
 static func rects(size: Vector2) -> Dictionary:
-	var rows: Array = PORTRAIT_ROWS if is_portrait(size) else LANDSCAPE_ROWS
+	if not is_portrait(size):
+		var off := (size - STAGE) / 2.0
+		var out := {}
+		for id in IDS:
+			var pos: Array = LANDSCAPE_POS[id]
+			var s := sprite_size(SPRITES[id]) * PIXEL
+			out[id] = Rect2(snap(off + Vector2(pos[0] - s.x / 2.0, pos[1] - s.y)), s)
+		return out
+	var rows: Array = PORTRAIT_ROWS
 	var heights: Array[float] = []
 	var total := 0.0
 	for row in rows:

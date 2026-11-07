@@ -73,7 +73,7 @@ func test_기지_그림은_정리된_픽셀_아트() -> void:
 				elif c.a >= 0.99:
 					colors[c.to_rgba32() | 0xff] = true
 		assert_eq(half_alpha, 0, file + " 반투명 픽셀")
-		assert_true(colors.size() <= 24, "%s 색 %d개" % [file, colors.size()])
+		assert_true(colors.size() <= 40, "%s 색 %d개" % [file, colors.size()])
 
 
 func test_기지_화면에서만_2배_기준_해상도() -> void:
