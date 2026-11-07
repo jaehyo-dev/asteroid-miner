@@ -21,7 +21,7 @@
 |---|---|---|
 | Pillow 10.4.0 (Jeffrey A. Clark and contributors) | MIT-CMU (HPND) | `tools/pixelate.py` 그림 정리 도구와 그 테스트 (https://github.com/python-pillow/Pillow, CI에서 pip로 설치) |
 | rembg (Daniel Gatis), isnet-general-use 모델 | MIT, 모델 Apache-2.0 | `tools/pixelate.py --rembg` 배경 지우기 (개발 PC에만 설치, 필요할 때만) |
-| GitHub Actions: actions/checkout, actions/cache, actions/configure-pages, actions/upload-pages-artifact, actions/deploy-pages | MIT | `.github/` 자동 테스트·배포 |
+| GitHub Actions: actions/checkout, actions/setup-python, actions/cache, actions/configure-pages, actions/upload-pages-artifact, actions/deploy-pages | MIT | `.github/` 자동 테스트·배포 |
 | Python 3 표준 라이브러리 | PSF License | `tools/` 변경 기록·버전 도구 |
 
 ## 직접 만든 것
