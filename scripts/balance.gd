@@ -7,8 +7,6 @@ extends RefCounted
 # ── 화면 ─────────────────────────────────────────────
 ## 가로 화면 기준 해상도 (PC, 휴대폰 가로)
 const BASE_LANDSCAPE := Vector2i(640, 360)
-## 세로 화면 기준 해상도 (휴대폰 세로). 짧은 쪽이 360px이 되게 해서 글자 크기를 맞춘다.
-const BASE_PORTRAIT := Vector2i(360, 640)
 ## 한 프레임에 처리하는 최대 시간. 탭 전환 등으로 프레임이 길어져도 운석이 순간 이동하지 않게 한다.
 const MAX_FRAME_DELTA := 0.1
 

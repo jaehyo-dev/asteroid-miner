@@ -15,7 +15,7 @@ const METAL := Color("#6f748a")
 const METAL_D := Color("#43475c")
 const PIPE := Color("#9aa0b8")  # 배관 윗줄
 const CABLE := Color("#b4742c")  # 케이블
-const PATH_RIM := Color("#2c2e44")  # 세로 화면 금속판 길의 테두리
+const PATH_RIM := Color("#2c2e44")  # 금속판 길의 테두리
 const YELLOW := Color("#f2c230")
 const CYAN := Color("#59e4ff")
 const ORANGE := Color("#ff9a2e")
@@ -27,22 +27,21 @@ const GOLD := Color("#ffd34f")
 ## 연구소 위 부품 자리 (연구소 그림 기준 그림 픽셀, 부품 그림의 아래 가운데가 닿는 곳): [부품 번호, x, y]
 ## 1 = 안테나 기둥, 2 = 접시 안테나. 연구할수록 앞에서부터 하나씩 늘어난다.
 ## 이름표와 겹치지 않게 모두 연구소 그림 안쪽(받침 지붕 모서리, 돔 옆)에 둔다.
-const ANTENNA_SPOTS := [[2, 50, 39], [1, 6, 44], [1, 53, 45], [1, 3, 37]]
+const ANTENNA_SPOTS := [[2, 67, 53], [1, 8, 59], [1, 71, 61], [1, 4, 50]]
 ## 연구소 불빛(부품 3) 자리: 돔 아래 띠를 따라 왼쪽부터
-const LIGHT_SPOTS := [[10, 36], [14, 36], [19, 36], [23, 36], [27, 36], [31, 36], [35, 36], [39, 36], [44, 36], [48, 36]]
+const LIGHT_SPOTS := [[13, 49], [19, 49], [26, 49], [31, 49], [36, 49], [42, 49], [47, 49], [52, 49], [59, 49], [65, 49]]
 ## 창고 앞 광물 더미 자리 (창고 그림 기준, 더미 그림의 아래 가운데)
-const PILE_SPOT := Vector2(34, 50)
-## 드론 공장 앞 빈 표지판 자리 (그림 기준, 표지판 아래 가운데)
-const SIGN_SPOT := Vector2(72, 48)
+const PILE_SPOT := Vector2(40, 60)
 ## 착륙장 위 우주선·조종사 자리 (착륙장 그림 기준, 그림의 아래 가운데)
-const SHIP_SPOT := Vector2(26, 22)
-const PILOT_SPOT := Vector2(41, 23)
+const SHIP_SPOT := Vector2(35, 31)
+const PILOT_SPOT := Vector2(55, 32)
 
 ## 밤 기지: 출격 화면(어두운 우주)과 어울리게 바닥과 건물을 어둡게 눌러 그린다 (불빛·이름표·빛 고리는 그대로 밝게)
 const GROUND_SHADE := Color(0.64, 0.64, 0.76)
 const BUILDING_SHADE := Color(0.88, 0.88, 0.96)
-## 접지 그림자 (모든 건물이 왼쪽 위 광원이라 오른쪽 아래로 드리움)
-const SHADOW := Color(0.02, 0.01, 0.06, 0.3)
+## 접지 그림자 (모든 건물이 왼쪽 위 광원이라 오른쪽 아래로 드리움). 기울기: 그림 높이 1당 오른쪽·아래로 밀리는 양
+const SHADOW := Color(0.02, 0.01, 0.06, 0.42)
+const SHADOW_SLANT := Vector2(0.5, 0.2)
 ## 마우스를 올리거나 키보드로 고른 건물: 윤곽선이 빛나고, 누르는 순간 PRESS_TIME 동안 더 밝게 번쩍인다
 const HOVER_COLOR := Color("#9ff6ff")
 const PRESS_TIME := 0.18
@@ -64,11 +63,10 @@ var _meteor_timer := 2.0
 var _rng := RandomNumberGenerator.new()
 var _tex := {}
 ## 화면 크기가 바뀔 때 한 번만 계산해 두는 칸 목록 (매 프레임 다시 계산하지 않게)
-## 길 바닥·배관: [Rect2, 색] / 길 꺾이는 점(가로등 자리): 건물마다 / 접지 그림자: 건물 id → Rect2 목록
+## 길 바닥·배관: [Rect2, 색] / 길 꺾이는 점(가로등 자리): 건물마다
 var _path_cells: Array = []
 var _path_ends: Dictionary = {}
 var _path_bends: Dictionary = {}
-var _shadow_rects: Dictionary = {}
 ## 강조할 건물 id (마우스를 올렸거나 키보드로 고름, 없으면 "")와 누른 건물·남은 번쩍임 시간
 var hover_id := ""
 var pressed_id := ""
@@ -96,9 +94,7 @@ func relayout() -> void:
 	_path_cells.clear()
 	_path_bends.clear()
 	_path_ends.clear()
-	_shadow_rects.clear()
 	for id in BaseLayout.IDS:
-		_shadow_rects[id] = _shadow(rects[id])
 		if id != "ship":
 			_build_road(id)
 
@@ -108,92 +104,15 @@ static func _cell_rect(pos: Vector2, w: float = 1.0, h: float = 1.0) -> Rect2:
 	return Rect2(BaseLayout.snap(pos), Vector2(w, h) * P)
 
 
-## 접지 그림자: 건물 아래쪽 절반을 오른쪽 아래로 눕힌 모양 (P 높이 줄을 쌓아 격자에 맞춤)
-static func _shadow(r: Rect2) -> Array[Rect2]:
-	var rows: Array[Rect2] = []
-	var top := r.position.y + r.size.y * 0.62
-	var bottom := r.end.y + P * 2.0
-	var y := top
-	while y < bottom:
-		var up := 1.0 - (y - top) / (bottom - top)  # 위쪽 줄일수록 오른쪽으로 더 뻗음
-		var left := r.position.x + P * (10.0 if y > r.end.y - P * 6.0 else 18.0)
-		var right := r.end.x + P * (4.0 + 6.0 * up)
-		rows.append(Rect2(BaseLayout.snap(Vector2(left, y)), BaseLayout.snap(Vector2(right - left, P))))
-		y += P
-	return rows
-
-
-## 착륙장에서 건물 입구까지 꺾이는 길 (가로 화면. 세로 화면은 _build_road_portrait): 위쪽 건물은 세로·가로·세로, 옆·아래 건물은 가로·세로·가로. 점 4개.
-func _road_points(id: String) -> Array[Vector2]:
-	var pr: Rect2 = rects["ship"]
-	var r: Rect2 = rects[id]
-	var dx := r.get_center().x - pr.get_center().x
-	var pts: Array[Vector2]
-	if r.get_center().y < pr.get_center().y:
-		# 착륙장 위쪽 건물: 착륙장 윗면에서 위로 올라가 건물 앞문(그림 아래)으로
-		var a := Vector2(pr.get_center().x + clampf(dx, -P * 12, P * 12), pr.position.y + P * 8)
-		var b := Vector2(r.get_center().x, r.end.y - P * 4)
-		var mid := BaseLayout.snap(Vector2(0, (a.y + b.y) / 2.0)).y
-		pts = [a, Vector2(a.x, mid), Vector2(b.x, mid), b]
-	else:
-		# 착륙장 옆·아래쪽 건물: 착륙장 옆면에서 옆으로 나가 건물의 안쪽 옆문으로
-		var sgn := signf(dx)
-		var a := Vector2(pr.get_center().x + sgn * pr.size.x * 0.4, pr.end.y - P * 12)
-		var b := Vector2(r.get_center().x - sgn * r.size.x * 0.3, r.end.y - P * 8)
-		var mid := BaseLayout.snap(Vector2((a.x + b.x) / 2.0, 0)).x
-		pts = [a, Vector2(mid, a.y), Vector2(mid, b.y), b]
-	return pts
-
-
-## 길 칸과 옆을 따라가는 배관·케이블 칸을 미리 계산 (매 프레임 다시 계산하지 않게)
-func _build_road(id: String) -> void:
-	if BaseLayout.is_portrait(size):
-		_build_road_portrait(id)
-		return
-	var pts := _road_points(id)
-	_path_ends[id] = pts[3]
-	for k in 3:
-		var a := pts[k]
-		var b := pts[k + 1]
-		var horizontal := absf(b.y - a.y) < 1.0
-		var length := (b - a).length()
-		var dir := (b - a).normalized()
-		var side := dir.orthogonal()
-		# 길 바닥 5칸 폭
-		var half := P * 2.5
-		var lo := Vector2(minf(a.x, b.x), minf(a.y, b.y)) - (Vector2(0, half) if horizontal else Vector2(half, 0))
-		var sz := Vector2(length + P, P * 5) if horizontal else Vector2(P * 5, length + P)
-		_path_cells.append([Rect2(BaseLayout.snap(lo), BaseLayout.snap(sz)), METAL_D])
-		# 노랑·검정 점선 가장자리 (두 줄)
-		var steps := int(length / (P * 2.0)) + 1
-		for i in steps:
-			var p := a + dir * i * P * 2.0
-			var c := YELLOW if i % 2 == 0 else DARK
-			for sd: float in [-1.0, 1.0]:
-				var q := p + side * sd * half
-				_path_cells.append([_cell_rect(q - Vector2(P, P) * 0.5, 2 if horizontal else 1, 1 if horizontal else 2), c])
-		# 길 옆 배관 (길과 같은 모양을 오른쪽 아래로 옮긴 것): 어두운 관 + 밝은 윗줄
-		var off := Vector2(P * 4, P * 4)
-		var plo := lo + off
-		var psz := Vector2(length + P, P * 2) if horizontal else Vector2(P * 2, length + P)
-		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(psz)), DARK])
-		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(Vector2(psz.x, P) if horizontal else Vector2(P, psz.y))), METAL])
-	_path_bends[id] = [pts[1], pts[2]]
-
-
-## 세로 화면 길 (v0.6.5): 착륙장에서 건물 입구까지 비스듬한 대각선 + 짧은 직선, 금속판(테두리·리벳) 길 + 한쪽 배관 + 반대쪽 물결 케이블, 입구에는 넓은 판.
+## 길 (v0.6.6): 착륙장에서 건물 입구까지 비스듬한 대각선 + 짧은 직선, 금속판(테두리·리벳) 길 + 한쪽 배관 + 반대쪽 물결 케이블, 입구에는 넓은 판.
 ## 긴 직선 막대 대신 칸(스탬프)을 이어 찍어 그린다. 길이 건물 입구(_path_ends)에 닿는다.
-func _build_road_portrait(id: String) -> void:
+func _build_road(id: String) -> void:
 	var pr: Rect2 = rects["ship"]
 	var r: Rect2 = rects[id]
 	var sgn := signf(r.get_center().x - pr.get_center().x)
 	var a: Vector2
 	var b: Vector2
-	if r.position.y >= pr.end.y:
-		# 전시관: 착륙장 아랫면 왼쪽에서 내려가 건물 지붕 앞 왼쪽 입구로 (가운데는 이름표 자리)
-		a = Vector2(pr.get_center().x - P * 22, pr.end.y - P * 6)
-		b = Vector2(a.x - P * 4, r.position.y + P * 6)
-	elif r.end.y <= pr.position.y + P * 8:
+	if r.end.y <= pr.position.y + P * 8:
 		# 위 건물: 착륙장 윗면 모서리에서 건물 앞문(그림 아래 가운데)으로
 		a = Vector2(pr.get_center().x + sgn * P * 22, pr.position.y + P * 6)
 		b = Vector2(r.get_center().x, r.end.y - P * 3)
@@ -232,8 +151,9 @@ func _build_road_portrait(id: String) -> void:
 					extra.append([Rect2(BaseLayout.snap(p + side * P * sd), Vector2(P, P)), METAL])
 			# 배관: 한쪽 옆에 어두운 관 + 밝은 윗줄
 			var q := p + side * P * 5.0
-			extra.append([Rect2(BaseLayout.snap(q), Vector2(P, P) * 2.0), DARK])
-			extra.append([Rect2(BaseLayout.snap(q), Vector2(P, P)), PIPE])
+			extra.append([Rect2(BaseLayout.snap(q), Vector2(P, P) * 3.0), DARK])
+			extra.append([Rect2(BaseLayout.snap(q), Vector2(P * 3.0, P)), PIPE])
+			extra.append([Rect2(BaseLayout.snap(q + Vector2(0, P)), Vector2(P * 3.0, P)), METAL])
 			# 케이블: 반대쪽 옆에 물결치는 1칸 선, 가끔 주황 신호
 			var wob := roundf(sin(n * 0.8) * 1.0) * P
 			var c := p - side * (P * 5.0 + wob)
@@ -251,7 +171,7 @@ func _build_road_portrait(id: String) -> void:
 
 
 func ground() -> Texture2D:
-	return tex("ground_portrait" if BaseLayout.is_portrait(size) else "ground_landscape")
+	return tex("ground_landscape")
 
 
 ## 이륙을 시작한다 (main.gd가 LAUNCH_TIME 뒤 출격 화면으로 넘어간다).
@@ -307,8 +227,7 @@ func _draw() -> void:
 		return
 	_draw_ground()
 	for id in BaseLayout.IDS:
-		for c: Rect2 in _shadow_rects[id]:
-			draw_rect(c, SHADOW)
+		_draw_shadow(id)
 	for c in _path_cells:
 		draw_rect(c[0], c[1])
 	for id in BaseLayout.IDS:
@@ -342,6 +261,20 @@ func _draw() -> void:
 
 # ── 배경과 길 ──────────────────────────────────────
 
+## 그림 점 (x, y) → (x + (foot - y) * 기울기.x, foot + (foot - y) * 기울기.y): 아랫변(foot)은 제자리, 위쪽일수록 오른쪽·아래로 밀림
+static func shadow_transform(foot: float) -> Transform2D:
+	return Transform2D(Vector2(1, 0), Vector2(-SHADOW_SLANT.x, -SHADOW_SLANT.y), Vector2(foot * SHADOW_SLANT.x, foot * (1.0 + SHADOW_SLANT.y)))
+
+
+## 접지 그림자: 건물 그림 모양 그대로 바닥에 눕혀 오른쪽 아래로 떨어뜨린다 (왼쪽 위 광원).
+## 그림의 아랫변을 기준으로 위쪽 점일수록 오른쪽·아래로 멀리 밀리는 기울이기(SHADOW_SLANT)로 그리고, 건물이 위에 덮인다.
+func _draw_shadow(id: String) -> void:
+	var r: Rect2 = rects[id]
+	draw_set_transform_matrix(shadow_transform(r.end.y))
+	draw_texture_rect(tex(BaseLayout.SPRITES[id]), r, false, SHADOW)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
 func _draw_ground() -> void:
 	# 소행성 전체가 화면 가운데에 들어온다 (바깥은 별 배경이 비침)
 	var g := ground()
@@ -367,10 +300,8 @@ func _draw_label(id: String) -> void:
 		return
 	var font := get_theme_default_font()
 	var text: String = BaseLayout.NAMES[id]
-	var portrait := BaseLayout.is_portrait(size)
-	var lr := BaseLayout.label_rect(id, rects[id], portrait)
-	# 세로 화면은 상자 여백을 줄여 건물을 덜 가림
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x + P * (4 if portrait else 6)
+	var lr := BaseLayout.label_rect(id, rects[id])
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x + P * 6
 	var box := Rect2(BaseLayout.snap(Vector2(lr.get_center().x - w / 2.0, lr.position.y)), BaseLayout.snap(Vector2(w, lr.size.y)))
 	draw_rect(box, LABEL_BG)
 	draw_rect(box.grow(-P / 2.0), Color(GLOW, 0.5 + 0.25 * sin(time * 2.4)), false, P)
@@ -428,17 +359,11 @@ func _draw_pile(r: Rect2) -> void:
 		_sprite(tex("pile_%d" % level), r.position + PILE_SPOT * P)
 
 
-## 드론 공장 앞 빈 표지판 자리에 "곧 개방"
+## 드론 공장 건물 바로 아래 오른쪽에 "곧 개방" 표지 (건물·이름표·길과 겹치지 않음)
 func _draw_sign(r: Rect2) -> void:
 	var font := get_theme_default_font()
 	var text := "곧 개방"
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x + P * 4
-	var foot := r.position + SIGN_SPOT * P
-	if BaseLayout.is_portrait(size):
-		# 세로: 건물마다 같은 규칙(건물 위 가운데). 이름표 바로 위에 쌓아 건물을 가리지 않는다.
-		var lr := BaseLayout.label_rect("drone", r, true)
-		foot = Vector2(r.get_center().x, lr.position.y - P)
-	var box := Rect2(BaseLayout.snap(Vector2(foot.x - w / 2.0, foot.y - P * 14)), BaseLayout.snap(Vector2(w, P * 14)))
+	var box := BaseLayout.sign_rect(r, font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x)
 	draw_rect(box, YELLOW)
 	draw_rect(Rect2(box.position + Vector2(0, box.size.y - P), Vector2(box.size.x, P)), Color("#a8841e"))
 	draw_string(font, Vector2(box.position.x, box.position.y + P * 11), text, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, BaseLayout.FONT_SIZE, DARK)

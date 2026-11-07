@@ -26,6 +26,7 @@ signal launched
 @onready var version_label: Label = %VersionLabel
 @onready var old_versions_button: Button = %OldVersionsButton
 @onready var credits_label: Label = %CreditsLabel
+@onready var fullscreen_button: Button = %FullscreenButton
 @onready var view: BaseView = %View
 @onready var spots: Control = %Spots
 @onready var panel: BasePanel = %Panel
@@ -49,6 +50,9 @@ func _ready() -> void:
 	# 이전 버전 링크는 웹(GitHub Pages)에서만 의미가 있으므로 웹에서만 보여 준다.
 	old_versions_button.visible = OS.has_feature("web")
 	old_versions_button.pressed.connect(_on_old_versions_pressed)
+	# 전체 화면 버튼도 웹에서 브라우저가 허용할 때만 보인다 (전체 화면에 들어가면 App이 가로 고정을 시도)
+	fullscreen_button.visible = OS.has_feature("web") and bool(JavaScriptBridge.eval("!!document.fullscreenEnabled"))
+	fullscreen_button.pressed.connect(_on_fullscreen_pressed)
 	save = SaveData.load_file()
 	panel.save = save
 	panel.closed.connect(_on_panel_closed)
@@ -87,12 +91,11 @@ static func game_version() -> String:
 	return str(ProjectSettings.get_setting("application/config/version", "0.0.0"))
 
 
-## 건물·우주선 버튼을 그림 자리(이름표 포함)에 맞춘다. 세로 화면은 위쪽 줄이 좁아 제목을 숨긴다.
+## 건물·우주선 버튼을 그림 자리(이름표 포함)에 맞춘다.
 func _place_spots() -> void:
-	%Title.visible = not BaseLayout.is_portrait(view.size)
 	var rects := BaseLayout.rects(view.size)
 	for id in spot_buttons:
-		var r := BaseLayout.touch_rect(id, rects[id], BaseLayout.is_portrait(view.size))
+		var r := BaseLayout.touch_rect(id, rects[id])
 		var b: Button = spot_buttons[id]
 		b.position = r.position
 		b.size = r.size
@@ -199,3 +202,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_old_versions_pressed() -> void:
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval(OPEN_OLD_VERSIONS_JS)
+
+
+## 전체 화면을 켜고 끈다 (사용자가 누른 순간에 요청해야 브라우저가 허용한다).
+func _on_fullscreen_pressed() -> void:
+	var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)

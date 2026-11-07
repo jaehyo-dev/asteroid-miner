@@ -34,8 +34,6 @@ var close_button: Button
 
 var _panel: PanelContainer
 var _content: VBoxContainer
-## 내용을 만들 때의 화면 방향 (휴대폰을 돌리면 다시 만든다)
-var _built_portrait := false
 
 
 ## 능력치 막대 (격납고)
@@ -68,7 +66,6 @@ func _ready() -> void:
 	_content = VBoxContainer.new()
 	_content.add_theme_constant_override("separation", P * 4)
 	_panel.add_child(_content)
-	resized.connect(_on_resized)
 	hide()
 
 
@@ -116,16 +113,6 @@ static func _scaled(tex: Texture2D) -> Texture2D:
 	return _scaled_cache[tex]
 
 
-func _portrait() -> bool:
-	return BaseLayout.is_portrait(size)
-
-
-## 열린 채로 휴대폰을 돌리면 그 방향에 맞는 배치(열 수, 카드 너비)로 다시 만든다
-func _on_resized() -> void:
-	if visible and _portrait() != _built_portrait:
-		_rebuild()
-
-
 ## 건물 화면을 연다.
 func open(new_kind: String) -> void:
 	kind = new_kind
@@ -156,7 +143,6 @@ func _rebuild() -> void:
 		child.queue_free()
 	buy_buttons.clear()
 	cards.clear()
-	_built_portrait = _portrait()
 	var header := HBoxContainer.new()
 	var title := _label(BaseLayout.NAMES.get(kind, ""), COLOR_TITLE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -186,7 +172,7 @@ func _rebuild() -> void:
 
 func _build_research() -> void:
 	var grid := GridContainer.new()
-	grid.columns = 1 if _portrait() else 2
+	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", P * 4)
 	grid.add_theme_constant_override("v_separation", P * 3)
 	for u in Balance.BASE_UPGRADES:
@@ -198,7 +184,7 @@ func _research_card(id: String) -> PanelContainer:
 	var lv := save.level_of(id)
 	var top := lv >= BaseUpgrades.max_level(id)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(P * 210 if _portrait() else P * 186, 0)
+	card.custom_minimum_size = Vector2(P * 186, 0)
 	card.add_theme_stylebox_override("panel", _style(COLOR_CARD, COLOR_MAX if top else Color(COLOR_BORDER, 0.4), P * 3))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 0)
@@ -250,10 +236,10 @@ func _buy(id: String) -> void:
 # ── 격납고 ────────────────────────────────────────
 
 func _build_hangar() -> void:
-	var body: BoxContainer = VBoxContainer.new() if _portrait() else HBoxContainer.new()
+	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", P * 8)
 	var slots := GridContainer.new()
-	slots.columns = 1  # 세로 화면(폭 720)에서도 36px 설명 문구가 들어가게 한 줄에 한 칸
+	slots.columns = 1  # 36px 설명 문구가 들어가게 한 줄에 한 칸
 	slots.add_theme_constant_override("h_separation", P * 3)
 	slots.add_theme_constant_override("v_separation", P * 3)
 	for i in Hangar.slots().size():
@@ -269,7 +255,7 @@ func _build_hangar() -> void:
 		row.add_child(name_label)
 		var bar := StatBar.new()
 		bar.ratio = s["ratio"]
-		bar.custom_minimum_size = Vector2(P * (70 if _portrait() else 90), P * 12)
+		bar.custom_minimum_size = Vector2(P * 90, P * 12)
 		row.add_child(bar)
 		var value := _label(s["value"], COLOR_TITLE)
 		value.custom_minimum_size = Vector2(P * 62, 0)
@@ -309,7 +295,7 @@ func _build_storage() -> void:
 	_content.add_child(_label("보유 광물 총가치  %s" % Hud.thousands(save.credits), COLOR_TITLE))
 	_content.add_child(_label("지금까지 기지로 가져온 광물", COLOR_DIM))
 	var grid := GridContainer.new()
-	grid.columns = 2 if _portrait() else 4
+	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", P * 10)
 	grid.add_theme_constant_override("v_separation", P * 2)
 	for i in Balance.MINERAL_GRADES.size():
@@ -325,13 +311,13 @@ func _build_storage() -> void:
 func _build_museum() -> void:
 	_content.add_child(_label("발견 %d / %d" % [save.seen.size(), Discovery.ENTRIES.size()], COLOR_DIM))
 	var grid := GridContainer.new()
-	grid.columns = 3 if _portrait() else 4
+	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", P * 3)
 	grid.add_theme_constant_override("v_separation", P * 3)
 	for e in Discovery.ENTRIES:
 		var found: bool = save.seen.has(e["id"])
 		var cell := PanelContainer.new()
-		cell.custom_minimum_size = Vector2(P * (74 if _portrait() else 90), 0)
+		cell.custom_minimum_size = Vector2(P * 90, 0)
 		cell.add_theme_stylebox_override("panel", _style(COLOR_CARD, Color(COLOR_BORDER, 0.35 if found else 0.12), P * 2))
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 0)

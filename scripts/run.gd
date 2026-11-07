@@ -46,6 +46,10 @@ func _ready() -> void:
 	danger.alert = alert
 	pause_button.pressed.connect(pause)
 	menu.chosen.connect(_on_menu_chosen)
+	# 폰을 세로로 들면 일시 정지 (가로로 돌리면 일시 정지 메뉴에서 이어서 한다)
+	App.portrait_changed.connect(_on_portrait_changed)
+	if App.portrait:
+		pause()
 
 
 func _process(delta: float) -> void:
@@ -191,6 +195,11 @@ func _exit_tree() -> void:
 func _notification(what: int) -> void:
 	# 휴대폰에서 다른 앱으로 가거나 탭을 바꾸면 자동으로 멈춘다.
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready() and current_menu == Menu.NONE and not sim.is_over():
+		pause()
+
+
+func _on_portrait_changed(is_portrait: bool) -> void:
+	if is_portrait:
 		pause()
 
 

@@ -35,6 +35,14 @@ func test_웹_내보내기는_스레드_없이_설정됨() -> void:
 		assert_true(excluded.contains(folder), "내보내기 제외: " + folder)
 
 
+func test_웹_페이지는_노치와_홈_바_안쪽에만_그림() -> void:
+	# viewport-fit=cover를 켜면 페이지가 노치·홈 바 밑까지 퍼져 HUD가 가려진다. 끄면(기본값) 브라우저가 안전 영역 안에만 그린다.
+	var presets := ConfigFile.new()
+	presets.load("res://export_presets.cfg")
+	assert_false(str(presets.get_value("preset.0.options", "html/head_include", "")).contains("viewport-fit"), "head_include")
+	assert_false(str(presets.get_value("preset.0.options", "html/custom_html_shell", "")).contains("viewport-fit"), "custom_html_shell")
+
+
 func test_내보내기_결과물_폴더는_리소스로_가져오지_않음() -> void:
 	# build/ 안의 이전 빌드(그림 등)가 다음 빌드에 섞여 들어가지 않게 한다.
 	assert_true(FileAccess.file_exists("res://build/.gdignore"), "build/.gdignore")

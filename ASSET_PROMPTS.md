@@ -121,3 +121,7 @@ Codex 내장 이미지 생성으로 만든 그림과 요청문 기록입니다. 
 ### v0.6.5 (2026-11-08): 세로 화면 소행성 지면 (Codex 요청 없음)
 
 바위 윤곽(4:5, 좌우 비대칭)은 이미지 생성 없이 `tools/make_ground.py`(시드 64)로 만듦: v0.6.4 세로 지면(`assets/raw/base/ground_portrait_v064.png`, Codex 그림)의 바위 질감을 잘라 새 윤곽에 입히고, 절벽 단면·가장자리 명암을 더해 36색으로 줄임.
+
+### v0.6.6 (2026-11-08): 가로 고정 — 건물 12~13% 폭 (Codex 요청 없음)
+
+새 그림 생성 없이 기존 원본(`assets/raw/base/crop063/*`, `pad.png`, `ship.png`, `pilot.png`, `research_parts.png`, `piles.png`)을 `tools/make_base_sprites.sh`로 더 큰 격자(건물 폭 78~83)에 다시 정리. 세로 지면(`ground_portrait`)은 사용 중단.
