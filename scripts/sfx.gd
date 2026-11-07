@@ -39,7 +39,15 @@ const GATE_ALARM_SOUND := {"wave": "square", "notes": [[988.0, 0.08], [0.0, 0.06
 const GATE_COLLAPSE_SOUND := {"wave": "noise", "notes": [[2400.0, 0.5, 300.0]], "volume": 0.3}
 const WARP_DONE_SOUND := {"wave": "square", "notes": [[220.0, 0.55, 1760.0], [1760.0, 0.25]], "volume": 0.28}
 
+## 기지: 건물 열기(가볍게 올라가는 두 음), 이륙(낮게 시작해 솟는 엔진음), 버튼(짧은 딸깍)
+const OPEN_SOUND := {"wave": "triangle", "notes": [[523.0, 0.05], [784.0, 0.09]], "volume": 0.45}
+const TAKEOFF_SOUND := {"wave": "noise", "notes": [[200.0, 0.35, 900.0], [900.0, 0.6, 2600.0]], "volume": 0.3}
+const CLICK_SOUND := {"wave": "square", "notes": [[660.0, 0.03]], "volume": 0.2}
+
 var _pickup_players: Array[AudioStreamPlayer] = []
+var _open_player: AudioStreamPlayer
+var _takeoff_player: AudioStreamPlayer
+var _click_player: AudioStreamPlayer
 var _charge_player: AudioStreamPlayer
 var _fire_player: AudioStreamPlayer
 var _guard_player: AudioStreamPlayer
@@ -79,6 +87,9 @@ func _ready() -> void:
 	_gate_collapse_player = _make_player(GATE_COLLAPSE_SOUND)
 	_warp_charge_player = _make_player(WARP_CHARGE_SOUND)
 	_warp_done_player = _make_player(WARP_DONE_SOUND)
+	_open_player = _make_player(OPEN_SOUND)
+	_takeoff_player = _make_player(TAKEOFF_SOUND)
+	_click_player = _make_player(CLICK_SOUND)
 	_raid_player = AudioStreamPlayer.new()
 	_raid_player.stream = synth(RAID_SOUND["notes"], RAID_SOUND["wave"], RAID_SOUND["volume"])
 	_raid_player.volume_db = VOLUME_DB
@@ -254,3 +265,16 @@ static func synth(notes: Array, wave: String, volume: float) -> AudioStreamWAV:
 	stream.stereo = false
 	stream.data = data
 	return stream
+
+
+## 기지: 건물 열기, 이륙, 버튼 소리
+func play_open() -> void:
+	_open_player.play()
+
+
+func play_takeoff() -> void:
+	_takeoff_player.play()
+
+
+func play_click() -> void:
+	_click_player.play()

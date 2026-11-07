@@ -320,3 +320,131 @@ static func gate_lights() -> Array[Dictionary]:
 		else:
 			result.append({"pos": Vector2.from_angle(i * step) * 27.5, "clamp": false, "segment": i})
 	return result
+
+
+# ── 기지 화면 (v0.6.0) ───────────────────────────────
+## 착륙해 있는 우주선 (출격 화면 우주선과 같은 모양을 크게 다시 그림). 글자 → 색: SHIP_COLORS + w 하이라이트
+const SHIP_LARGE_PATTERN := [
+	"...........#...........",
+	"..........###..........",
+	"..........#c#..........",
+	".........##c##.........",
+	".........#ccc#.........",
+	".........#cwc#.........",
+	".........#ddd#.........",
+	"........##ddd##........",
+	"........#ddddd#........",
+	".......##ddddd##.......",
+	".....#####ddd#####.....",
+	"...####w##ddd##w####...",
+	".######d##ddd##d######.",
+	"##..###d#ddddd#d###..##",
+	"#....##d#.ddd.#d##....#",
+	".....#d#...d...#d#.....",
+	"....##...........##....",
+]
+## 우주복 조종사 (5x8). 글자 → 색: s 우주복, v 헬멧 창, d 어두운 부분, o 등 뒤 산소통
+const PILOT_PATTERN := [
+	".sss.",
+	"svvvs",
+	"svvvs",
+	".sss.",
+	"osssd",
+	"osssd",
+	".s.s.",
+	".d.d.",
+]
+const PILOT_COLORS := {"s": Color("#e8ecf6"), "v": Color("#4fd1ff"), "d": Color("#8a90a8"), "o": Color("#ff9a2e")}
+## 연구소 카드 아이콘 (9x9). 글자 → 색: a 밝은, b 기본, c 어두운
+const UPGRADE_ICON_PATTERNS := {
+	"damage": [  # 탄환
+		"....a....", "...aab...", "...abb...", "...abb...", "...abb...",
+		"...abb...", "..ccccc..", "..cbbbc..", "..ccccc..",
+	],
+	"max_hp": [  # 하트
+		".........", ".aa...bb.", "aabb.bbbc", "abbbbbbbc", "bbbbbbbbc",
+		".bbbbbbc.", "..bbbbc..", "...bbc...", "....c....",
+	],
+	"speed": [  # 겹친 화살표
+		".........", "a...a....", ".a...a...", "..a...a..", "...b...b.",
+		"..b...b..", ".c...c...", "c...c....", ".........",
+	],
+	"cargo": [  # 상자
+		".........", "aaaaaaaaa", "abbbbbbbc", "abcbbbcbc", "abbcbcbbc",
+		"abbbcbbbc", "abbcbcbbc", "abcbbbcbc", "ccccccccc",
+	],
+	"insurance": [  # 방패
+		"aaaaaaaab", "abbbbbbbc", "abbbabbbc", "abbaaabbc", "abbbabbbc",
+		".abbbbbc.", ".abbbbbc.", "..abbbc..", "....c....",
+	],
+	"magnet": [  # 말굽 자석
+		".bbbbbbb.", "bbbbbbbbb", "bbc...cbb", "bb.....bb", "bb.....bb",
+		"bb.....bb", "aa.....aa", "aa.....aa", ".........",
+	],
+}
+const UPGRADE_ICON_COLORS := {
+	"damage": [Color("#ffffff"), Color("#7fe8ff"), Color("#5a6a8a")],
+	"max_hp": [Color("#ffd0d0"), Color("#ff5a5a"), Color("#a83232")],
+	"speed": [Color("#e8ffd8"), Color("#9dff6a"), Color("#4f9a2e")],
+	"cargo": [Color("#ffe6a8"), Color("#c98a3c"), Color("#7a4f1e")],
+	"insurance": [Color("#d8f4ff"), Color("#4fa8ff"), Color("#2a5aa8")],
+	"magnet": [Color("#e8ecf6"), Color("#ff4d4d"), Color("#a82a2a")],
+}
+## 자물쇠 (격납고 잠긴 칸, 7x8)
+const LOCK_PATTERN := [
+	"..aaa..", ".a...a.", ".a...a.", "bbbbbbb", "bbbcbbb", "bbbcbbb", "bbbbbbb", "ccccccc",
+]
+## ??? 의 포격 (도감 아이콘: 붉은 에너지탄, 7x7)
+const BARRAGE_ICON_PATTERN := [
+	"..bbb..", ".baaab.", "baaaaab", "baaaaab", "baaaaab", ".baaab.", "..bbb..",
+]
+
+
+static func ship_large() -> ImageTexture:
+	if not _cache.has("ship_large"):
+		_cache["ship_large"] = from_pattern(SHIP_LARGE_PATTERN, SHIP_COLORS.merged({"w": Color.WHITE}))
+	return _cache["ship_large"]
+
+
+static func pilot() -> ImageTexture:
+	if not _cache.has("pilot"):
+		_cache["pilot"] = from_pattern(PILOT_PATTERN, PILOT_COLORS)
+	return _cache["pilot"]
+
+
+static func upgrade_icon(id: String) -> ImageTexture:
+	var key := "up_" + id
+	if not _cache.has(key):
+		var c: Array = UPGRADE_ICON_COLORS[id]
+		_cache[key] = from_pattern(UPGRADE_ICON_PATTERNS[id], {"a": c[0], "b": c[1], "c": c[2]})
+	return _cache[key]
+
+
+static func lock() -> ImageTexture:
+	if not _cache.has("lock"):
+		_cache["lock"] = from_pattern(LOCK_PATTERN, {"a": Color("#c8cde0"), "b": Color("#ffcc33"), "c": Color("#8a5a0a")})
+	return _cache["lock"]
+
+
+static func barrage_icon() -> ImageTexture:
+	if not _cache.has("barrage_icon"):
+		_cache["barrage_icon"] = from_pattern(BARRAGE_ICON_PATTERN, {"a": Color("#ffd0e8"), "b": Color("#ff6aa8")})
+	return _cache["barrage_icon"]
+
+
+## 도감 아이콘 (Discovery.ENTRIES의 id)
+static func discovery_icon(id: String) -> Texture2D:
+	if id.begins_with("mineral_"):
+		return mineral(int(id.substr(8)))
+	if id.begins_with("rock_"):
+		return asteroid(Balance.ASTEROID_TYPES[int(id.substr(5))]["radius"], 0)
+	match id:
+		"golden":
+			return asteroid(Balance.GOLDEN["radius"], 0, true)
+		"jelly":
+			return jelly_bell()
+		"bug":
+			return bug(0)
+		"guard":
+			return guard()
+	return barrage_icon()

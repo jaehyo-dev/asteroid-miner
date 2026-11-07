@@ -1,0 +1,333 @@
+extends TestCase
+## 기지 전초기지 화면 (v0.6.0): 배치, 연구소 카드 문구, 격납고, 도감, 살아 있는 기지, 건물 열기·이륙, 저장 호환.
+
+const MainScene := preload("res://scenes/main.tscn")
+const RunScene := preload("res://scenes/run.tscn")
+
+## 확인할 화면 크기 (기준 해상도 단위): PC, 휴대폰 가로(844x390), 휴대폰 세로(390x844), 넓은 가로, 정사각형에 가까운 창
+const SIZES := [Vector2(640, 360), Vector2(779, 360), Vector2(360, 640), Vector2(360, 779), Vector2(853, 360), Vector2(480, 360)]
+## 손가락으로 누르기 쉬운 최소 크기 (기준 해상도 픽셀, 휴대폰에서 약 1.08배)
+const MIN_TOUCH := Vector2(44, 44)
+
+
+func _main() -> Control:
+	var main: Control = MainScene.instantiate()
+	main.auto_start = false
+	add_child(main)
+	await wait_frames()
+	return main
+
+
+# ── 배치 ────────────────────────────────────────────
+
+func test_건물과_이름표가_화면_안에_있고_서로_겹치지_않음() -> void:
+	for size in SIZES:
+		var rects := BaseLayout.rects(size)
+		var screen := Rect2(Vector2(0, BaseLayout.TOP_BAR), size - Vector2(0, BaseLayout.TOP_BAR + 22))  # 아래 22는 버전·이전 버전 글자
+		var touch := {}
+		for id in BaseLayout.IDS:
+			var t := BaseLayout.touch_rect(id, rects[id])
+			touch[id] = t
+			assert_true(screen.encloses(t), "%s %s 화면 밖: %s" % [size, id, t])
+			assert_true(t.size.x >= MIN_TOUCH.x and t.size.y >= MIN_TOUCH.y, "%s %s 너무 작음" % [size, id])
+		for i in BaseLayout.IDS.size():
+			for j in range(i + 1, BaseLayout.IDS.size()):
+				var a: String = BaseLayout.IDS[i]
+				var b: String = BaseLayout.IDS[j]
+				assert_false(touch[a].intersects(touch[b]), "%s %s와 %s 겹침" % [size, a, b])
+
+
+func test_세로_화면은_세로_배치() -> void:
+	assert_true(BaseLayout.is_portrait(Vector2(360, 640)))
+	assert_false(BaseLayout.is_portrait(Vector2(640, 360)))
+	var r := BaseLayout.rects(Vector2(360, 640))
+	assert_true(r["research"].position.y < r["ship"].position.y and r["ship"].position.y < r["drone"].position.y, "위 건물 → 착륙장 → 드론 공장")
+
+
+func test_누르는_자리_버튼이_그림_자리에_놓임() -> void:
+	var main: Control = await _main()
+	var rects := BaseLayout.rects(main.view.size)
+	for id in BaseLayout.IDS:
+		var b: Button = main.spot_buttons[id]
+		assert_eq(Rect2(b.position, b.size), BaseLayout.touch_rect(id, rects[id]), id)
+	main.queue_free()
+
+
+# ── 연구소 카드 문구 ──────────────────────────────────
+
+func test_연구소_카드의_바뀌는_값과_단계_칸() -> void:
+	assert_eq(BaseUpgrades.change_text("max_hp", 2), "체력 120 → 130")
+	assert_eq(BaseUpgrades.change_text("max_hp", 5), "체력 150", "최대면 지금 값만")
+	assert_eq(BaseUpgrades.change_text("cargo", 0), "화물칸 80칸 → 90칸")
+	assert_eq(BaseUpgrades.change_text("insurance", 1), "사망 보존 55% → 60%")
+	assert_eq(BaseUpgrades.change_text("damage", 0), "탄 피해 100% → 110%")
+	assert_eq(BaseUpgrades.pips("max_hp", 3), "■■■□□")
+	assert_eq(BaseUpgrades.pips("max_hp", 0), "□□□□□")
+
+
+func test_바뀌는_값은_실제_출격_능력치와_같음() -> void:
+	for u in Balance.BASE_UPGRADES:
+		var sim := RunSim.new(1)
+		sim.apply_base({u["id"]: 3})
+		match u["id"]:
+			"max_hp":
+				assert_eq(BaseUpgrades.stat_value("max_hp", 3), sim.max_hp)
+			"cargo":
+				assert_eq(BaseUpgrades.stat_value("cargo", 3), float(sim.cargo.capacity))
+			"speed":
+				assert_eq(BaseUpgrades.stat_value("speed", 3), sim.move_speed)
+			"magnet":
+				assert_eq(BaseUpgrades.stat_value("magnet", 3), sim.magnet_radius)
+
+
+# ── 격납고 ──────────────────────────────────────────
+
+func test_격납고는_파이오니어와_잠긴_칸() -> void:
+	var slots := Hangar.slots()
+	assert_eq(slots.size(), Balance.HANGAR_SLOTS)
+	assert_eq(slots[0]["id"], "pioneer")
+	for i in range(Balance.FIGHTERS.size(), slots.size()):
+		assert_true(slots[i].has("locked"), "%d번 칸 잠김" % i)
+
+
+func test_격납고_능력치는_업그레이드를_반영함() -> void:
+	var base := Hangar.stats({})
+	assert_eq(base[0]["name"], "체력")
+	assert_eq(base[0]["value"], "100")
+	var up := Hangar.stats({"max_hp": 2})
+	assert_eq(up[0]["value"], "120")
+	assert_true(up[0]["ratio"] > base[0]["ratio"], "막대가 길어짐")
+	var maxed := {}
+	for u in Balance.BASE_UPGRADES:
+		maxed[u["id"]] = u["max"]
+	for s in Hangar.stats(maxed):
+		assert_eq(s["ratio"], 1.0, s["name"] + " 최대면 막대 가득")
+
+
+func test_격납고_화면() -> void:
+	var main: Control = await _main()
+	main.press("hangar")
+	await wait_frames()
+	assert_true(main.panel.visible)
+	assert_eq(main.panel.kind, "hangar")
+	main.queue_free()
+
+
+# ── 도감 (전시관) ─────────────────────────────────────
+
+func test_적의_도감_id() -> void:
+	var e := RunSim.Enemy.new()
+	e.type = 2
+	assert_eq(Discovery.enemy_id(e), "rock_2")
+	e.golden = true
+	assert_eq(Discovery.enemy_id(e), "golden")
+	e.golden = false
+	e.kind = "jelly"
+	assert_eq(Discovery.enemy_id(e), "jelly")
+	e.kind = RunSim.GUARD
+	assert_eq(Discovery.enemy_id(e), "guard")
+	for entry in Discovery.ENTRIES:
+		assert_not_null(PixelArt.discovery_icon(entry["id"]), entry["id"] + " 아이콘")
+
+
+func test_화면_안에_보인_것만_도감에_오름() -> void:
+	var sim := RunSim.new(1)
+	sim.view_size = Vector2(640, 360)
+	var near := RunSim.Enemy.new()
+	near.pos = Vector2(100, 0)
+	near.kind = "bug"
+	var far := RunSim.Enemy.new()
+	far.pos = Vector2(1000, 0)
+	far.kind = "jelly"
+	sim.enemies = [near, far]
+	sim.picked = [{"pos": Vector2.ZERO, "grade": 3, "gain": 100}]
+	sim.events = PackedStringArray(["barrage_warning"])
+	var ids := Discovery.seen_now(sim)
+	assert_true(ids.has("bug"), "화면 안")
+	assert_false(ids.has("jelly"), "화면 밖은 아직")
+	assert_true(ids.has("mineral_3"), "주운 광물")
+	assert_true(ids.has("barrage"), "포격 예고")
+
+
+func test_출격_중_처음_본_것은_바로_저장됨() -> void:
+	var run: Node = RunScene.instantiate()
+	add_child(run)
+	await wait_frames(2)
+	var e := RunSim.Enemy.new()
+	e.pos = run.sim.player_pos + Vector2(60, 0)
+	e.kind = "jelly"
+	e.radius = 6.0
+	e.hp = 99.0
+	e.max_hp = 99.0
+	run.sim.enemies.append(e)
+	await wait_frames(2)
+	assert_true(SaveData.load_file().seen.has("jelly"), "저장됨")
+	run.queue_free()
+
+
+func test_전시관은_못_본_것을_물음표로() -> void:
+	var save := SaveData.new()
+	save.discover("mineral_0")
+	save.discover("jelly")
+	save.save_file()
+	var main: Control = await _main()
+	main.press("museum")
+	await wait_frames()
+	var texts := _texts(main.panel)
+	assert_true(texts.has("발견 2 / %d" % Discovery.ENTRIES.size()), "발견 수")
+	assert_true(texts.has("일반 광물") and texts.has("우주 해파리"), "본 것은 이름")
+	assert_false(texts.has("고대 경비선"), "못 본 것은 이름을 숨김")
+	assert_eq(texts.count("?"), Discovery.ENTRIES.size() - 2, "못 본 것은 ?")
+	main.queue_free()
+
+
+func _texts(node: Node) -> Array:
+	var result := []
+	for child in node.find_children("*", "Label", true, false):
+		result.append((child as Label).text)
+	return result
+
+
+# ── 광물 창고 ───────────────────────────────────────
+
+func test_광물_창고는_총가치와_등급별_개수() -> void:
+	var save := SaveData.new()
+	save.credits = 1240
+	save.hauled = PackedInt32Array([12, 5, 2, 1])
+	save.save_file()
+	var main: Control = await _main()
+	main.press("storage")
+	await wait_frames()
+	var texts := _texts(main.panel)
+	assert_true(texts.has("보유 광물 총가치  1,240"), str(texts))
+	assert_true(texts.has("일반 12개") and texts.has("전설 1개"), str(texts))
+	main.queue_free()
+
+
+func test_판이_끝나면_가져온_광물_수가_쌓임() -> void:
+	var run: Node = RunScene.instantiate()
+	add_child(run)
+	await wait_frames(2)
+	run.sim.cargo.counts = PackedInt32Array([3, 2, 1, 0])
+	run.sim.returned = true
+	run.bank_result()
+	assert_eq(SaveData.load_file().hauled, PackedInt32Array([3, 2, 1, 0]))
+	run.queue_free()
+
+
+# ── 드론 공장, 닫기, 이륙 ─────────────────────────────
+
+func test_드론_공장은_안내만_띄움() -> void:
+	var main: Control = await _main()
+	main.press("drone")
+	await wait_frames()
+	assert_false(main.panel.visible, "화면은 안 열림")
+	assert_true(main.toast.visible)
+	assert_eq(main.toast.text, main.DRONE_NOTICE)
+	main.queue_free()
+
+
+func test_건물_화면은_닫기와_Esc로_닫힘() -> void:
+	var main: Control = await _main()
+	main.press("research")
+	await wait_frames()
+	main.panel.close_button.pressed.emit()
+	assert_false(main.panel.visible, "닫기 버튼")
+	main.press("museum")
+	await wait_frames()
+	var esc := InputEventAction.new()
+	esc.action = "pause"
+	esc.pressed = true
+	main.panel._unhandled_input(esc)
+	assert_false(main.panel.visible, "Esc")
+	main.queue_free()
+
+
+func test_건물_화면이_열려_있으면_다른_건물이나_출격을_누를_수_없음() -> void:
+	var main: Control = await _main()
+	main.press("research")
+	main.press("ship")
+	assert_false(main.launching, "출격 안 됨")
+	assert_eq(main.panel.kind, "research")
+	main.queue_free()
+
+
+func test_우주선을_누르면_짧은_이륙_뒤_출격() -> void:
+	var main: Control = await _main()
+	var state := {"launched": false}
+	main.launched.connect(func() -> void: state["launched"] = true)
+	main.spot_buttons["ship"].pressed.emit()
+	assert_true(main.launching)
+	assert_true(main.view.launch_t >= 0.0, "이륙 연출 시작")
+	main.press("research")
+	assert_false(main.panel.visible, "이륙 중에는 건물을 못 엶")
+	await get_tree().create_timer(BaseView.LAUNCH_TIME * 0.5).timeout
+	assert_false(state["launched"], "아직 연출 중")
+	await get_tree().create_timer(BaseView.LAUNCH_TIME * 0.6 + 0.1).timeout
+	assert_true(state["launched"], "약 1초 뒤 출격")
+	main.queue_free()
+
+
+func test_기지_효과음이_있음() -> void:
+	for sound in [Sfx.OPEN_SOUND, Sfx.TAKEOFF_SOUND, Sfx.CLICK_SOUND]:
+		assert_true(Sfx.synth(sound["notes"], sound["wave"], sound["volume"]).data.size() > 0)
+
+
+# ── 살아 있는 기지 ───────────────────────────────────
+
+func test_연구할수록_안테나와_불빛이_늘어남() -> void:
+	assert_eq(BaseLife.antennas({}), 1)
+	assert_eq(BaseLife.research_lights({}), 0)
+	var some := {"damage": 3, "max_hp": 3}
+	assert_eq(BaseLife.research_total(some), 6)
+	assert_eq(BaseLife.antennas(some), 2)
+	assert_eq(BaseLife.research_lights(some), 2)
+	var maxed := {}
+	for u in Balance.BASE_UPGRADES:
+		maxed[u["id"]] = 99  # 최대를 넘는 값은 최대로 센다
+	assert_eq(BaseLife.antennas(maxed), BaseLife.ANTENNA_MAX)
+	assert_eq(BaseLife.research_lights(maxed), 10)
+
+
+func test_보유_광물이_많을수록_광물_더미가_커짐() -> void:
+	assert_eq(BaseLife.pile_level(0), 0)
+	assert_eq(BaseLife.pile_level(1), 1)
+	assert_eq(BaseLife.pile_level(800), 3)
+	assert_eq(BaseLife.pile_level(1000000), BaseLife.PILE_STEPS.size())
+
+
+func test_운석은_정해진_간격_안에서_지나감() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	for i in 20:
+		var gap := BaseLife.next_meteor_gap(rng)
+		assert_true(gap >= BaseLife.METEOR_GAP.x and gap <= BaseLife.METEOR_GAP.y)
+
+
+# ── 저장 호환 ───────────────────────────────────────
+
+func test_이전_저장도_그대로_불러옴() -> void:
+	# v0.5.1 저장 (hauled, seen 없음)
+	var save := SaveData.from_dict({"format": 1, "credits": 777, "upgrades": {"damage": 2}, "risk_tip_seen": true})
+	assert_eq(save.credits, 777)
+	assert_eq(save.level_of("damage"), 2)
+	assert_true(save.risk_tip_seen)
+	assert_eq(save.hauled, PackedInt32Array([0, 0, 0, 0]))
+	assert_true(save.seen.is_empty())
+	assert_eq(save.to_dict()["format"], SaveData.FORMAT, "저장 형식 번호는 그대로")
+
+
+func test_도감과_가져온_광물을_저장하고_불러옴() -> void:
+	var save := SaveData.new()
+	save.add_hauled(PackedInt32Array([5, 4, 3, 2]))
+	save.add_hauled(PackedInt32Array([1, 0, -9, 0]))  # 음수는 무시
+	assert_true(save.discover("guard"))
+	assert_false(save.discover("guard"), "이미 본 것")
+	assert_false(save.discover("없는것"), "모르는 id")
+	save.save_file()
+	var loaded := SaveData.load_file()
+	assert_eq(loaded.hauled, PackedInt32Array([6, 4, 3, 2]))
+	assert_true(loaded.seen.has("guard"))
+	var odd := SaveData.from_dict({"hauled": [-3, "많이", 2.0], "seen": ["guard", 5, "없는것"]})
+	assert_eq(odd.hauled, PackedInt32Array([0, 0, 2, 0]), "이상한 값은 0")
+	assert_eq(odd.seen.keys(), ["guard"], "모르는 id·숫자는 버림")

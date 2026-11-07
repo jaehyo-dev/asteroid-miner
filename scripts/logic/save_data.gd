@@ -1,6 +1,6 @@
 class_name SaveData
 extends RefCounted
-## 기기에 남기는 진행 상황 (로컬 저장): 기지 보유 광물과 공용 업그레이드 단계.
+## 기기에 남기는 진행 상황 (로컬 저장): 기지 보유 광물, 공용 업그레이드 단계, 가져온 광물 수, 도감.
 ## 웹에서는 user://가 브라우저 저장소(IndexedDB)에 저장된다.
 ## 파일이 없거나 깨졌거나 값이 이상하면 안전한 값으로 고쳐서 읽는다 (게임이 멈추지 않게).
 
@@ -15,6 +15,10 @@ var credits := 0
 var upgrades: Dictionary = {}
 ## 광물 보너스 말풍선을 이미 봤는지 (한 번만 보여 준다)
 var risk_tip_seen := false
+## 지금까지 기지로 가져온 광물 수 (등급별 누적, 광물 창고에 보여 줌. v0.6.0부터 셈)
+var hauled := PackedInt32Array([0, 0, 0, 0])
+## 도감: 처음 본 것 id → true (Discovery.ENTRIES의 id)
+var seen: Dictionary = {}
 
 
 func level_of(id: String) -> int:
@@ -27,7 +31,22 @@ func add_credits(amount: int) -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen}
+	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen,
+		"hauled": Array(hauled), "seen": seen.keys()}
+
+
+## 판에서 가져온 광물(등급별 개수)을 누적한다
+func add_hauled(counts: PackedInt32Array) -> void:
+	for i in mini(counts.size(), hauled.size()):
+		hauled[i] += maxi(counts[i], 0)
+
+
+## 도감에 처음 본 것을 기록한다. 새로 기록했으면 true.
+func discover(id: String) -> bool:
+	if seen.has(id) or not Discovery.has(id):
+		return false
+	seen[id] = true
+	return true
 
 
 ## 저장된 Dictionary → SaveData. 모르는 업그레이드는 버리고, 단계는 0~최대, 광물은 0 이상으로 고친다.
@@ -36,6 +55,15 @@ static func from_dict(d: Variant) -> SaveData:
 	if typeof(d) != TYPE_DICTIONARY:
 		return s
 	s.credits = maxi(_to_int(d.get("credits", 0)), 0)
+	var hauled: Variant = d.get("hauled", [])
+	if typeof(hauled) == TYPE_ARRAY:
+		for i in mini(hauled.size(), s.hauled.size()):
+			s.hauled[i] = maxi(_to_int(hauled[i]), 0)
+	var seen: Variant = d.get("seen", [])
+	if typeof(seen) == TYPE_ARRAY:
+		for id in seen:
+			if typeof(id) == TYPE_STRING:
+				s.discover(id)  # 모르는 id는 버린다
 	var tip: Variant = d.get("risk_tip_seen", false)
 	s.risk_tip_seen = typeof(tip) == TYPE_BOOL and tip  # 참/거짓이 아니면 안 본 것으로
 	var ups: Variant = d.get("upgrades", {})

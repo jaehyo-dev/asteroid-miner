@@ -170,62 +170,73 @@ func test_저장_형식_번호를_함께_저장() -> void:
 	assert_eq(SaveData.new().to_dict()["format"], SaveData.FORMAT)
 
 
-# ── 기지 화면 ───────────────────────────────────────
+# ── 기지 화면 (연구소) ──────────────────────────────
 
-func test_기지_화면에_보유_광물과_업그레이드가_보임() -> void:
+func _open_main() -> Control:
+	var main: Control = MainScene.instantiate()
+	main.auto_start = false
+	add_child(main)
+	await wait_frames()
+	return main
+
+
+func test_기지_화면에_보유_광물이_보이고_연구소에_업그레이드_카드가_있음() -> void:
 	var save := SaveData.new()
 	save.credits = 500
 	save.upgrades = {"cargo": 1}
 	save.save_file()
-	var main: Control = MainScene.instantiate()
-	add_child(main)
-	await wait_frames()
+	var main: Control = await _open_main()
 	assert_eq(main.credits_label.text, "보유 광물 500")
-	assert_eq(main.buy_buttons.size(), Balance.BASE_UPGRADES.size(), "업그레이드 줄 수")
-	var cargo_button: Button = main.buy_buttons["cargo"]
-	assert_eq(cargo_button.text, "강화 %d" % BaseUpgrades.cost("cargo", 1))
-	assert_false(cargo_button.disabled, "살 수 있음")
-	main.queue_free()
-
-
-func test_광물이_없으면_구매_버튼이_막힘() -> void:
-	var main: Control = MainScene.instantiate()
-	add_child(main)
+	main.press("research")
 	await wait_frames()
-	for id in main.buy_buttons:
-		assert_true(main.buy_buttons[id].disabled, id)
-	assert_true(main.start_button.has_focus(), "출격 버튼 포커스")
+	assert_true(main.panel.visible, "연구소 열림")
+	assert_eq(main.panel.buy_buttons.size(), Balance.BASE_UPGRADES.size(), "카드 수")
+	var cargo_button: Button = main.panel.buy_buttons["cargo"]
+	assert_eq(cargo_button.text, "강화  %d" % BaseUpgrades.cost("cargo", 1))
+	assert_false(cargo_button.disabled, "살 수 있음")
+	assert_eq(main.panel.cards["cargo"].modulate.a, 1.0, "살 수 있으면 선명")
 	main.queue_free()
 
 
-func test_기지에서_사면_바로_저장됨() -> void:
+func test_광물이_없으면_카드가_흐리고_구매_버튼이_막힘() -> void:
+	var main: Control = await _open_main()
+	main.press("research")
+	await wait_frames()
+	for id in main.panel.buy_buttons:
+		assert_true(main.panel.buy_buttons[id].disabled, id)
+		assert_true(is_equal_approx(main.panel.cards[id].modulate.a, BasePanel.DIM_ALPHA), id + " 흐림")
+	main.queue_free()
+
+
+func test_연구소에서_사면_바로_저장되고_보유_광물이_줄어듦() -> void:
 	var save := SaveData.new()
 	save.credits = 300
 	save.save_file()
-	var main: Control = MainScene.instantiate()
-	add_child(main)
+	var main: Control = await _open_main()
+	main.press("research")
 	await wait_frames()
-	main.buy_buttons["magnet"].pressed.emit()
+	main.panel.buy_buttons["magnet"].pressed.emit()
 	await wait_frames()
 	var cost := BaseUpgrades.cost("magnet", 0)
 	assert_eq(main.credits_label.text, "보유 광물 %d" % (300 - cost))
 	var loaded := SaveData.load_file()
 	assert_eq(loaded.credits, 300 - cost, "파일에 저장")
 	assert_eq(loaded.level_of("magnet"), 1)
+	assert_eq(main.view.levels.get("magnet", 0), 1, "기지 모습도 갱신")
 	main.queue_free()
 
 
-func test_최대_단계는_최대로_표시() -> void:
+func test_최대_단계는_MAX로_표시() -> void:
 	var save := SaveData.new()
 	save.upgrades = _maxed()
 	save.credits = 999999
 	save.save_file()
-	var main: Control = MainScene.instantiate()
-	add_child(main)
+	var main: Control = await _open_main()
+	main.press("research")
 	await wait_frames()
-	for id in main.buy_buttons:
-		assert_eq(main.buy_buttons[id].text, "최대", id)
-		assert_true(main.buy_buttons[id].disabled, id)
+	for id in main.panel.buy_buttons:
+		assert_eq(main.panel.buy_buttons[id].text, "MAX", id)
+		assert_true(main.panel.buy_buttons[id].disabled, id)
 	main.queue_free()
 
 

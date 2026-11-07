@@ -53,3 +53,56 @@ static func describe(id: String) -> String:
 		"magnet":
 			return "자석 범위 +%d%%" % roundi(Balance.BASE_MAGNET_ADD * 100.0)
 	return ""
+
+
+## 기지 업그레이드 level 단계일 때의 능력치 값 (출격 규칙 RunSim.apply_base로 계산해서 실제와 같다)
+static func stat_value(id: String, level: int) -> float:
+	var sim := RunSim.new(1)
+	sim.apply_base({id: level})
+	match id:
+		"damage":
+			return sim.bullet_damage / Balance.BULLET_DAMAGE * 100.0
+		"max_hp":
+			return sim.max_hp
+		"speed":
+			return sim.move_speed
+		"cargo":
+			return sim.cargo.capacity
+		"insurance":
+			return Cargo.keep_ratio(sim.insurance_level) * 100.0
+		"magnet":
+			return sim.magnet_radius
+	return 0.0
+
+
+## 능력치 이름과 단위: "체력 120", "사망 보존 55%"
+static func stat_text(id: String, level: int) -> String:
+	var v := roundi(stat_value(id, level))
+	match id:
+		"damage":
+			return "탄 피해 %d%%" % v
+		"max_hp":
+			return "체력 %d" % v
+		"speed":
+			return "속도 %d" % v
+		"cargo":
+			return "화물칸 %d칸" % v
+		"insurance":
+			return "사망 보존 %d%%" % v
+		"magnet":
+			return "자석 %d" % v
+	return ""
+
+
+## 연구소 카드의 바뀌는 값: "체력 120 → 130" (최대면 지금 값만)
+static func change_text(id: String, level: int) -> String:
+	var now := stat_text(id, level)
+	if level >= max_level(id):
+		return now
+	var next := stat_text(id, level + 1)
+	return "%s → %s" % [now, next.substr(next.rfind(" ") + 1)]
+
+
+## 단계 칸: 3/5 → "■■■□□"
+static func pips(id: String, level: int) -> String:
+	return "■".repeat(level) + "□".repeat(maxi(max_level(id) - level, 0))

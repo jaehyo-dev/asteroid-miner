@@ -64,6 +64,7 @@ func _process(delta: float) -> void:
 			Sfx.play_warning()
 		hud.step(delta)
 		_update_bonus(delta)
+		_discover()
 		_announce(sim.events)
 		danger.time = sim.time
 		if not sim.alive:
@@ -153,6 +154,16 @@ func _update_bonus(delta: float) -> void:
 		hud.show_tip()
 
 
+## 도감: 화면에 처음 보인 적과 처음 주운 광물을 기록하고, 새로 본 것이 있으면 바로 저장한다.
+func _discover() -> void:
+	var found := false
+	for id in Discovery.seen_now(sim):
+		if save.discover(id):
+			found = true
+	if found:
+		save.save_file()
+
+
 ## 이번 프레임에 주운 광물의 효과음. 같은 등급은 한 프레임에 한 번만 낸다 (한꺼번에 주워도 시끄럽지 않게).
 func _play_pickup_sounds() -> void:
 	var played := {}
@@ -210,6 +221,7 @@ func bank_result() -> int:
 	if not banked:
 		banked = true
 		save.add_credits(earned)
+		save.add_hauled(sim.brought_home())
 		save.save_file()
 	return earned
 

@@ -28,4 +28,6 @@
 - 우주선·운석·황금 운석·우주 해파리·날벌레·고대 경비선(선체·충전 빛·에너지탄)·탄·파편·광물·심연의 포격(조준선·에너지탄) 픽셀 아트와 모션(운석 회전·튕김·금 감, 우주선 기울기) (`scripts/pixel_art.gd`, `scripts/world_view.gd`에서 코드로 그림): 이 프로젝트에서 직접 만듦
 - 광물 줍기 효과음, 체력 낮음 경고음, 습격 경고음, 포격 충전·발사음, 고대 경비선 발사음 (`scripts/sfx.gd`에서 코드로 합성한 8비트 소리): 이 프로젝트에서 직접 만듦
 - 워프 게이트 기계식 고리·표시등 픽셀 아트(`scripts/pixel_art.gd`), 소용돌이 셰이더(`scripts/gate_vortex.gdshader`), 게이트 연출(`scripts/gate_view.gd`), 게이트 맞물림·웅웅거림·경보·붕괴·귀환 효과음(`scripts/sfx.gd`): 이 프로젝트에서 직접 만듦
+- 기지 전초기지 픽셀 아트(땅·건물 5채·착륙장·크게 그린 우주선·조종사·드론·운석, `scripts/ui/base_view.gd`), 업그레이드·자물쇠·포격 아이콘(`scripts/pixel_art.gd`), 건물 열기·이륙·버튼 효과음(`scripts/sfx.gd`): 이 프로젝트에서 직접 만듦 (v0.6.0)
+- 기지 콘셉트 그림 2장 `assets/raw/base_concept_overview.png`, `assets/raw/base_concept_portrait.png`: Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-07. 기지 픽셀 아트와 가로·세로 배치의 참고용으로만 쓰고 게임 빌드에는 들어가지 않음 (`.gdignore`), 수정 없음. 요청문: [ASSET_PROMPTS.md](ASSET_PROMPTS.md)
 - 워프 게이트 콘셉트 그림 2장 `assets/raw/gate_concept_design.png`, `assets/raw/gate_concept_states.png`: Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-06. 게이트 픽셀 아트의 참고용으로만 쓰고 게임 빌드에는 들어가지 않음 (`.gdignore`), 수정 없음. 요청문: [ASSET_PROMPTS.md](ASSET_PROMPTS.md)

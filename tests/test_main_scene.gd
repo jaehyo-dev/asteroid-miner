@@ -26,13 +26,16 @@ func test_이전_버전_버튼은_웹에서만_보임() -> void:
 	main.queue_free()
 
 
-func test_출격_버튼에_포커스가_있어_Enter로_시작할_수_있음() -> void:
+func test_Enter로_바로_출격함() -> void:
 	var main: Control = MainScene.instantiate()
+	main.auto_start = false
 	add_child(main)
 	await wait_frames()
-	var button: Button = main.get_node("%StartButton")
-	assert_eq(button.text, "출격")
-	assert_true(button.has_focus(), "포커스")
+	var enter := InputEventAction.new()
+	enter.action = "confirm"
+	enter.pressed = true
+	main._unhandled_input(enter)
+	assert_true(main.launching, "이륙 시작")
 	main.queue_free()
 
 

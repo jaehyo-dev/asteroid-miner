@@ -1,12 +1,12 @@
 extends Control
-## 기지 화면 (시작 화면): 보유 광물, 공용 업그레이드 구매, 출격 버튼, 버전, 이전 버전 링크.
-## 업그레이드 규칙은 BaseUpgrades, 저장은 SaveData에 있다.
+## 기지 화면 (시작 화면): 소행성 위의 광부 조합 전초기지.
+## 가운데 우주선을 누르면 출격, 건물을 누르면 그 화면이 열린다 (연구소·격납고·광물 창고·전시관, 드론 공장은 안내만).
+## 풍경은 BaseView, 건물 화면은 BasePanel, 배치는 BaseLayout, 저장은 SaveData에 있다.
 
 const RUN_SCENE := "res://scenes/run.tscn"
-
-const COLOR_TEXT := Color("#c8cde0")
-const COLOR_DIM := Color("#8a90a8")
-const COLOR_MAX := Color("#7cf0ff")
+## 안내 문구가 보이는 시간
+const TOAST_TIME := 2.5
+const DRONE_NOTICE := "드론 공장은 공사 중이에요. 곧 개방!"
 
 ## 이전 버전 목록 페이지로 이동하는 자바스크립트.
 ## 보관된 이전 버전(.../versions/v0.0.1/)에서 눌러도 같은 목록(.../versions/)으로 가도록
@@ -20,30 +20,60 @@ const OPEN_OLD_VERSIONS_JS := """
 })();
 """
 
+## 이륙이 끝나 출격 화면으로 넘어가기 직전
+signal launched
+
 @onready var version_label: Label = %VersionLabel
 @onready var old_versions_button: Button = %OldVersionsButton
-@onready var start_button: Button = %StartButton
 @onready var credits_label: Label = %CreditsLabel
-@onready var upgrade_list: VBoxContainer = %UpgradeList
+@onready var view: BaseView = %View
+@onready var spots: Control = %Spots
+@onready var panel: BasePanel = %Panel
+@onready var toast: Label = %Toast
 
 var save: SaveData
-## 업그레이드 id → 구매 버튼
-var buy_buttons: Dictionary = {}
-## 업그레이드 id → 이름·단계 글자
-var _level_labels: Dictionary = {}
+## id(BaseLayout.IDS) → 누르는 자리 버튼
+var spot_buttons: Dictionary = {}
+## 이륙 중인지
+var launching := false
+## 이륙이 끝나면 출격 화면으로 넘어갈지 (테스트에서는 끈다)
+var auto_start := true
+var _toast_time := 0.0
 
 
 func _ready() -> void:
 	version_label.text = "v" + game_version()
-	save = SaveData.load_file()
-	_build_upgrades()
-	refresh()
 	# 이전 버전 링크는 웹(GitHub Pages)에서만 의미가 있으므로 웹에서만 보여 준다.
 	old_versions_button.visible = OS.has_feature("web")
 	old_versions_button.pressed.connect(_on_old_versions_pressed)
-	start_button.pressed.connect(start_run)
-	# 포커스를 주면 Enter/Space로 바로 출격할 수 있다.
-	start_button.grab_focus()
+	save = SaveData.load_file()
+	panel.save = save
+	panel.closed.connect(_on_panel_closed)
+	panel.bought.connect(func(_id: String) -> void: refresh())
+	for id in BaseLayout.IDS:
+		var b := Button.new()
+		b.flat = true
+		b.tooltip_text = BaseLayout.NAMES[id]
+		var empty := StyleBoxEmpty.new()
+		for state in ["normal", "hover", "pressed", "disabled"]:
+			b.add_theme_stylebox_override(state, empty)
+		var focus := StyleBoxFlat.new()  # 키보드로 고를 때만 테두리가 보인다
+		focus.draw_center = false
+		focus.border_color = Color("#ffd34f")
+		focus.set_border_width_all(1)
+		b.add_theme_stylebox_override("focus", focus)
+		b.pressed.connect(press.bind(id))
+		spots.add_child(b)
+		spot_buttons[id] = b
+	var toast_bg := StyleBoxFlat.new()
+	toast_bg.bg_color = Color(0.02, 0.02, 0.06, 0.85)
+	toast_bg.border_color = Color("#ffd34f")
+	toast_bg.set_border_width_all(1)
+	toast.add_theme_stylebox_override("normal", toast_bg)
+	view.resized.connect(_place_spots)
+	_place_spots()
+	refresh()
+	# 처음엔 포커스 테두리를 띄우지 않는다. Enter/Space는 바로 출격, 방향키를 누르면 그때부터 포커스가 생긴다 (_unhandled_input).
 
 
 ## 게임 버전 (project.godot의 application/config/version)
@@ -51,66 +81,87 @@ static func game_version() -> String:
 	return str(ProjectSettings.get_setting("application/config/version", "0.0.0"))
 
 
-## 업그레이드 한 줄씩: "이름 Lv n/최대" · 효과 · 구매 버튼
-func _build_upgrades() -> void:
-	for u in Balance.BASE_UPGRADES:
-		var id: String = u["id"]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		var name_label := _label(COLOR_TEXT, 104)
-		var desc := _label(COLOR_DIM, 96)
-		desc.text = BaseUpgrades.describe(id)
-		var button := Button.new()
-		button.custom_minimum_size = Vector2(88, 22)
-		button.add_theme_font_size_override("font_size", 12)
-		button.pressed.connect(buy.bind(id))
-		row.add_child(name_label)
-		row.add_child(desc)
-		row.add_child(button)
-		upgrade_list.add_child(row)
-		buy_buttons[id] = button
-		_level_labels[id] = name_label
+## 건물·우주선 버튼을 그림 자리(이름표 포함)에 맞춘다.
+func _place_spots() -> void:
+	var rects := BaseLayout.rects(view.size)
+	for id in spot_buttons:
+		var r := BaseLayout.touch_rect(id, rects[id])
+		var b: Button = spot_buttons[id]
+		b.position = r.position
+		b.size = r.size
 
 
-func _label(color: Color, width: float) -> Label:
-	var label := Label.new()
-	label.custom_minimum_size = Vector2(width, 0)
-	label.add_theme_color_override("font_color", color)
-	label.add_theme_font_size_override("font_size", 12)
-	return label
-
-
-## 보유 광물과 업그레이드 단계·비용·버튼 상태를 저장 내용에 맞춘다.
+## 보유 광물과 기지 모습(연구 불빛, 광물 더미)을 저장 내용에 맞춘다.
 func refresh() -> void:
-	credits_label.text = "보유 광물 %d" % save.credits
-	for id in buy_buttons:
-		var lv := save.level_of(id)
-		var top := BaseUpgrades.max_level(id)
-		var label: Label = _level_labels[id]
-		label.text = "%s Lv%d/%d" % [BaseUpgrades.info(id)["name"], lv, top]
-		var button: Button = buy_buttons[id]
-		if lv >= top:
-			button.text = "최대"
-			button.add_theme_color_override("font_disabled_color", COLOR_MAX)
-		else:
-			button.text = "강화 %d" % BaseUpgrades.cost(id, lv)
-		button.disabled = not BaseUpgrades.can_buy(save, id)
+	credits_label.text = "보유 광물 %s" % Hud.thousands(save.credits)
+	view.levels = save.upgrades
+	view.credits = save.credits
 
 
-## 업그레이드를 한 단계 사고 바로 저장한다.
-func buy(id: String) -> void:
-	if not BaseUpgrades.buy(save, id):
+## 우주선·건물을 눌렀을 때
+func press(id: String) -> void:
+	if launching or panel.visible:
 		return
-	save.save_file()
-	Sfx.play_pickup(2)
-	refresh()
-	# 최대 단계가 되거나 광물이 모자라 버튼이 막히면 키보드 포커스를 출격 버튼으로 옮긴다
-	if buy_buttons[id].disabled:
-		start_button.grab_focus()
+	match id:
+		"ship":
+			launch()
+		"drone":
+			Sfx.play_click()
+			show_toast(DRONE_NOTICE)
+		_:
+			Sfx.play_open()
+			panel.open(id)
+
+
+## 조종사가 올라타고 이륙하는 짧은 연출 뒤 출격한다.
+func launch() -> void:
+	if launching:
+		return
+	launching = true
+	toast.hide()
+	view.start_launch()
+	Sfx.play_takeoff()
+	for b in spot_buttons.values():
+		b.disabled = true
+	await get_tree().create_timer(BaseView.LAUNCH_TIME).timeout
+	launched.emit()
+	if auto_start:
+		start_run()
 
 
 func start_run() -> void:
 	get_tree().change_scene_to_file(RUN_SCENE)
+
+
+func show_toast(text: String) -> void:
+	toast.text = text
+	toast.show()
+	_toast_time = TOAST_TIME
+
+
+func _process(delta: float) -> void:
+	if _toast_time > 0.0:
+		_toast_time -= delta
+		toast.modulate.a = clampf(_toast_time / 0.4, 0.0, 1.0)
+		if _toast_time <= 0.0:
+			toast.hide()
+
+
+func _on_panel_closed() -> void:
+	refresh()
+	spot_buttons["ship"].grab_focus()
+
+
+## 아무것도 고르지 않았을 때: Enter/Space → 출격, 방향키 → 우주선부터 고르기 시작
+func _unhandled_input(event: InputEvent) -> void:
+	if panel.visible or launching or get_viewport().gui_get_focus_owner() != null:
+		return
+	if event.is_action_pressed("confirm"):
+		press("ship")
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_up") or event.is_action_pressed("ui_down") or event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
+		spot_buttons["ship"].grab_focus()
+		get_viewport().set_input_as_handled()
 
 
 ## 웹에서 같은 탭으로 이전 버전 목록을 연다.
