@@ -1,6 +1,6 @@
 class_name BaseView
 extends Control
-## 기지 풍경 (1280x720 기준): 소행성 바닥 배경, 착륙장의 우주선과 조종사, 건물 5채, 이름표, 길·가로등, 작은 드론, 가끔 지나가는 운석.
+## 기지 풍경 (1280x720 기준): 소행성 바닥(전체가 화면 안에 들어옴), 착륙장의 우주선과 조종사, 건물 5채, 이름표, 길·가로등, 작은 드론, 가끔 지나가는 운석.
 ## 그림은 Codex로 만든 뒤 tools/pixelate.py로 정리한 픽셀 아트(assets/sprites/base/)이고, 그림 1픽셀 = 화면 PIXEL픽셀이다.
 ## 코드로 그리는 것(길, 불빛, 드론, 운석, 이름표)도 같은 격자(_cell)에 맞춰 그려서 한 화면의 픽셀 크기를 통일한다.
 ## 누르기는 main.gd가 BaseLayout.touch_rect 자리에 놓은 버튼이 맡고, 여기서는 그리기만 한다.
@@ -24,16 +24,16 @@ const GOLD := Color("#ffd34f")
 ## 연구소 위 부품 자리 (연구소 그림 기준 그림 픽셀, 부품 그림의 아래 가운데가 닿는 곳): [부품 번호, x, y]
 ## 1 = 안테나 기둥, 2 = 접시 안테나. 연구할수록 앞에서부터 하나씩 늘어난다.
 ## 이름표와 겹치지 않게 모두 연구소 그림 안쪽(받침 지붕 모서리, 돔 옆)에 둔다.
-const ANTENNA_SPOTS := [[2, 60, 46], [1, 7, 52], [1, 63, 54], [1, 4, 44]]
+const ANTENNA_SPOTS := [[2, 50, 39], [1, 6, 44], [1, 53, 45], [1, 3, 37]]
 ## 연구소 불빛(부품 3) 자리: 돔 아래 띠를 따라 왼쪽부터
-const LIGHT_SPOTS := [[12, 42], [17, 42], [22, 42], [27, 42], [32, 42], [37, 42], [42, 42], [47, 42], [52, 42], [57, 42]]
+const LIGHT_SPOTS := [[10, 36], [14, 36], [19, 36], [23, 36], [27, 36], [31, 36], [35, 36], [39, 36], [44, 36], [48, 36]]
 ## 창고 앞 광물 더미 자리 (창고 그림 기준, 더미 그림의 아래 가운데)
-const PILE_SPOT := Vector2(43, 62)
+const PILE_SPOT := Vector2(34, 50)
 ## 드론 공장 앞 빈 표지판 자리 (그림 기준, 표지판 아래 가운데)
-const SIGN_SPOT := Vector2(90, 60)
+const SIGN_SPOT := Vector2(72, 48)
 ## 착륙장 위 우주선·조종사 자리 (착륙장 그림 기준, 그림의 아래 가운데)
-const SHIP_SPOT := Vector2(31, 26)
-const PILOT_SPOT := Vector2(48, 27)
+const SHIP_SPOT := Vector2(26, 22)
+const PILOT_SPOT := Vector2(41, 23)
 
 ## 밤 기지: 출격 화면(어두운 우주)과 어울리게 바닥과 건물을 어둡게 눌러 그린다 (불빛·이름표·빛 고리는 그대로 밝게)
 const GROUND_SHADE := Color(0.64, 0.64, 0.76)
@@ -268,19 +268,10 @@ func _draw() -> void:
 # ── 배경과 길 ──────────────────────────────────────
 
 func _draw_ground() -> void:
+	# 소행성 전체가 화면 가운데에 들어온다 (바깥은 별 배경이 비침)
 	var g := ground()
 	var s := g.get_size() * P
-	var origin := BaseLayout.snap((size - s) / 2.0)
-	# 화면이 배경보다 크면 좌우·위아래를 뒤집어 가며 이어 붙인다 (이음매가 자연스럽고 배율은 그대로)
-	var nx := int(ceil(origin.x / s.x))
-	var ny := int(ceil(origin.y / s.y))
-	for ix in range(-nx, nx + 1):
-		for iy in range(-ny, ny + 1):
-			var pos := origin + Vector2(ix * s.x, iy * s.y)
-			var flip := Vector2(-1.0 if ix % 2 != 0 else 1.0, -1.0 if iy % 2 != 0 else 1.0)
-			draw_set_transform(pos + Vector2(s.x if flip.x < 0 else 0.0, s.y if flip.y < 0 else 0.0), 0.0, flip)
-			draw_texture_rect(g, Rect2(Vector2.ZERO, s), false, GROUND_SHADE)
-	draw_set_transform(Vector2.ZERO)
+	draw_texture_rect(g, Rect2(BaseLayout.snap((size - s) / 2.0), s), false, GROUND_SHADE)
 
 
 ## 길의 불빛: 건물 문 앞 양옆 주황 표시등, 길이 꺾이는 곳마다 청록 가로등 (바닥은 relayout에서 미리 계산)

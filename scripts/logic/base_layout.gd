@@ -2,13 +2,17 @@ class_name BaseLayout
 extends RefCounted
 ## 기지 화면 배치 (1280x720 기준, 세로는 720x1280 이상).
 ## 모든 그림은 tools/pixelate.py로 정리한 픽셀 아트이고, 그림 1픽셀 = 화면 PIXEL픽셀로 그린다.
+## (v0.6.3 수정: 건물을 화면 폭의 약 10%로 줄이면서 3픽셀 격자 → 2픽셀 격자. 3배로 두면 건물이 크거나, 줄이면 그림 픽셀이 뭉개짐)
 ## 건물 크기는 그림 파일 크기에서 읽고(따로 적어 두지 않음), 가운데 위치만 화면 비율로 정한다.
 ## 가로는 콘셉트 그림 1(위 3채, 가운데 착륙장, 아래 2채), 세로는 그림 2(위 2채, 착륙장, 아래 2채, 맨 아래 1채)를 따른다.
 
-## 그림 1픽셀 = 화면 몇 픽셀 (글자도 픽셀 글꼴 12px의 3배인 36px)
-const PIXEL := 3
+## 그림 1픽셀 = 화면 몇 픽셀 (글자도 픽셀 글꼴 12px의 2배인 24px)
+const PIXEL := 2
 ## 픽셀 글꼴 크기 (Galmuri11 기본 12px × PIXEL)
 const FONT_SIZE := 12 * PIXEL
+## 건물 안 화면(BasePanel)과 안내 문구는 읽기 편하게 따로 3배 격자 (풍경 그림과는 따로 놓인 화면)
+const UI_PIXEL := 3
+const UI_FONT_SIZE := 12 * UI_PIXEL
 ## 그림 폴더
 const SPRITE_DIR := "res://assets/sprites/base/"
 
@@ -21,8 +25,8 @@ const SPRITES := {"ship": "pad", "research": "research", "hangar": "hangar", "st
 ## 위쪽 보유 광물 줄 높이, 아래쪽 버전 글자 줄 높이
 const TOP_BAR := 54.0
 const BOTTOM_BAR := 48.0
-## 이름표 높이 (글자 36 + 위아래 여백)
-const LABEL_HEIGHT := 48.0
+## 이름표 높이 (글자 24 + 위아래 여백)
+const LABEL_HEIGHT := 32.0
 
 ## 세로 화면은 줄 배치: 줄마다 건물을 왼쪽부터 같은 간격으로 놓고, 남는 높이는 줄 사이에 고르게 나눈다.
 ## 세로는 그림 2(위 2채, 착륙장, 아래 2채, 맨 아래 1채)를 따른다.
@@ -32,11 +36,15 @@ const PORTRAIT_ROWS := [["research", "hangar"], ["ship"], ["storage", "museum"],
 const LABEL_OUT := LABEL_HEIGHT - PIXEL * 4
 
 ## 가로 화면 배치 (승인된 콘셉트 v0.6.3, 1280x720 무대 기준): id → [가운데 x, 그림 아래 y]
-## 무대는 화면 가운데에 놓이고, 더 큰 화면은 배경만 이어 붙는다. 위 줄은 이름표가 위쪽 줄(TOP_BAR)과 안 겹치게 콘셉트보다 조금 내렸다.
+## 무대는 화면 가운데에 놓이고, 더 큰 화면은 별 배경이 채운다. 소행성이 화면의 약 75%로 줄어든 만큼 콘셉트 배치(건물 사이 비율)를 같은 비율로 소행성 중심에 모았다.
 const STAGE := Vector2(1280, 720)
+## 세로 화면 지면 그림 높이
+const PORTRAIT_STAGE_H := 1280.0
+## 지면 띠 안에서 줄을 놓지 않는 위·아래 여백 (소행성 가장자리가 위아래로 좁아서)
+const PORTRAIT_INSET := Vector2(150.0, 190.0)
 const LANDSCAPE_POS := {
-	"research": [303, 285], "hangar": [636, 240], "drone": [981, 288],
-	"ship": [640, 447], "storage": [297, 555], "museum": [975, 561],
+	"research": [370, 305], "hangar": [620, 271], "drone": [879, 307],
+	"ship": [623, 426], "storage": [366, 507], "museum": [874, 512],
 }
 
 static var _sizes: Dictionary = {}
@@ -79,16 +87,21 @@ static func rects(size: Vector2) -> Dictionary:
 			h = maxf(h, sprite_size(SPRITES[id]).y * PIXEL + LABEL_OUT)
 		heights.append(h)
 		total += h
-	var gap := maxf(size.y - TOP_BAR - BOTTOM_BAR - total, 0.0) / (rows.size() + 1)
+	# 지면 그림은 720x1280 한 장이라, 더 긴 화면에서는 그 띠(가운데 1280) 안에만 줄을 놓는다
+	var band := minf(size.y, PORTRAIT_STAGE_H)
+	var top := maxf(TOP_BAR, (size.y - band) / 2.0 + PORTRAIT_INSET.x)
+	var bottom_edge := minf(size.y - BOTTOM_BAR, (size.y + band) / 2.0 - PORTRAIT_INSET.y)
+	var gap := maxf(bottom_edge - top - total, 0.0) / (rows.size() + 1)
 	var result := {}
-	var y := TOP_BAR + gap
+	var y := top + gap
 	for r in rows.size():
 		var row: Array = rows[r]
 		var bottom: float = y + heights[r]
 		for i in row.size():
 			var id: String = row[i]
 			var s := sprite_size(SPRITES[id]) * PIXEL
-			var cx := size.x * (i + 0.5) / row.size()
+			# 한 줄에 둘이면 가운데에서 양옆으로 0.18 폭씩 (소행성이 위아래 끝에서 좁아서 안쪽으로 모음)
+			var cx := size.x * (0.5 + (i - (row.size() - 1) / 2.0) * 0.36)
 			# 착륙장은 이름표가 아래에 있으므로 그만큼 위로
 			var foot := bottom - (LABEL_OUT if id == "ship" else 0.0)
 			result[id] = Rect2(snap(Vector2(cx - s.x / 2.0, foot - s.y)), s)

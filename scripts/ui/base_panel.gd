@@ -21,8 +21,8 @@ const COLOR_BAR_BG := Color("#2a2a40")
 ## 광물이 모자란 카드의 흐림 정도
 const DIM_ALPHA := 0.45
 ## 그림 1픽셀 = 화면 P픽셀 (기지 화면과 같음), 글자 크기
-const P := BaseLayout.PIXEL
-const FONT := BaseLayout.FONT_SIZE
+const P := BaseLayout.UI_PIXEL
+const FONT := BaseLayout.UI_FONT_SIZE
 
 var save: SaveData
 ## 지금 열린 화면 ("research", "hangar", "storage", "museum", 닫혀 있으면 "")

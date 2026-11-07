@@ -46,14 +46,32 @@ func test_세로_화면은_세로_배치() -> void:
 	assert_true(r["research"].position.y < r["ship"].position.y and r["ship"].position.y < r["drone"].position.y, "위 건물 → 착륙장 → 드론 공장")
 
 
-func test_건물_자리와_글자는_3픽셀_격자에_맞음() -> void:
+func test_건물_자리와_글자는_2픽셀_격자에_맞음() -> void:
 	assert_eq(BaseLayout.FONT_SIZE, 12 * BaseLayout.PIXEL, "픽셀 글꼴(12px)의 정수 배")
 	for size in SIZES:
 		for id in BaseLayout.IDS:
 			var r: Rect2 = BaseLayout.rects(size)[id]
 			assert_eq(fmod(r.position.x, BaseLayout.PIXEL), 0.0, "%s %s x" % [size, id])
 			assert_eq(fmod(r.position.y, BaseLayout.PIXEL), 0.0, "%s %s y" % [size, id])
-			assert_eq(r.size, BaseLayout.sprite_size(BaseLayout.SPRITES[id]) * BaseLayout.PIXEL, "그림 크기 그대로 3배")
+			assert_eq(r.size, BaseLayout.sprite_size(BaseLayout.SPRITES[id]) * BaseLayout.PIXEL, "그림 크기 그대로 2배")
+
+
+func test_건물_폭은_화면_폭의_9에서_11퍼센트() -> void:
+	# v0.6.3 수정 목표: 건물·착륙장이 1280 폭 화면의 약 10% (그림 폭 × 격자)
+	for id in BaseLayout.IDS:
+		var ratio: float = BaseLayout.rects(Vector2(1280, 720))[id].size.x / 1280.0
+		assert_true(ratio >= 0.085 and ratio <= 0.115, "%s 폭 %.1f%%" % [id, ratio * 100.0])
+
+
+func test_지면은_무대_크기_한_장이고_건물은_소행성_안에_있음() -> void:
+	assert_eq(BaseLayout.sprite_size("ground_landscape") * BaseLayout.PIXEL, BaseLayout.STAGE, "가로 지면 = 무대")
+	assert_eq(BaseLayout.sprite_size("ground_portrait") * BaseLayout.PIXEL, Vector2(720, 1280), "세로 지면 = 720x1280")
+	# 소행성 모양(가운데 타원): 건물 그림 네 모서리가 타원 안에 있어야 함 (가로 화면, 소행성은 화면의 약 75%)
+	for id in BaseLayout.IDS:
+		var r: Rect2 = BaseLayout.rects(Vector2(1280, 720))[id]
+		for c: Vector2 in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
+			var d := (c - Vector2(640, 360)) / Vector2(640 * 0.74, 360 * 0.72)
+			assert_true(d.length() <= 1.0, "%s 모서리 %s가 소행성 밖" % [id, c])
 
 
 func test_기지_그림은_정리된_픽셀_아트() -> void:
