@@ -318,6 +318,7 @@ func test_터치로_닫으면_포커스_테두리가_없고_키보드로_닫으�
 	await wait_frames()
 	main.panel.close_button.pressed.emit()
 	assert_true(main.get_viewport().gui_get_focus_owner() == null, "터치로 닫음 → 테두리 없음")
+	assert_eq(main.view.hover_id, "", "터치로 닫음 → 건물 강조도 끔")
 	var key := InputEventKey.new()
 	main._input(key)
 	main.press("museum")

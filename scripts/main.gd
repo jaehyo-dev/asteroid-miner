@@ -166,8 +166,10 @@ func _on_panel_closed() -> void:
 	refresh()
 	if _keyboard:
 		spot_buttons["ship"].grab_focus()  # 키보드로 닫았으면 이어서 키보드로 고를 수 있게
-	elif get_viewport().gui_get_focus_owner() != null:
-		get_viewport().gui_get_focus_owner().release_focus()  # 터치·마우스로 닫았으면 테두리 없이
+	else:
+		if get_viewport().gui_get_focus_owner() != null:
+			get_viewport().gui_get_focus_owner().release_focus()  # 터치·마우스로 닫았으면 테두리 없이
+		view.hover_id = ""  # 휴대폰은 탭이 마우스 올림으로도 들어와 닫은 뒤에도 빛나 있지 않게
 
 
 func _input(event: InputEvent) -> void:
