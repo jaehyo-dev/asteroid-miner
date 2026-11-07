@@ -253,7 +253,7 @@ func _build_hangar() -> void:
 	var body: BoxContainer = VBoxContainer.new() if _portrait() else HBoxContainer.new()
 	body.add_theme_constant_override("separation", P * 8)
 	var slots := GridContainer.new()
-	slots.columns = 2 if _portrait() else 1
+	slots.columns = 1  # 세로 화면(폭 720)에서도 36px 설명 문구가 들어가게 한 줄에 한 칸
 	slots.add_theme_constant_override("h_separation", P * 3)
 	slots.add_theme_constant_override("v_separation", P * 3)
 	for i in Hangar.slots().size():

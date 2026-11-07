@@ -157,6 +157,13 @@ func _draw_ground() -> void:
 	var s := g.get_size() * P
 	var x := BaseLayout.snap(Vector2((size.x - s.x) / 2.0, 0)).x
 	draw_texture_rect(g, Rect2(Vector2(x, 0), s), false)
+	# 아주 넓은 화면: 양옆에 좌우를 뒤집은 배경을 이어 붙인다 (이음매가 자연스럽고 배율은 그대로)
+	if x > 0.0:
+		draw_set_transform(Vector2(x, 0), 0.0, Vector2(-1, 1))
+		draw_texture_rect(g, Rect2(Vector2.ZERO, s), false)
+		draw_set_transform(Vector2(x + s.x * 2.0, 0), 0.0, Vector2(-1, 1))
+		draw_texture_rect(g, Rect2(Vector2.ZERO, s), false)
+		draw_set_transform(Vector2.ZERO)
 	if s.y < size.y:
 		draw_rect(Rect2(0, s.y, size.x, size.y - s.y), _ground_fill)
 

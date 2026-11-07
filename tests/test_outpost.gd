@@ -7,7 +7,7 @@ const RunScene := preload("res://scenes/run.tscn")
 ## 확인할 화면 크기 (기지 화면 기준 해상도 단위 = App.base_size_for(창, true)):
 ## PC 1280x720, 휴대폰 가로 844x390 → 1558x720, 휴대폰 세로 390x844 → 720x1558, 16:9 세로 720x1280,
 ## 위아래로 긴 PC 창(1000x900 → 1280x1152), 정사각형 창(→ 1280x1280). expand라 가로는 폭 1280, 세로는 높이 1280보다 작아지지 않는다.
-const SIZES := [Vector2(1280, 720), Vector2(1558, 720), Vector2(720, 1558), Vector2(720, 1280), Vector2(1280, 1152), Vector2(1280, 1280)]
+const SIZES := [Vector2(1280, 720), Vector2(1558, 720), Vector2(720, 1558), Vector2(720, 1280), Vector2(1280, 1152), Vector2(1280, 1280), Vector2(2560, 720)]
 ## 손가락으로 누르기 쉬운 최소 크기: 휴대폰은 기준 720 → 화면 약 390px(0.54배)이므로 88이면 약 48px
 const MIN_TOUCH := Vector2(88, 88)
 
@@ -279,6 +279,18 @@ func test_건물_화면을_연_채로_휴대폰을_돌리면_배치가_바뀜() 
 	grid = main.panel.find_children("*", "GridContainer", true, false).filter(func(g): return not g.is_queued_for_deletion())[0]
 	assert_eq(grid.columns, 1, "세로는 1열")
 	assert_true(main.panel.visible, "열린 채로")
+	main.queue_free()
+
+
+func test_세로_화면_건물_화면은_폭_안에_들어감() -> void:
+	var main: Control = await _main()
+	main.panel.size = Vector2(720, 1280)
+	for kind in ["research", "hangar", "storage", "museum"]:
+		main.press(kind)
+		await wait_frames(2)
+		var box: Control = main.panel._panel
+		assert_true(box.get_combined_minimum_size().x <= 720.0, "%s 최소 폭 %d" % [kind, box.get_combined_minimum_size().x])
+		main.panel.close()
 	main.queue_free()
 
 
