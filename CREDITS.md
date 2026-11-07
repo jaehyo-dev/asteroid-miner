@@ -20,11 +20,14 @@
 | 이름 | 라이선스 | 쓰는 곳 |
 |---|---|---|
 | Pillow 10.4.0 (Jeffrey A. Clark and contributors) | MIT-CMU (HPND) | `tools/pixelate.py` 그림 정리 도구와 그 테스트 (https://github.com/python-pillow/Pillow, CI에서 pip로 설치) |
+| NumPy 1.26 (NumPy developers), SciPy 1.13 (SciPy developers) | BSD-3-Clause | `tools/key_asteroid.py` 소행성 그림의 우주 배경 지우기와 그 테스트 (개발 PC에만 설치, 필요할 때만) |
 | rembg (Daniel Gatis), isnet-general-use 모델 | MIT, 모델 Apache-2.0 | `tools/pixelate.py --rembg` 배경 지우기 (개발 PC에만 설치, 필요할 때만) |
 | GitHub Actions: actions/checkout, actions/setup-python, actions/cache, actions/configure-pages, actions/upload-pages-artifact, actions/deploy-pages | MIT | `.github/` 자동 테스트·배포 |
 | Python 3 표준 라이브러리 | PSF License | `tools/` 변경 기록·버전 도구 |
 
 ## 직접 만든 것
+
+- `tools/key_asteroid.py`: 소행성 그림에서 우주 배경을 지우는 도구 (v0.6.4, 직접 만듦)
 
 - 프로젝트 아이콘 `icon.svg`, 별 배경: 이 프로젝트에서 직접 만듦
 - 우주선·운석·황금 운석·우주 해파리·날벌레·고대 경비선(선체·충전 빛·에너지탄)·탄·파편·광물·심연의 포격(조준선·에너지탄) 픽셀 아트와 모션(운석 회전·튕김·금 감, 우주선 기울기) (`scripts/pixel_art.gd`, `scripts/world_view.gd`에서 코드로 그림): 이 프로젝트에서 직접 만듦
