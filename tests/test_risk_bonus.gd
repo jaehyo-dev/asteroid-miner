@@ -18,16 +18,16 @@ func test_보너스_퍼센트() -> void:
 	assert_eq(Hud.bonus_text(_time_for(40.0)), "광물 보너스 +40%")
 
 
-func test_보너스가_10퍼센트_오를_때만_커짐() -> void:
+func test_보너스가_10퍼센트_오를_때만_정수_픽셀로_들썩임() -> void:
 	var b := RiskBonus.new()
 	assert_false(b.update(0.1, 0.0), "시작")
-	assert_eq(b.scale(), 1.0, "평소 크기")
+	assert_eq(b.lift(), 0, "평소 위치")
 	assert_false(b.update(0.1, _time_for(9.0)), "+9%는 아직")
 	assert_true(b.update(0.1, _time_for(10.0)), "+10%에서 오름")
 	b.update(RiskBonus.PULSE_TIME / 2.0, _time_for(10.0))
-	assert_true(b.scale() > 1.3, "중간에 커짐 %f" % b.scale())
+	assert_eq(b.lift(), RiskBonus.PULSE_LIFT, "중간에 가장 높이 뜸")
 	assert_false(b.update(RiskBonus.PULSE_TIME, _time_for(15.0)), "같은 단계에서는 다시 오르지 않음")
-	assert_eq(b.scale(), 1.0, "다시 원래 크기")
+	assert_eq(b.lift(), 0, "다시 제자리")
 	assert_true(b.update(0.1, _time_for(20.0)), "+20%에서 또 오름")
 
 

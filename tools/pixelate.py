@@ -5,6 +5,7 @@ Codex로 만든 그림(부드러운 가장자리, 들쭉날쭉한 픽셀 크기)
 2) 색 줄이기: 디더링 없이 --colors 색으로 (같은 색 덩어리가 깔끔하게 남게 먼저 줄임)
 3) 크기 줄이기: nearest로 --width(또는 --scale) 픽셀 격자에 맞춤. 결과 1픽셀 = 게임 화면에서 정수 배율(기지 화면 3배)
 4) 투명도는 0 또는 255만 (반투명 가장자리 없음)
+--palette가 있으면 마지막에 그 팔레트(.gpl, 또는 팩 그림의 색)에서 가장 가까운 색으로 바꾼다.
 --split이면 가로로 늘어놓은 부품 시트를 빈 세로줄 기준으로 잘라 이름_1.png, 이름_2.png …로 저장한다.
 --height가 있으면 배경 그림처럼 그 크기를 위쪽 기준으로 꽉 채운다 (넘치는 아래·양옆은 잘라냄).
 
@@ -165,6 +166,33 @@ def pixelate(img: Image.Image, width: int | None = None, scale: float | None = N
     return binarize_alpha(img.resize(size, Image.Resampling.NEAREST))
 
 
+def load_palette(path: str) -> list[tuple]:
+    """팔레트 색 목록. .gpl(GIMP 팔레트)이거나, 그림이면 그 그림의 불투명한 색 전부 (예: 팩 그림 색에 맞추기)."""
+    if path.endswith(".gpl"):
+        colors = []
+        for line in open(path, encoding="utf-8"):
+            parts = line.split()
+            if len(parts) >= 3 and all(x.isdigit() for x in parts[:3]):
+                colors.append(tuple(int(x) for x in parts[:3]))
+        return colors
+    return sorted({p[:3] for p in Image.open(path).convert("RGBA").getdata() if p[3]})
+
+
+def map_to_palette(img: Image.Image, palette: list[tuple]) -> Image.Image:
+    """불투명한 픽셀마다 가장 가까운 팔레트 색으로 바꾼다 (디더링 없음)."""
+    img = img.convert("RGBA").copy()
+    cache: dict = {}
+    px = img.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = px[x, y]
+            if a:
+                if (r, g, b) not in cache:
+                    cache[(r, g, b)] = min(palette, key=lambda c: (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2)
+                px[x, y] = cache[(r, g, b)] + (255,)
+    return img
+
+
 def count_colors(img: Image.Image) -> int:
     """불투명한 픽셀의 색 수 (테스트·확인용)."""
     seen = set()
@@ -185,6 +213,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--no-key", action="store_true", help="배경을 지우지 않음 (배경 그림)")
     p.add_argument("--rembg", action="store_true", help="마젠타 대신 rembg로 배경을 지움")
     p.add_argument("--main-only", action="store_true", help="가장 큰 덩어리만 남김 (잘라 온 그림의 옆 조각 지우기)")
+    p.add_argument("--palette", help="결과 색을 이 팔레트(.gpl 또는 그 그림의 색)로 맞춤")
     p.add_argument("--split", action="store_true", help="가로로 늘어놓은 부품을 나눠 이름_번호.png로 저장")
     args = p.parse_args(argv)
 
@@ -206,6 +235,8 @@ def main(argv: list[str]) -> int:
         print(f"{args.dst}: 부품 {len(parts)}개")
     else:
         out = pixelate(img, args.width, args.scale, args.height, args.colors)
+        if args.palette:
+            out = map_to_palette(out, load_palette(args.palette))
         out.save(args.dst)
         print(f"{args.dst}: {out.width}x{out.height}, {count_colors(out)}색")
     return 0

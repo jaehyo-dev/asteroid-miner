@@ -105,6 +105,20 @@ static var _scaled_cache := {}
 
 
 ## 텍스처를 P배 nearest로 키운 것 (아이콘을 정수 배율로만 보여 주려고)
+## 도감 아이콘 (Discovery.ENTRIES의 id): 출격 화면과 같은 그림
+static func discovery_icon(id: String) -> Texture2D:
+	if id.begins_with("mineral_"):
+		return RunSprites.mineral(int(id.substr(8)))
+	if id.begins_with("rock_"):
+		return RunSprites.icon(id)
+	match id:
+		"golden":
+			return RunSprites.icon("rock_gold")
+		"jelly", "bug", "guard":
+			return RunSprites.icon(id)
+	return PixelArt.barrage_icon()
+
+
 static func _scaled(tex: Texture2D) -> Texture2D:
 	if not _scaled_cache.has(tex):
 		var img := tex.get_image()
@@ -280,7 +294,8 @@ func _fighter_slot(fighter: Dictionary, selected: bool) -> Control:
 		row.add_child(_label("곧 추가", COLOR_DIM))
 		card.modulate = Color(1, 1, 1, 0.7)
 		return card
-	row.add_child(_icon(PixelArt.ship()))
+	var ship := RunSprites.icon("ship")
+	row.add_child(_icon(ship, Color.WHITE, ship.get_size()))
 	var info := VBoxContainer.new()
 	info.add_theme_constant_override("separation", 0)
 	info.add_child(_label(fighter["name"], COLOR_TITLE if selected else COLOR_TEXT))
@@ -300,7 +315,7 @@ func _build_storage() -> void:
 	grid.add_theme_constant_override("v_separation", P * 2)
 	for i in Balance.MINERAL_GRADES.size():
 		var row := HBoxContainer.new()
-		row.add_child(_icon(PixelArt.mineral(i)))
+		row.add_child(_icon(RunSprites.mineral(i)))
 		row.add_child(_label("%s %s개" % [Balance.MINERAL_GRADES[i]["name"], Hud.thousands(save.hauled[i])]))
 		grid.add_child(row)
 	_content.add_child(grid)
@@ -321,7 +336,8 @@ func _build_museum() -> void:
 		cell.add_theme_stylebox_override("panel", _style(COLOR_CARD, Color(COLOR_BORDER, 0.35 if found else 0.12), P * 2))
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 0)
-		var icon := _icon(PixelArt.discovery_icon(e["id"]), Color.WHITE if found else Color.BLACK, Vector2(30, 30))
+		var tex := discovery_icon(e["id"])
+		var icon := _icon(tex, Color.WHITE if found else Color.BLACK, Vector2(30, 30).max(tex.get_size()))
 		icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(icon)
 		box.add_child(_label(e["name"] if found else "?", COLOR_TEXT if found else COLOR_DIM, HORIZONTAL_ALIGNMENT_CENTER))

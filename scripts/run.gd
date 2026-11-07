@@ -146,7 +146,7 @@ func _announce(events: PackedStringArray) -> void:
 			Sfx.play_raid()
 		elif e.begins_with("new_"):
 			var creature := e.substr(4)
-			hud.show_banner("새로운 위협: %s" % Balance.CREATURES[creature]["name"], PixelArt.JELLY_COLORS[0] if creature == "jelly" else PixelArt.BUG_COLORS[0])
+			hud.show_banner("새로운 위협: %s" % Balance.CREATURES[creature]["name"], WorldView.JELLY_COLOR if creature == "jelly" else WorldView.BUG_COLOR)
 
 
 ## 광물 보너스 표시를 진행한다. 보너스가 처음 오를 때(+1%) 한 번만 말풍선을 띄우고, 봤다는 것을 저장한다.

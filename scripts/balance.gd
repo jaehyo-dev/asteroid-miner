@@ -15,8 +15,11 @@ const RUN_VIEW_MAX_HEIGHT := 480
 const MAX_FRAME_DELTA := 0.1
 
 # ── 우주선 ───────────────────────────────────────────
-const SHIP_SPEED := 110.0
-const SHIP_RADIUS := 6.0
+## 충돌 반지름(…_RADIUS, "radius")은 팩 그림(v0.7.0)의 보이는 몸보다 작게 잡는다: 운석·경비선은 보이는 반지름의 약 70%,
+## 해파리·날벌레는 약 60%, 내 우주선은 몸통만(약 50%). 같은 화면에 그림이 커진 만큼 운석 등장 간격을 1.15배로 늘려
+## 밸런스 봇의 한 판 길이·4분 생존·레벨업 속도를 그 전과 비슷하게 맞췄다 (tests/balance_report.gd).
+const SHIP_SPEED := 120.0
+const SHIP_RADIUS := 7.0
 const SHIP_MAX_HP := 100.0
 ## 맞은 뒤 무적 시간. 이 시간 동안은 운석과 부딪혀도 데미지가 없다.
 const SHIP_INVULN_TIME := 1.0
@@ -33,9 +36,9 @@ const JOYSTICK_DEAD_ZONE := 0.15
 ## 크기별 수치: 반지름, 체력(탄 몇 발), 부딪혔을 때 데미지, 속도 범위, 부서질 때 떨어뜨리는 광물 등급(MINERAL_GRADES 번호)과 개수
 ## 광물 등급은 크기마다 고정이다: 작은 운석 → 일반, 중간 → 희귀, 큰 운석 → 영웅
 const ASTEROID_TYPES := [
-	{"name": "작은 운석", "radius": 5.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0, "grade": 0, "minerals": 1},
-	{"name": "중간 운석", "radius": 9.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0, "grade": 1, "minerals": 1},
-	{"name": "큰 운석", "radius": 14.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0, "grade": 2, "minerals": 2},
+	{"name": "작은 운석", "radius": 8.0, "hp": 1.0, "damage": 8.0, "speed_min": 45.0, "speed_max": 75.0, "grade": 0, "minerals": 1},
+	{"name": "중간 운석", "radius": 12.0, "hp": 2.0, "damage": 14.0, "speed_min": 32.0, "speed_max": 55.0, "grade": 1, "minerals": 1},
+	{"name": "큰 운석", "radius": 20.0, "hp": 3.0, "damage": 22.0, "speed_min": 22.0, "speed_max": 40.0, "grade": 2, "minerals": 2},
 ]
 ## 운석 체력은 이 시간(초)마다 기본값만큼 계단식으로 늘어난다 (0~75초 1배, 75초부터 2배, 150초부터 3배 …).
 const ASTEROID_HP_GROWTH_TIME := 75.0
@@ -45,8 +48,8 @@ const ASTEROID_WEIGHTS_LATE := [4.0, 4.0, 2.0]
 ## 운석은 우주선 쪽으로 날아오되, 이 각도(도)만큼 무작위로 빗나간다.
 const ASTEROID_AIM_SPREAD_DEG := 25.0
 ## 운석 등장 간격: 시작 → SPAWN_RAMP_TIME에 걸쳐 최소 간격까지 줄어든다.
-const SPAWN_INTERVAL_START := 1.0
-const SPAWN_INTERVAL_MIN := 0.15
+const SPAWN_INTERVAL_START := 1.15
+const SPAWN_INTERVAL_MIN := 0.17
 const SPAWN_RAMP_TIME := 240.0
 ## 그 뒤로도 계속 어려워진다: 등장 간격이 이 시간(초)마다 절반이 된다 (SPAWN_INTERVAL_FLOOR까지).
 ## 강화를 아무리 쌓아도 결국 버틸 수 없게 해서 한 판이 끝나도록 한다.
@@ -91,8 +94,8 @@ const BARRAGE_LEAD_TIME := 0.6
 ## 최고 속도, 방향을 트는 힘(가속도), 부수면 떨어지는 광물 등급과 개수
 ## 속도는 시간이 지날수록 빨라지지만 운석보다 천천히 (CREATURE_SPEED_GROWTH_TIME마다 기본 속도만큼).
 const CREATURES := {
-	"jelly": {"name": "우주 해파리", "radius": 7.0, "hp": 4.0, "damage": 12.0, "speed": 32.0, "accel": 45.0, "grade": 1, "minerals": 1},
-	"bug": {"name": "날벌레", "radius": 4.0, "hp": 1.0, "damage": 7.0, "speed": 95.0, "accel": 45.0, "grade": 0, "minerals": 1},
+	"jelly": {"name": "우주 해파리", "radius": 9.0, "hp": 4.0, "damage": 12.0, "speed": 32.0, "accel": 45.0, "grade": 1, "minerals": 1},
+	"bug": {"name": "날벌레", "radius": 7.0, "hp": 1.0, "damage": 7.0, "speed": 95.0, "accel": 45.0, "grade": 0, "minerals": 1},
 }
 ## 생명체 속도가 기본 속도만큼 더 빨라지는 시간 (360초면 2배). 날벌레가 우주선보다 너무 빨라지지 않게 운석보다 느리게.
 const CREATURE_SPEED_GROWTH_TIME := 360.0
@@ -106,7 +109,7 @@ const BUG_FIRST_TIME := 80.0
 const BUG_INTERVAL_START := 15.0
 const BUG_INTERVAL_MIN := 7.0
 const BUG_SWARM_SIZE := 5
-const BUG_SWARM_SPREAD := 12.0
+const BUG_SWARM_SPREAD := 20.0
 ## 날벌레는 나온 뒤 이 시간 동안만 우주선 쪽으로 방향을 튼다 (그 뒤엔 그대로 지나감)
 const BUG_HOMING_TIME := 3.0
 
@@ -115,7 +118,7 @@ const BUG_HOMING_TIME := 3.0
 ## 선체를 천천히 돌려 우주선을 노린 뒤 충전(뱃머리 빛) → 에너지탄 한 발을 쏜다.
 ## 단단하고(탄 여러 발) 좋은 광물을 준다. 몸으로 부딪혀도 부서지지 않는다(피해만 입음).
 ## 체력은 운석처럼 ASTEROID_HP_GROWTH_TIME마다 계단식으로 늘어난다.
-const GUARD := {"name": "고대 경비선", "radius": 8.0, "hp": 4.0, "damage": 15.0}
+const GUARD := {"name": "고대 경비선", "radius": 10.0, "hp": 4.0, "damage": 15.0}
 ## 부수면 떨어지는 광물: 영웅 3개 + 희귀 2개
 const GUARD_DROPS := [{"grade": 2, "count": 3}, {"grade": 1, "count": 2}]
 ## 첫 등장 시각, 등장 간격(시작 → SPAWN_RAMP_TIME에 걸쳐 최소), 동시에 있을 수 있는 최대 수
@@ -124,7 +127,7 @@ const GUARD_FIRST_TIME := 100.0
 const GUARD_INTERVAL_START := 45.0
 const GUARD_INTERVAL_MIN := 30.0
 const GUARD_MAX := 1
-## 움직임: 최고 속도(우주선 110보다 느려서 달아날 수 있음, GUARD_SPEED_GROWTH_TIME마다 기본 속도만큼 빨라짐),
+## 움직임: 최고 속도(우주선 120보다 느려서 달아날 수 있음, GUARD_SPEED_GROWTH_TIME마다 기본 속도만큼 빨라짐),
 ## 방향을 바꾸는 힘(가속도), 우주선과 유지하려는 거리(픽셀), 주위를 도는 빠르기(최고 속도 대비 비율)
 const GUARD_SPEED := 65.0
 const GUARD_SPEED_GROWTH_TIME := 600.0
@@ -146,7 +149,7 @@ const GUARD_FIRE_INTERVAL := 3.5
 ## 경비선 에너지탄: 속도, 피해, 맞는 범위(반지름). 심연의 포격처럼 자동 공격으로 부술 수 없다.
 const GUARD_SHOT_SPEED := 110.0
 const GUARD_SHOT_DAMAGE := 5.0
-const GUARD_SHOT_RADIUS := 3.0
+const GUARD_SHOT_RADIUS := 4.0
 
 # ── 습격 이벤트 (긴장의 리듬) ───────────────────────
 ## RAID_INTERVAL마다: 경고(RAID_WARNING_TIME) → 습격(RAID_DURATION) → 숨 돌릴 틈(RAID_CALM_TIME, 보통 등장 멈춤)
@@ -199,14 +202,14 @@ const FIRE_RANGE := 170.0
 const TARGET_GOLDEN_PENALTY := 60.0
 const BULLET_SPEED := 260.0
 const BULLET_DAMAGE := 1.0
-const BULLET_RADIUS := 1.5
+const BULLET_RADIUS := 2.0
 ## 한 번에 쏘는 탄 수
 ## 발사 형태: 1발 직선 / 2발 나란히 / 홀수(3, 5…) 가운데 1발 + 양옆 부채꼴 / 짝수(4, 6…) 가운데 2발 나란히 + 양옆 부채꼴
 const BULLET_COUNT := 1
 ## 부채꼴로 퍼지는 탄 사이의 각도
 const MULTI_SHOT_SPREAD_DEG := 12.0
-## 나란히 나가는 두 발 사이의 간격 (픽셀). 작은 운석(반지름 5)도 두 발 다 맞을 만큼 좁게.
-const PARALLEL_SHOT_GAP := 4.0
+## 나란히 나가는 두 발 사이의 간격 (픽셀). 작은 운석(반지름 8)도 두 발 다 맞을 만큼 좁게.
+const PARALLEL_SHOT_GAP := 6.0
 ## 탄은 사거리보다 이 비율만큼 더 날아가고 사라진다.
 const BULLET_LIFETIME_FACTOR := 1.15
 
@@ -223,13 +226,13 @@ const MINERAL_GRADES := [
 ## 광물 가치 1당 경험치. 등급별 경험치 = 가치 × 이 값 (반올림, 최소 1)
 const MINERAL_XP_PER_VALUE := 1.0
 ## 광물이 떨어질 때 운석 자리에서 흩어지는 최대 거리
-const MINERAL_SCATTER := 6.0
+const MINERAL_SCATTER := 8.0
 ## 자석 범위: 이 안에 들어온 광물은 우주선으로 끌려온다.
-const MAGNET_RADIUS := 40.0
+const MAGNET_RADIUS := 48.0
 ## 끌려오는 속도 (우주선보다 빨라야 따라잡는다)
 const MAGNET_SPEED := 220.0
 ## 이 거리 안이면 줍는다.
-const PICKUP_RADIUS := 8.0
+const PICKUP_RADIUS := 10.0
 ## 바닥에 남아 있을 수 있는 최대 광물 수 (넘으면 오래된 것부터 사라짐)
 const MAX_MINERALS := 300
 

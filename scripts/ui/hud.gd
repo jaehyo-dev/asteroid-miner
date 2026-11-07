@@ -84,7 +84,7 @@ func _draw() -> void:
 	var x := MARGIN
 	var cargo := sim.cargo
 	for grade in cargo.counts.size():
-		var icon := PixelArt.mineral(grade)
+		var icon := RunSprites.mineral(grade)
 		# 아이콘 크기가 등급마다 달라서 세로 가운데를 맞춘다
 		draw_texture(icon, Vector2(x, MARGIN + 38 - floorf(icon.get_height() / 2.0)))
 		var text := str(cargo.counts[grade])
@@ -125,7 +125,8 @@ func _draw_golden_markers() -> void:
 		draw_colored_polygon(arrow_points(marker, dir), Color(COLOR_GOLD, pulse))
 		# 화살표 뒤쪽(화면 안쪽)에 금괴 그림을 붙여 무엇을 가리키는지 알려 준다
 		# (금괴는 깜빡이지 않고 항상 선명하게: 어두워지면 갈색 운석처럼 보인다)
-		draw_texture(PixelArt.mineral(3), (marker - dir * (MARKER_BACK + 8.0) - Vector2(4, 3)).round())
+		var gold := RunSprites.mineral(3)
+		draw_texture(gold, (marker - dir * (MARKER_BACK + 8.0)).round() - (gold.get_size() / 2.0).floor())
 
 
 ## 화물칸 글자: "화물 12/80 · 가치 120" (꽉 차면 "화물 가득")
@@ -135,10 +136,10 @@ static func cargo_text(cargo: Cargo) -> String:
 
 
 ## 화물칸 가치 옆에 작게: [광물 아이콘 + 위쪽 화살표] "광물 보너스 +40%".
-## 오를 때만 잠깐 커졌다 돌아오고, 높을수록 노랑 → 주황 → 빨강. 오른쪽 게이트 글자와 겹치면(좁은 화면) 다음 줄에 쓴다.
+## 오를 때만 잠깐 위로 들썩였다 돌아오고, 높을수록 노랑 → 주황 → 빨강. 오른쪽 게이트 글자와 겹치면(좁은 화면) 다음 줄에 쓴다.
 func _draw_bonus(font: Font, pos: Vector2) -> void:
 	var text := bonus_text(sim.time)
-	var icon := PixelArt.mineral(3)
+	var icon := RunSprites.mineral(3)
 	var text_x := icon.get_width() + 9.0
 	# 오른쪽 위 게이트 글자(남은 시간, 지금 귀환하면 …)와 겹치지 않을 만큼만 쓴다
 	var right := 0.0
@@ -148,9 +149,8 @@ func _draw_bonus(font: Font, pos: Vector2) -> void:
 		pos = Vector2(MARGIN, pos.y + 16)
 	_bonus_pos = pos
 	var color := bonus_color(sim.time)
-	# 글자 가운데 높이를 기준으로 커진다
-	var s := bonus.scale()
-	draw_set_transform(pos + Vector2(0, -4), 0.0, Vector2(s, s))
+	# 오르면 정수 픽셀만큼 위로 들썩인다 (크기를 바꾸면 픽셀이 찌그러짐)
+	draw_set_transform(pos + Vector2(0, -4 - bonus.lift()))
 	draw_texture(icon, Vector2(0, -floorf(icon.get_height() / 2.0)))
 	var ax := icon.get_width() + 3.0
 	draw_colored_polygon(PackedVector2Array([Vector2(ax, -7), Vector2(ax - 2.5, -3), Vector2(ax + 2.5, -3)]), color)

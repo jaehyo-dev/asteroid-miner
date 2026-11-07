@@ -204,7 +204,7 @@ func test_적의_도감_id() -> void:
 	e.kind = RunSim.GUARD
 	assert_eq(Discovery.enemy_id(e), "guard")
 	for entry in Discovery.ENTRIES:
-		assert_not_null(PixelArt.discovery_icon(entry["id"]), entry["id"] + " 아이콘")
+		assert_not_null(BasePanel.discovery_icon(entry["id"]), entry["id"] + " 아이콘")
 
 
 func test_화면_안에_보인_것만_도감에_오름() -> void:

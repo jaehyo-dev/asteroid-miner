@@ -83,6 +83,8 @@ var enemies: Array[Enemy] = []
 var bullets: Array[Bullet] = []
 ## 이번 프레임에 탄으로 부서진 운석 (효과·보상용)
 var destroyed: Array[Enemy] = []
+## 이번 프레임에 우주선과 부딪혀 부서진 적 (광물 없음, 폭발 그림용)
+var crashed: Array[Enemy] = []
 ## 이번 프레임에 주운 광물 {pos, grade, gain(화물칸에서 늘어난 가치)} (줍기 연출·효과음용)
 var picked: Array[Dictionary] = []
 ## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden",
@@ -163,6 +165,7 @@ func _init(seed_value: int = 0) -> void:
 func update(delta: float, move: Vector2) -> void:
 	events.clear()
 	destroyed.clear()
+	crashed.clear()
 	picked.clear()
 	if is_over() or not choices.is_empty():
 		return  # 판이 끝났거나 강화를 고르는 중이면 멈춘다
@@ -696,6 +699,7 @@ func _check_player_hits() -> void:
 	for a in enemies:
 		var touching := a.pos.distance_to(player_pos) < a.radius + Balance.SHIP_RADIUS
 		if touching and alive and damage_player(a.damage) and not a.sturdy():
+			crashed.append(a)
 			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석·고대 경비선은 부딪혀도 부서지지 않음)
 		kept.append(a)
 	enemies = kept

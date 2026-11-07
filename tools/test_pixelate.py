@@ -84,3 +84,17 @@ class PixelateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PaletteTest(unittest.TestCase):
+    def test_팔레트의_가장_가까운_색으로_바꿈(self):
+        img = Image.new("RGBA", (2, 1), (0, 0, 0, 0))
+        img.putpixel((0, 0), (250, 10, 10, 255))
+        out = px.map_to_palette(img, [(255, 0, 0), (0, 0, 255)])
+        self.assertEqual(out.getpixel((0, 0)), (255, 0, 0, 255))
+        self.assertEqual(out.getpixel((1, 0))[3], 0, "투명한 곳은 그대로")
+
+    def test_gpl과_그림에서_팔레트를_읽음(self):
+        colors = px.load_palette("assets/palette/void32.gpl")
+        self.assertEqual(len(colors), 32)
+        self.assertIn((0, 0, 0), colors)

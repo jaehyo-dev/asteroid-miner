@@ -50,8 +50,16 @@ func test_별_배경_층은_카메라를_따라_밀림() -> void:
 	for layer in Starfield.LAYERS:
 		if is_equal_approx(layer["parallax"], 1.0):
 			has_world_layer = true
-		assert_true(layer["parallax"] >= 0.3, "너무 느린 층은 우주선을 따라오는 것처럼 보임")
 	assert_true(has_world_layer, "월드 고정 층")
+	# 팩 별 3겹은 서로 다른 속도(느림 → 빠름), 먼 행성은 가장 느림, 모두 어둡게
+	assert_eq(Starfield.PACK_LAYERS.size(), 3, "별 3겹")
+	var prev := float(Starfield.PLANET["parallax"])
+	for layer in Starfield.PACK_LAYERS:
+		assert_true(layer["parallax"] > prev and layer["parallax"] < 1.0, "시차 순서")
+		assert_true(layer["dim"] <= 0.6, "배경은 어둡게")
+		prev = layer["parallax"]
+	assert_true(float(Starfield.PLANET["dim"]) <= 0.6, "행성도 어둡게")
+	assert_eq(Starfield.tile_origin(Vector2(650, -10)), Vector2(-10, -350), "타일은 화면 왼쪽 위를 덮음")
 	var area := Vector2(640, 360)
 	var before := Starfield.star_position(Vector2(0.5, 0.5), area, Vector2.ZERO, 1.0)
 	var after := Starfield.star_position(Vector2(0.5, 0.5), area, Vector2(10, 0), 1.0)

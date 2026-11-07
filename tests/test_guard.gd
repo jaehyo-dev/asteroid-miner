@@ -340,8 +340,6 @@ func test_체력이_줄면_금이_감() -> void:
 	assert_eq(WorldView.crack_level(2.0, 3.0), 1, "한 번 맞음")
 	assert_eq(WorldView.crack_level(1.0, 3.0), 2, "두 번 맞음")
 	assert_eq(WorldView.crack_level(1.0, 1.0), 0, "한 방에 부서지는 적은 금 없음")
-	assert_eq(WorldView.crack_lines(9.0, 2, 2).size(), 2)
-	assert_eq(WorldView.crack_lines(9.0, 2, 1)[0], WorldView.crack_lines(9.0, 2, 2)[0], "같은 운석은 같은 금")
 
 
 func test_운석은_변형마다_다르게_돌고_작을수록_빠름() -> void:
@@ -381,26 +379,3 @@ func test_8방향_번호와_경계_흔들림_방지() -> void:
 	assert_eq(PixelArt.dir8(PI / 8.0 + 0.05, 0), 0, "경계 근처는 유지")
 	assert_eq(PixelArt.dir8(PI / 8.0 + 0.05), 1, "이전 값이 없으면 가까운 쪽")
 	assert_eq(PixelArt.dir8(PI / 4.0, 0), 1, "충분히 돌면 바뀜")
-
-
-func test_돌린_그림은_1픽셀_격자이고_90도는_정확함() -> void:
-	var tex := PixelArt.ship()
-	assert_eq(PixelArt.rotated(tex, 0), tex, "0은 원래 그림")
-	assert_eq(PixelArt.rotated(tex, 2).get_size(), Vector2(7, 9), "90도는 가로세로가 바뀜")
-	assert_eq(PixelArt.rotated(tex, 1), PixelArt.rotated(tex, 9), "같은 방향은 다시 만들지 않음")
-	var src := tex.get_image()
-	var back := PixelArt.rotated(tex, 4).get_image()
-	# 180도: 원래 그림의 (x, y)가 (w-1-x, h-1-y)로 정확히 간다
-	for y in src.get_height():
-		for x in src.get_width():
-			assert_eq(back.get_pixel(src.get_width() - 1 - x, src.get_height() - 1 - y), src.get_pixel(x, y))
-	# 45도: 보이는 픽셀 수가 원래와 비슷하다 (모양이 뭉개지거나 비지 않음)
-	var count := func(img: Image) -> int:
-		var n := 0
-		for y in img.get_height():
-			for x in img.get_width():
-				n += 1 if img.get_pixel(x, y).a > 0.5 else 0
-		return n
-	var a: int = count.call(src)
-	var b: int = count.call(PixelArt.rotated(tex, 1).get_image())
-	assert_true(absi(a - b) <= a / 4, "45도 픽셀 수 %d vs %d" % [a, b])

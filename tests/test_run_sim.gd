@@ -123,8 +123,9 @@ func test_시간이_지나면_운석이_계속_나타남() -> void:
 		var before := sim.enemies.size()
 		sim.update(1.0 / 60.0, Vector2.ZERO)
 		spawned += maxi(sim.enemies.size() - before, 0)
-	# 처음 10초 간격은 약 1초 → 대략 9~10개 (충돌로 사라진 것은 제외될 수 있어 최소만 확인)
-	assert_true(sim.enemies.size() >= 5 and sim.enemies.size() <= 12, "운석 수 %d" % sim.enemies.size())
+	# 처음 10초 간격은 약 SPAWN_INTERVAL_START(1.15초) → 대략 8~9개 나타남 (자동 공격으로 부서져도 나타난 수로 셈)
+	var expected := 10.0 / Balance.SPAWN_INTERVAL_START
+	assert_true(spawned >= expected - 3.0 and spawned <= expected + 3.0, "나타난 운석 수 %d" % spawned)
 
 
 func test_운석_최대_개수를_넘지_않음() -> void:
@@ -168,7 +169,7 @@ func test_무적은_시간이_지나면_끝남() -> void:
 
 func test_떨어진_운석과는_충돌하지_않음() -> void:
 	var sim := _quiet_sim()
-	_add_asteroid(sim, Vector2(Balance.SHIP_RADIUS + 6.0, 0))
+	_add_asteroid(sim, Vector2(Balance.SHIP_RADIUS + Balance.ASTEROID_TYPES[0]["radius"] + 1.0, 0))
 	sim.update(0.01, Vector2.ZERO)
 	assert_eq(sim.hp, Balance.SHIP_MAX_HP)
 
@@ -359,6 +360,16 @@ func test_부서진_운석은_그_프레임의_destroyed에_담김() -> void:
 	assert_true(found)
 	sim.update(0.01, Vector2.ZERO)
 	assert_eq(sim.destroyed.size(), 0, "다음 프레임엔 비워짐")
+
+
+func test_몸으로_부딪혀_부서진_운석은_crashed에_담김() -> void:
+	var sim := _quiet_sim()
+	var a := _add_asteroid(sim, Vector2.ZERO)
+	sim.update(0.01, Vector2.ZERO)
+	assert_true(sim.crashed.has(a), "폭발 그림용으로 담김")
+	assert_eq(sim.destroyed.size(), 0, "탄으로 부순 것이 아님 (광물 없음)")
+	sim.update(0.01, Vector2.ZERO)
+	assert_eq(sim.crashed.size(), 0, "다음 프레임엔 비워짐")
 
 
 func test_탄은_수명이_다하면_사라짐() -> void:

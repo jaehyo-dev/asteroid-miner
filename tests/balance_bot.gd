@@ -8,6 +8,10 @@ extends RefCounted
 const STEP := 1.0 / 30.0
 ## 심연의 포격 조준선에서 이만큼 안이면 옆으로 피한다 (collector·flee 봇: 예고를 보고 피하는 플레이)
 const BARRAGE_DODGE_MARGIN := 16.0
+## 적 가운데까지 이 거리 안이면 피한다 (collector / flee). v0.7.0에서 그림·판정이 커진 만큼(반지름 합 약 +7)
+## 늘려, 가장자리 사이 거리 기준으로는 예전과 같은 때 피하게 한다 (사람은 그림 가장자리를 보고 피함).
+const COLLECTOR_DANGER := 52.0
+const FLEE_DANGER := 87.0
 
 
 ## 한 판을 끝까지(또는 max_time까지) 돌리고 {time, level, value, alive}를 돌려준다.
@@ -30,7 +34,7 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 					turn = 2.0
 					move = Vector2.from_angle(rng.randf() * TAU)
 			"collector":
-				var danger := RunSim.nearest_enemy(sim.player_pos, sim.enemies, 45.0)
+				var danger := RunSim.nearest_enemy(sim.player_pos, sim.enemies, COLLECTOR_DANGER)
 				var escape := sim.barrage_escape(sim.player_pos, BARRAGE_DODGE_MARGIN)
 				if escape != Vector2.ZERO:
 					move = escape
@@ -45,7 +49,7 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 							best = d
 							move = (m.pos - sim.player_pos).normalized()
 			"flee":
-				var near := RunSim.nearest_enemy(sim.player_pos, sim.enemies, 80.0)
+				var near := RunSim.nearest_enemy(sim.player_pos, sim.enemies, FLEE_DANGER)
 				var escape := sim.barrage_escape(sim.player_pos, BARRAGE_DODGE_MARGIN)
 				if escape != Vector2.ZERO:
 					move = escape
