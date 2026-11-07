@@ -134,7 +134,7 @@ static func cargo_text(cargo: Cargo) -> String:
 
 
 ## 화물칸 가치 옆에 작게: [광물 아이콘 + 위쪽 화살표] "광물 보너스 +40%".
-## 오를 때만 잠깐 커졌다 돌아오고, 높을수록 노랑 → 주황 → 빨강. 오른쪽 게이트 글자와 겹치면(휴대폰 세로) 다음 줄에 쓴다.
+## 오를 때만 잠깐 커졌다 돌아오고, 높을수록 노랑 → 주황 → 빨강. 오른쪽 게이트 글자와 겹치면(좁은 화면) 다음 줄에 쓴다.
 func _draw_bonus(font: Font, pos: Vector2) -> void:
 	var text := bonus_text(sim.time)
 	var icon := PixelArt.mineral(3)

@@ -316,6 +316,15 @@ func test_폰_가로_크기에서도_건물_화면이_폭_안에_들어감() -> 
 	main.queue_free()
 
 
+func test_전체_화면_버튼은_손가락으로_누를_크기() -> void:
+	var main: Control = await _main()
+	var b: Button = main.fullscreen_button
+	b.show()
+	await wait_frames()
+	assert_true(b.size.x >= MIN_TOUCH.x and b.size.y >= MIN_TOUCH.y, "전체 화면 버튼 %s" % b.size)
+	main.queue_free()
+
+
 func test_길은_금속판과_배관이_건물_입구에_닿음() -> void:
 	var main: Control = await _main()
 	var view: BaseView = main.view

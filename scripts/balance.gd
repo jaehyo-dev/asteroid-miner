@@ -281,7 +281,7 @@ const LOW_HP_SOUND_COOLDOWN := 10.0
 const GATE_FIRST_TIME := 40.0
 const GATE_INTERVAL := 60.0
 const GATE_OPEN_TIME := 15.0
-## 게이트는 열릴 때 우주선에서 이만큼 떨어진 곳에 생긴다 (휴대폰 세로 화면에서는 화면 밖)
+## 게이트는 열릴 때 우주선에서 이만큼 떨어진 곳에 생긴다 (좁은 화면에서는 화면 밖)
 const GATE_DISTANCE := 200.0
 ## 열리기 이 시간(초) 전부터 화면 가장자리에 다음 게이트가 열릴 방향과 남은 시간을 보여 준다
 const GATE_HINT_TIME := 10.0

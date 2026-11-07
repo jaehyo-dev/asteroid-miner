@@ -23,7 +23,7 @@ const BARRAGE_RED := Color("#ff2a4a")
 const BARRAGE_HOT := Color("#ffd0e8")
 const SHOT_CORE := Color("#fff0fa")
 const SHOT_GLOW := Color("#ff3c8c")
-## 조준선 굵기(픽셀): 예고 때 → 충전이 끝날 때, 바깥 빛 추가 굵기. 휴대폰 세로 화면에서도 놓치지 않게 굵고 밝게.
+## 조준선 굵기(픽셀): 예고 때 → 충전이 끝날 때, 바깥 빛 추가 굵기. 휴대폰 같은 작은 화면에서도 놓치지 않게 굵고 밝게.
 const BARRAGE_LINE_WARN := 4.0
 const BARRAGE_LINE_CHARGE := 8.0
 const BARRAGE_LINE_GLOW := 6.0
