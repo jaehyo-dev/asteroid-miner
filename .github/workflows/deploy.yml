@@ -69,8 +69,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 그림 정리 도구용 Pillow 설치
-        run: python3 -m pip install pillow==10.4.0
+      - name: 그림 정리 도구용 Pillow·NumPy 설치
+        run: python3 -m pip install pillow==10.4.0 numpy==1.26.4
 
       - name: 도구·버전 자동 테스트
         run: python3 -m unittest discover -s tools -p "test_*.py" -v
