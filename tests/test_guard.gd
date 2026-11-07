@@ -349,20 +349,20 @@ func test_운석은_변형마다_다르게_돌고_작을수록_빠름() -> void:
 	assert_true(absf(WorldView.spin_speed(3, 5.0)) > absf(WorldView.spin_speed(3, 14.0)), "작을수록 빠름")
 
 
-func test_돌면_우주선이_기울고_곧게_가면_돌아옴() -> void:
+func test_돌면_우주선_그림이_8방향으로_따라감() -> void:
 	var sim := _quiet()
 	var view := WorldView.new()
 	view.sim = sim
 	add_child(view)
 	view.step(1.0 / 60.0)
-	for i in 10:
+	assert_eq(view._ship_dir, 0, "처음은 위")
+	var seen := {}
+	for i in 90:
 		sim.update(1.0 / 60.0, Vector2.RIGHT)  # 위쪽 → 오른쪽으로 돈다
 		view.step(1.0 / 60.0)
-	assert_true(absf(view.bank) > 0.3, "기울어짐 %f" % view.bank)
-	for i in 60:
-		sim.update(1.0 / 60.0, Vector2.RIGHT)
-		view.step(1.0 / 60.0)
-	assert_true(absf(view.bank) < 0.01, "곧게 가면 돌아옴 %f" % view.bank)
+		seen[view._ship_dir] = true
+	assert_eq(view._ship_dir, 2, "오른쪽")
+	assert_true(seen.has(1), "도는 중에 대각선 그림을 거침")
 	view.queue_free()
 
 
@@ -370,3 +370,37 @@ func test_경비선_발사음이_있음() -> void:
 	var stream: AudioStreamWAV = Sfx.guard_stream()
 	assert_true(stream.data.size() > 0)
 	assert_true(stream.data != Sfx.fire_stream().data, "포격 발사음과 다름")
+
+
+func test_8방향_번호와_경계_흔들림_방지() -> void:
+	assert_eq(PixelArt.dir8(0.0), 0, "위")
+	assert_eq(PixelArt.dir8(PI / 2.0), 2, "오른쪽(시계 방향)")
+	assert_eq(PixelArt.dir8(-PI / 4.0), 7, "왼쪽 위")
+	assert_eq(PixelArt.dir8(TAU * 10.0 + PI), 4, "여러 바퀴 돌아도 아래")
+	# 경계(22.5도)를 살짝 넘어도 이전 방향을 유지하고, 충분히 넘으면 바뀐다
+	assert_eq(PixelArt.dir8(PI / 8.0 + 0.05, 0), 0, "경계 근처는 유지")
+	assert_eq(PixelArt.dir8(PI / 8.0 + 0.05), 1, "이전 값이 없으면 가까운 쪽")
+	assert_eq(PixelArt.dir8(PI / 4.0, 0), 1, "충분히 돌면 바뀜")
+
+
+func test_돌린_그림은_1픽셀_격자이고_90도는_정확함() -> void:
+	var tex := PixelArt.ship()
+	assert_eq(PixelArt.rotated(tex, 0), tex, "0은 원래 그림")
+	assert_eq(PixelArt.rotated(tex, 2).get_size(), Vector2(7, 9), "90도는 가로세로가 바뀜")
+	assert_eq(PixelArt.rotated(tex, 1), PixelArt.rotated(tex, 9), "같은 방향은 다시 만들지 않음")
+	var src := tex.get_image()
+	var back := PixelArt.rotated(tex, 4).get_image()
+	# 180도: 원래 그림의 (x, y)가 (w-1-x, h-1-y)로 정확히 간다
+	for y in src.get_height():
+		for x in src.get_width():
+			assert_eq(back.get_pixel(src.get_width() - 1 - x, src.get_height() - 1 - y), src.get_pixel(x, y))
+	# 45도: 보이는 픽셀 수가 원래와 비슷하다 (모양이 뭉개지거나 비지 않음)
+	var count := func(img: Image) -> int:
+		var n := 0
+		for y in img.get_height():
+			for x in img.get_width():
+				n += 1 if img.get_pixel(x, y).a > 0.5 else 0
+		return n
+	var a: int = count.call(src)
+	var b: int = count.call(PixelArt.rotated(tex, 1).get_image())
+	assert_true(absi(a - b) <= a / 4, "45도 픽셀 수 %d vs %d" % [a, b])

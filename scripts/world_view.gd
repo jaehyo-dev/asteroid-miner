@@ -42,9 +42,6 @@ const GUARD_GLOW := Color("#ffb347")
 const GUARD_SHOT_CORE := Color("#fff4d6")
 const GUARD_SHOT_GLOW := Color("#ff9a2e")
 const GUARD_NOSE := 6.0
-## 우주선 기울기: 돌 때 옆으로 눌려 보이는 최대 비율, 기울기가 따라가는 빠르기
-const SHIP_BANK_SQUASH := 0.35
-const SHIP_BANK_RATE := 10.0
 
 var sim: RunSim
 ## 워프 게이트 연출 (귀환할 때 우주선이 빨려 들어가는 모습에 씀)
@@ -57,9 +54,8 @@ var _debris: Array = []
 ## 줍기 연출: {pos, grade, gain(화물칸에서 늘어난 가치에 광물 보너스를 적용한 값), color(그때 보너스 색), t(지난 시간)}
 var _pickups: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
-## 우주선 기울기 (-1 왼쪽으로 돌 때 ~ 1 오른쪽으로 돌 때)
-var bank := 0.0
-var _last_facing := NAN
+## 우주선 그림의 8방향 번호 (경계에서 깜빡이지 않게 이전 값을 기억)
+var _ship_dir := -1
 ## 금 선 모양 캐시 ("반지름_변형_단계" → 선 목록)
 static var _crack_cache := {}
 
@@ -74,12 +70,8 @@ func step(delta: float) -> void:
 		for i in count:
 			var vel := Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.4, 1.0) * DEBRIS_SPEED
 			_debris.append([a.pos, vel, DEBRIS_TIME * (1.6 if a.golden else 1.0), color])
-	# 우주선 기울기: 이번 프레임에 돈 만큼(최대 회전 속도 대비)을 부드럽게 따라간다
-	var turn := 0.0
-	if not is_nan(_last_facing) and delta > 0.0:
-		turn = clampf(wrapf(sim.facing - _last_facing, -PI, PI) / delta / Balance.SHIP_TURN_SPEED, -1.0, 1.0)
-	_last_facing = sim.facing
-	bank = move_toward(bank, turn, SHIP_BANK_RATE * delta)
+	# 방향 전환(sim.facing)은 부드럽게 돌고, 그림만 가장 가까운 8방향으로 맞춘다
+	_ship_dir = PixelArt.dir8(sim.facing + PI / 2.0, _ship_dir)
 	for p in sim.picked:
 		_pickups.append({"pos": p["pos"], "grade": p["grade"], "gain": RiskBonus.applied(p["gain"], sim.time), "color": Hud.bonus_color(sim.time), "t": 0.0})
 	var kept: Array = []
@@ -168,14 +160,17 @@ func _draw_barrages() -> void:
 func _draw_rock(a: RunSim.Enemy) -> void:
 	var tex := PixelArt.asteroid_flash(a.radius, a.variant, a.golden) if a.flash > 0.0 else PixelArt.asteroid(a.radius, a.variant, a.golden)
 	var center := (a.pos + knock_offset(a)).round()
-	draw_set_transform(center, a.age * spin_speed(a.variant, a.radius))
-	draw_texture(tex, -(tex.get_size() / 2.0).floor())
+	# 회전은 8방향 그림으로 (돌아가는 프레임 애니메이션처럼 보임)
+	var dir := PixelArt.dir8(a.age * spin_speed(a.variant, a.radius))
+	_draw_dir(tex, center, dir)
 	var cracks := crack_level(a.hp, a.max_hp)
 	if cracks > 0 and a.flash <= 0.0:
 		var palette: Array = PixelArt.GOLD_ROCK_COLORS if a.golden else PixelArt.ROCK_COLORS
 		for line in crack_lines(a.radius, a.variant, cracks):
-			draw_polyline(line, palette[3], 1.0)
-	draw_set_transform(Vector2.ZERO)
+			var moved := PackedVector2Array()
+			for q in line:
+				moved.append(center + (q as Vector2).rotated(dir * PixelArt.DIR_STEP).round())
+			draw_polyline(moved, palette[3], 1.0)
 
 
 ## 고대 경비선: 선체가 우주선 쪽으로 천천히 돌고, 움직이면 뒤쪽 엔진이 깜빡인다.
@@ -186,14 +181,13 @@ func _draw_guard(t: RunSim.Enemy) -> void:
 	var recoil := 2.0 * clampf((t.reload - (Balance.GUARD_FIRE_INTERVAL - 0.2)) / 0.2, 0.0, 1.0)
 	var center := (t.pos + knock_offset(t) - dir * recoil).round()
 	var tex := PixelArt.guard(t.flash > 0.0)
-	draw_set_transform(center, t.aim + PI / 2.0)
+	var gdir := PixelArt.dir8(t.aim + PI / 2.0)
 	var top_left := -(tex.get_size() / 2.0).floor()
 	# 엔진 불꽃: 뒤쪽 두 엔진에서 깜빡임
 	var flicker := int(t.age * 18.0 + t.variant) % 2
 	for x in [3, 9]:
-		draw_rect(Rect2(top_left + Vector2(x, 10), Vector2(1, 1 + flicker)), PixelArt.FLAME_COLORS[flicker])
-	draw_texture(tex, top_left)
-	draw_set_transform(Vector2.ZERO)
+		_draw_flame(center, top_left + Vector2(x, 10), 1 + flicker, gdir, PixelArt.FLAME_COLORS[flicker])
+	_draw_dir(tex, center, gdir)
 	# 핵이 은은하게 맥박치고, 충전하면 뱃머리에 빛이 모인다
 	draw_circle(center, 3.0, Color(GUARD_GLOW, 0.15 + 0.1 * sin(t.age * 4.0) + 0.25 * charge))
 	if charge > 0.0:
@@ -264,20 +258,16 @@ func _draw_jelly(e: RunSim.Enemy) -> void:
 			var p := center + Vector2(x + sin(phase * 1.3 + i + j * 0.9) * 1.2, y)
 			draw_line(prev, p, PixelArt.JELLY_COLORS[2], 1.0)
 			prev = p
-	# 몸통: 오므릴 때 옆으로 좁아지고 위아래로 길어진다
+	# 몸통: 오므릴 때 1픽셀 위로 솟는다 (늘이고 줄이면 픽셀이 찌그러지므로 위치로만 맥박)
 	var tex := PixelArt.jelly_bell(e.flash > 0.0)
-	draw_set_transform(center + Vector2(0, -2), 0.0, Vector2(1.0 - 0.12 * pulse, 1.0 + 0.12 * pulse))
-	draw_texture(tex, -(tex.get_size() / 2.0).floor())
-	draw_set_transform(Vector2.ZERO)
+	draw_texture(tex, center + Vector2(0, -2 - roundf(pulse)) - (tex.get_size() / 2.0).floor())
 
 
 ## 날벌레: 날갯짓(2프레임)을 하며 날아가는 방향을 바라본다.
 func _draw_bug(e: RunSim.Enemy) -> void:
 	var frame := int(e.age * 14.0 + e.variant) % 2
 	var tex := PixelArt.bug(frame, e.flash > 0.0)
-	draw_set_transform((e.pos + knock_offset(e)).round(), e.vel.angle() + PI / 2.0)
-	draw_texture(tex, -(tex.get_size() / 2.0).floor())
-	draw_set_transform(Vector2.ZERO)
+	_draw_dir(tex, (e.pos + knock_offset(e)).round(), PixelArt.dir8(e.vel.angle() + PI / 2.0))
 
 
 ## 황금 운석 둘레에서 숨 쉬듯 커졌다 작아지는 금빛 후광 (멀리서도 눈에 띄게)
@@ -302,7 +292,7 @@ func _draw_sparkles(center: Vector2, radius: float, count: int, seed_offset: flo
 			draw_rect(Rect2(p.round() + Vector2(0, -1), Vector2(1, 3)), Color(1, 1, 1, 0.6))
 
 
-## 등급별 광물: 희귀는 은은한 빛, 영웅은 반짝임, 전설은 빛줄기와 회전
+## 등급별 광물: 희귀는 은은한 빛, 영웅은 반짝임, 전설은 도는 빛줄기
 func _draw_mineral(m: RunSim.Mineral) -> void:
 	var tex := PixelArt.mineral(m.grade)
 	var center := m.pos.round()
@@ -320,13 +310,7 @@ func _draw_mineral(m: RunSim.Mineral) -> void:
 				var dir := Vector2.from_angle(spin + i * TAU / 4.0)
 				draw_line(center + dir * 5.0, center + dir * (11.0 + 2.0 * bob), Color(1.0, 0.9, 0.4, 0.45), 1.0)
 			draw_circle(center, 8.0 + bob, Color(color, 0.18))
-	if m.grade == 3:
-		# 금괴는 천천히 기울며 돈다
-		draw_set_transform(center, sin(sim.time * 1.5) * 0.5)
-		draw_texture(tex, -(tex.get_size() / 2.0).floor())
-		draw_set_transform(Vector2.ZERO)
-	else:
-		draw_texture(tex, center - (tex.get_size() / 2.0).floor() + Vector2(0, roundf(bob * 0.6)))
+	draw_texture(tex, center - (tex.get_size() / 2.0).floor() + Vector2(0, roundf(bob * 0.6)))
 	if m.grade >= 2:
 		_draw_sparkles(m.pos, 6.0, 2 if m.grade == 2 else 3, m.pos.x)
 
@@ -381,14 +365,26 @@ func _draw_ship() -> void:
 	if sim.invuln > 0.0 and int(sim.invuln / BLINK_INTERVAL) % 2 == 1:
 		return
 	var tex := PixelArt.ship()
-	# 그림은 위쪽을 바라보므로 바라보는 방향(facing)에서 90도를 더해 돌린다.
-	# 돌 때는 옆으로 살짝 눌려 몸을 기울인 것처럼 보인다 (가로 폭이 줄어듦)
-	draw_set_transform(sim.player_pos.round(), sim.facing + PI / 2.0, Vector2(1.0 - SHIP_BANK_SQUASH * absf(bank), 1.0))
+	# 그림은 위쪽을 바라본다. 방향은 step()에서 8방향으로 맞춘 _ship_dir을 쓴다.
+	var dir := maxi(_ship_dir, 0)
+	var center := sim.player_pos.round()
 	var top_left := -(tex.get_size() / 2.0).floor()
 	if moving:
 		# 엔진 불꽃: 뒤쪽 두 엔진에서 깜빡이는 픽셀
 		var flicker := int(sim.time * 20.0) % 2
 		for x in [2, 6]:
-			draw_rect(Rect2(top_left + Vector2(x, 7), Vector2(1, 1 + flicker)), PixelArt.FLAME_COLORS[flicker])
-	draw_texture(tex, top_left)
-	draw_set_transform(Vector2.ZERO)
+			_draw_flame(center, top_left + Vector2(x, 7), 1 + flicker, dir, PixelArt.FLAME_COLORS[flicker])
+	_draw_dir(tex, center, dir)
+
+
+## 그림을 8방향 중 하나로 돌린 텍스처로 그린다 (화면에서 돌리지 않아 픽셀 격자가 그대로)
+func _draw_dir(tex: Texture2D, center: Vector2, dir: int, modulate := Color.WHITE) -> void:
+	var t := PixelArt.rotated(tex, dir)
+	draw_texture(t, center - (t.get_size() / 2.0).floor(), modulate)
+
+
+## 엔진 불꽃 픽셀: 그림 기준 위치(local, 그림 가운데 기준)에서 뒤쪽으로 length칸. 8방향으로 돌려 1픽셀씩 찍는다.
+func _draw_flame(center: Vector2, local: Vector2, length: int, dir: int, color: Color) -> void:
+	for j in length:
+		var p := (local + Vector2(0.5, 0.5 + j)).rotated(dir * PixelArt.DIR_STEP)
+		draw_rect(Rect2(center + p.floor(), Vector2.ONE), color)

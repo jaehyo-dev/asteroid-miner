@@ -4,7 +4,7 @@ extends Node
 ## - 게임은 가로 고정이다. 창이 세로로 길어지면(폰을 세로로 듦) 게임 화면은 가리고 "폰을 가로로 돌려주세요"만 보인다.
 ##   게임은 지워지지 않고 그대로 남으며(저장·기지 화면), 출격 화면은 일시 정지가 된다. 가로로 돌리면 이어진다.
 ## - 웹에서 전체 화면에 들어가면 가로 고정(screen.orientation.lock)을 시도한다 (안 되는 환경은 조용히 넘어감).
-## - 기지 화면은 2배 기준 해상도(1280x720)로 그린다 (출격 화면은 640x360).
+## - 기지 화면은 2배 기준 해상도(1280x720)로 그린다. 출격 화면은 정수 배율로 키우고 논리 화면을 창 / 배율로 맞춘다 (run_pixel_scale).
 
 ## 기지 화면 기준 해상도 배율
 const BASE_SCREEN_SCALE := 2
@@ -115,9 +115,34 @@ func set_base_mode(on: bool) -> void:
 	fit_screen()
 
 
+## 출격 화면의 정수 배율: 가장 가까운 정수 k를 고르고, 논리 화면(창 / k)이 RUN_VIEW_MIN보다 작으면 k를 낮춘다.
+## 0이면 정수 배율로는 논리 화면을 범위(RUN_VIEW_MIN ~ 높이 RUN_VIEW_MAX_HEIGHT) 안에 못 맞춘다는 뜻 → 소수 배율로 그린다.
+static func run_pixel_scale(window_size: Vector2i) -> int:
+	var base := Balance.BASE_LANDSCAPE
+	var k := maxi(1, roundi(minf(window_size.x / float(base.x), window_size.y / float(base.y))))
+	while k > 1 and (window_size.x / k < Balance.RUN_VIEW_MIN.x or window_size.y / k < Balance.RUN_VIEW_MIN.y):
+		k -= 1
+	var view := run_view_size(window_size, k)
+	if view.x < Balance.RUN_VIEW_MIN.x or view.y < Balance.RUN_VIEW_MIN.y or view.y > Balance.RUN_VIEW_MAX_HEIGHT:
+		return 0
+	return k
+
+
+## 정수 배율 k일 때 출격 화면의 논리 크기 (남는 k-1 픽셀 이하는 가장자리 빈칸)
+static func run_view_size(window_size: Vector2i, k: int) -> Vector2i:
+	return Vector2i(window_size.x / k, window_size.y / k)
+
+
 func fit_screen() -> void:
 	var root := get_tree().root
-	root.content_scale_size = base_size_for(root.size, base_mode)
+	var k := 0 if base_mode else run_pixel_scale(root.size)
+	if k > 0:
+		root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_INTEGER
+		root.content_scale_size = run_view_size(root.size, k)
+	else:
+		# 기지 화면(1280x720, 3배 그림)과 정수 배율이 안 맞는 창은 예전처럼 소수 배율
+		root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_FRACTIONAL
+		root.content_scale_size = base_size_for(root.size, base_mode)
 	set_portrait(is_portrait_size(root.size))
 
 

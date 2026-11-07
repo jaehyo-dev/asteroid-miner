@@ -32,8 +32,9 @@ const BARRAGE_MARKER_MERGE := 24.0
 const COLOR_BAR_BG := Color("#2a2a40")
 ## 워프 게이트 색 (화살표, 남은 시간, 충전)
 const COLOR_GATE := Color("#7cf0ff")
-## 화물칸 칸수·가치 글자 크기 (다른 정보보다 크게)
-const CARGO_FONT_SIZE := 16
+## 화물칸 칸수·가치 글자 크기. 글꼴은 12px의 정수배만 쓴다(16은 픽셀이 뭉개짐).
+## 24는 한 줄이 화면 폭의 절반 가까이 되어 게이트 글자와 겹치므로 12로 두고, 노란 색으로 눈에 띄게 한다.
+const CARGO_FONT_SIZE := 12
 ## 화물칸이 꽉 찼을 때 글자 색
 const COLOR_FULL := Color("#ff9a2e")
 ## 광물 보너스 색: 낮음 노랑 → 중간 주황 → 최대 빨강
@@ -90,8 +91,8 @@ func _draw() -> void:
 		draw_string(font, Vector2(x + icon.get_width() + 2, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 		x += icon.get_width() + 2 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
 	var cargo_line := cargo_text(cargo)
-	draw_string(font, Vector2(MARGIN, MARGIN + 62), cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, COLOR_FULL if cargo.is_full() else COLOR_VALUE)
-	_draw_bonus(font, Vector2(MARGIN + font.get_string_size(cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE).x + 8, MARGIN + 62))
+	draw_string(font, Vector2(MARGIN, MARGIN + 58), cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, COLOR_FULL if cargo.is_full() else COLOR_VALUE)
+	_draw_bonus(font, Vector2(MARGIN + font.get_string_size(cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE).x + 8, MARGIN + 58))
 	_draw_gate_info(font)
 	# 레벨과 경험치 막대 (화면 맨 아래 전체 너비)
 	var need := Upgrades.xp_to_next(sim.level)

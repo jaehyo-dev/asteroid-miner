@@ -140,6 +140,54 @@ static func from_pattern(rows: Array, colors: Dictionary) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
+## 방향 하나의 각도 (8방향 = 45도)
+const DIR_STEP := PI / 4.0
+## 방향이 경계 근처에서 깜빡이지 않게, 이전 방향을 이만큼(라디안) 더 붙잡아 둔다
+const DIR_HYSTERESIS := 0.1
+
+
+## 회전 각도(0 = 그림 원래 방향, 시계 방향 +)를 가장 가까운 8방향 번호(0~7)로 바꾼다.
+## prev(이전 번호)를 주면 경계를 DIR_HYSTERESIS만큼 넘어야 바뀐다.
+static func dir8(angle: float, prev: int = -1) -> int:
+	if prev >= 0 and absf(angle_difference(angle, prev * DIR_STEP)) < DIR_STEP / 2.0 + DIR_HYSTERESIS:
+		return prev
+	return posmod(roundi(angle / DIR_STEP), 8)
+
+
+## 그림을 8방향 중 하나로 미리 돌린 텍스처 (그림 1픽셀 = 1픽셀 격자 유지, 가장 가까운 픽셀로 샘플링).
+## 화면에서 소수 각도로 돌리면 픽셀이 찌그러지므로, 돌린 그림을 만들어 두고 돌리지 않고 그린다.
+static func rotated(tex: Texture2D, dir: int) -> Texture2D:
+	dir = posmod(dir, 8)
+	if dir == 0:
+		return tex
+	var key := "rot_%d_%d" % [tex.get_instance_id(), dir]
+	if _cache.has(key):
+		return _cache[key]
+	var src := tex.get_image()
+	var out: Image
+	if dir % 2 == 0:
+		# 90도 배수는 정확히 돌린다
+		out = src.duplicate()
+		for i in dir / 2:
+			out.rotate_90(CLOCKWISE)
+	else:
+		var n := int(ceil(maxf(src.get_width(), src.get_height()) * sqrt(2.0))) + 1
+		out = Image.create_empty(n, n, false, Image.FORMAT_RGBA8)
+		var src_center := Vector2(src.get_width(), src.get_height()) / 2.0
+		var dst_center := Vector2(n, n) / 2.0
+		for y in n:
+			for x in n:
+				# 결과 픽셀 가운데를 거꾸로 돌려 원래 그림의 픽셀을 찾는다
+				var p := (Vector2(x + 0.5, y + 0.5) - dst_center).rotated(-dir * DIR_STEP) + src_center
+				var sx := int(floor(p.x))
+				var sy := int(floor(p.y))
+				if sx >= 0 and sy >= 0 and sx < src.get_width() and sy < src.get_height():
+					out.set_pixel(x, y, src.get_pixel(sx, sy))
+	var result := ImageTexture.create_from_image(out)
+	_cache[key] = result
+	return result
+
+
 static func ship() -> ImageTexture:
 	if not _cache.has("ship"):
 		_cache["ship"] = from_pattern(SHIP_PATTERN, SHIP_COLORS)

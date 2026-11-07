@@ -183,7 +183,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _exit_tree() -> void:
-	App.set_base_mode(false)  # 출격 화면은 640x360 기준
+	App.set_base_mode(false)  # 출격 화면은 정수 배율 (논리 화면 = 창 / 배율)
 
 
 ## 아무것도 고르지 않았을 때: Enter/Space → 출격, 방향키 → 우주선부터 고르기 시작
