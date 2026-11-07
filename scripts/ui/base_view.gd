@@ -51,6 +51,10 @@ var _rng := RandomNumberGenerator.new()
 var _tex := {}
 ## 바닥 그림이 모자란 곳(아주 긴 화면의 아래)을 채우는 색
 var _ground_fill := Color("#4a3d38")
+## 화면 크기가 바뀔 때 한 번만 계산해 두는 칸 목록 (매 프레임 다시 계산하지 않게)
+## 길 바닥: [Rect2, 색] / 건물 바닥 빛 고리: id → Rect2 목록 (밝기만 매 프레임 바뀜)
+var _path_cells: Array = []
+var _glow_cells: Dictionary = {}
 
 
 func _ready() -> void:
@@ -71,6 +75,54 @@ func relayout() -> void:
 	rects = BaseLayout.rects(size)
 	var img := ground().get_image()
 	_ground_fill = img.get_pixel(img.get_width() / 2, img.get_height() - 1)
+	_path_cells.clear()
+	_glow_cells.clear()
+	for id in BaseLayout.IDS:
+		_glow_cells[id] = _glow_ring(rects[id])
+		if id != "ship":
+			_path_cells.append_array(_path_floor(id))
+
+
+## 칸 하나 (격자에 맞춘 P×P 크기 사각형 w×h개)
+static func _cell_rect(pos: Vector2, w: float = 1.0, h: float = 1.0) -> Rect2:
+	return Rect2(BaseLayout.snap(pos), Vector2(w, h) * P)
+
+
+## 길 양끝: 착륙장 가운데 아래 → 건물 문 앞
+func _path_ends(id: String) -> Array[Vector2]:
+	var a: Vector2 = (rects["ship"] as Rect2).get_center() + Vector2(0, P * 6)
+	var r: Rect2 = rects[id]
+	return [a, Vector2(r.get_center().x, r.end.y - P * 4)]
+
+
+## 길 바닥 칸 (콘셉트처럼 어두운 바닥 + 노랑·검정 점선 가장자리)
+func _path_floor(id: String) -> Array:
+	var ends := _path_ends(id)
+	var a := ends[0]
+	var b := ends[1]
+	var steps := int(a.distance_to(b) / P)
+	var side := (b - a).normalized().orthogonal()
+	var cells := []
+	for i in steps:
+		var p := a.lerp(b, float(i) / steps)
+		var edge := YELLOW if (i / 2) % 2 == 0 else DARK
+		for k in range(-3, 4):
+			cells.append([_cell_rect(p + side * k * P), edge if absi(k) == 3 else METAL_D])
+	return cells
+
+
+## 건물 바닥의 타원 고리 칸
+static func _glow_ring(r: Rect2) -> Array[Rect2]:
+	var c := r.get_center() + Vector2(0, r.size.y * 0.36)
+	var rx := r.size.x * 0.5 / P
+	var ry := r.size.y * 0.16 / P
+	var cells: Array[Rect2] = []
+	for y in range(-int(ry) - 1, int(ry) + 2):
+		for x in range(-int(rx) - 1, int(rx) + 2):
+			var d := (x * x) / (rx * rx) + (y * y) / (ry * ry)
+			if d <= 1.0 and d > 0.72:
+				cells.append(_cell_rect(c + Vector2(x, y) * P))
+	return cells
 
 
 func ground() -> Texture2D:
@@ -114,7 +166,7 @@ func _blink(period: float, phase: float = 0.0, on_ratio: float = 0.5) -> bool:
 
 ## 그림 칸 (격자에 맞춘 P×P 크기 사각형 w×h개). pos는 화면 좌표.
 func _cell(pos: Vector2, color: Color, w: float = 1.0, h: float = 1.0) -> void:
-	draw_rect(Rect2(BaseLayout.snap(pos), Vector2(w, h) * P), color)
+	draw_rect(_cell_rect(pos, w, h), color)
 
 
 ## 그림을 격자에 맞춰 PIXEL배로 그린다. foot는 그림 아래 가운데가 닿을 화면 좌표.
@@ -127,13 +179,15 @@ func _draw() -> void:
 	if rects.is_empty():
 		return
 	_draw_ground()
+	for c in _path_cells:
+		draw_rect(c[0], c[1])
 	for id in BaseLayout.IDS:
 		if id != "ship":
-			_draw_path(id)
+			_draw_path_lamps(id)
 	for id in BaseLayout.IDS:
 		var r: Rect2 = rects[id]
 		if launch_t < 0.0:
-			_draw_glow(r)
+			_draw_glow(id)
 		draw_texture_rect(tex(BaseLayout.SPRITES[id]), r, false)
 		match id:
 			"ship":
@@ -168,18 +222,12 @@ func _draw_ground() -> void:
 		draw_rect(Rect2(0, s.y, size.x, size.y - s.y), _ground_fill)
 
 
-## 착륙장에서 건물 문 앞까지 이어진 금속 길 (콘셉트처럼 어두운 바닥 + 노랑·검정 점선 가장자리, 양끝 주황 표시등, 사이사이 가로등)
-func _draw_path(id: String) -> void:
-	var a: Vector2 = (rects["ship"] as Rect2).get_center() + Vector2(0, P * 6)
-	var r: Rect2 = rects[id]
-	var b := Vector2(r.get_center().x, r.end.y - P * 4)
-	var steps := int(a.distance_to(b) / P)
+## 길의 깜빡이는 불빛: 양끝 주황 표시등(건물 문 앞)과 사이사이 가로등 (바닥은 relayout에서 미리 계산)
+func _draw_path_lamps(id: String) -> void:
+	var ends := _path_ends(id)
+	var a := ends[0]
+	var b := ends[1]
 	var side := (b - a).normalized().orthogonal()
-	for i in steps:
-		var p := a.lerp(b, float(i) / steps)
-		var edge := YELLOW if (i / 2) % 2 == 0 else DARK
-		for k in range(-3, 4):
-			_cell(p + side * k * P, edge if absi(k) == 3 else METAL_D)
 	# 길 양끝 주황 표시등 (건물 문 앞)
 	for s: float in [-5.0, 5.0]:
 		_cell(b + side * s * P - Vector2(0, P), DARK, 1, 2)
@@ -193,17 +241,11 @@ func _draw_path(id: String) -> void:
 			_cell(q - Vector2(0, P), CYAN if _blink(1.6, t + s * 0.1) else Color(CYAN, 0.35))
 
 
-## 누를 수 있는 건물은 바닥이 살짝 빛난다 (천천히 맥박): 격자에 맞춘 타원 고리
-func _draw_glow(r: Rect2) -> void:
-	var a := 0.16 + 0.1 * sin(time * 2.4)
-	var c := r.get_center() + Vector2(0, r.size.y * 0.36)
-	var rx := r.size.x * 0.5 / P
-	var ry := r.size.y * 0.16 / P
-	for y in range(-int(ry) - 1, int(ry) + 2):
-		for x in range(-int(rx) - 1, int(rx) + 2):
-			var d := (x * x) / (rx * rx) + (y * y) / (ry * ry)
-			if d <= 1.0 and d > 0.72:
-				_cell(c + Vector2(x, y) * P, Color(GLOW, a))
+## 누를 수 있는 건물은 바닥이 살짝 빛난다 (천천히 맥박): 미리 계산한 타원 고리 칸에 밝기만 바꿔 그린다
+func _draw_glow(id: String) -> void:
+	var color := Color(GLOW, 0.16 + 0.1 * sin(time * 2.4))
+	for c in _glow_cells[id]:
+		draw_rect(c, color)
 
 
 ## 건물 위(착륙장은 아래)에 이름표. 테두리가 은은하게 빛난다.
