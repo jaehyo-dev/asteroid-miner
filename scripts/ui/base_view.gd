@@ -151,16 +151,16 @@ func _build_road(id: String) -> void:
 		var a := pts[k]
 		var b := pts[k + 1]
 		var horizontal := absf(b.y - a.y) < 1.0
-		var len := (b - a).length()
+		var length := (b - a).length()
 		var dir := (b - a).normalized()
 		var side := dir.orthogonal()
 		# 길 바닥 5칸 폭
 		var half := P * 2.5
 		var lo := Vector2(minf(a.x, b.x), minf(a.y, b.y)) - (Vector2(0, half) if horizontal else Vector2(half, 0))
-		var sz := Vector2(len + P, P * 5) if horizontal else Vector2(P * 5, len + P)
+		var sz := Vector2(length + P, P * 5) if horizontal else Vector2(P * 5, length + P)
 		_path_cells.append([Rect2(BaseLayout.snap(lo), BaseLayout.snap(sz)), METAL_D])
 		# 노랑·검정 점선 가장자리 (두 줄)
-		var steps := int(len / (P * 2.0)) + 1
+		var steps := int(length / (P * 2.0)) + 1
 		for i in steps:
 			var p := a + dir * i * P * 2.0
 			var c := YELLOW if i % 2 == 0 else DARK
@@ -170,7 +170,7 @@ func _build_road(id: String) -> void:
 		# 길 옆 배관 (길과 같은 모양을 오른쪽 아래로 옮긴 것): 어두운 관 + 밝은 윗줄
 		var off := Vector2(P * 4, P * 4)
 		var plo := lo + off
-		var psz := Vector2(len + P, P * 2) if horizontal else Vector2(P * 2, len + P)
+		var psz := Vector2(length + P, P * 2) if horizontal else Vector2(P * 2, length + P)
 		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(psz)), DARK])
 		_path_cells.append([Rect2(BaseLayout.snap(plo), BaseLayout.snap(Vector2(psz.x, P) if horizontal else Vector2(P, psz.y))), METAL])
 		n += 1
