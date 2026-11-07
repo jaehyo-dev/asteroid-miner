@@ -121,19 +121,28 @@ static func _shadow(r: Rect2) -> Array[Rect2]:
 
 
 ## 착륙장에서 건물 입구까지 꺾이는 길 (세로·가로·세로, 건물이 착륙장 옆이면 가로·세로·가로). 점 4개.
+## 세로 화면: 위 줄은 착륙장 윗면에서 양옆(±20칸)으로 올라가고, 전시관은 착륙장 아랫면에서 곧장 내려간다.
 func _road_points(id: String) -> Array[Vector2]:
 	var pr: Rect2 = rects["ship"]
 	var r: Rect2 = rects[id]
+	var portrait := BaseLayout.is_portrait(size)
 	var dx := r.get_center().x - pr.get_center().x
 	var pts: Array[Vector2] = []
-	if r.get_center().y < pr.get_center().y:
-		# 착륙장 위쪽 건물: 착륙장 윗면에서 위로 올라가 건물 앞문(그림 아래)으로
-		var a := Vector2(pr.get_center().x + clampf(dx, -P * 12, P * 12), pr.position.y + P * 8)
-		var b := Vector2(r.get_center().x, r.end.y - P * 4)
+	if portrait and r.position.y >= pr.end.y:
+		# 착륙장 아래 건물(전시관): 착륙장 아랫면에서 내려가 건물 윗문으로
+		var a := Vector2(pr.get_center().x, pr.end.y - P * 8)
+		var b := Vector2(r.get_center().x, r.position.y)
 		var mid := BaseLayout.snap(Vector2(0, (a.y + b.y) / 2.0)).y
 		pts = [a, Vector2(a.x, mid), Vector2(b.x, mid), b]
+	elif r.end.y <= pr.position.y or (not portrait and r.get_center().y < pr.get_center().y):
+		# 착륙장 위쪽 건물: 착륙장 윗면에서 위로 올라가 건물 앞문(그림 아래)으로
+		var ax := pr.get_center().x + (signf(dx) * P * 20 if portrait else clampf(dx, -P * 12, P * 12))
+		var a := Vector2(ax, pr.position.y + P * 8)
+		var b := Vector2(r.get_center().x, r.end.y - P * 4)
+		var mid := BaseLayout.snap(Vector2(0, (r.end.y + P * 12) if portrait else (a.y + b.y) / 2.0)).y
+		pts = [a, Vector2(a.x, mid), Vector2(b.x, mid), b]
 	else:
-		# 착륙장 아래쪽 건물: 착륙장 옆면에서 옆으로 나가 건물의 안쪽 옆문으로
+		# 착륙장 옆·아래쪽 건물: 착륙장 옆면에서 옆으로 나가 건물의 안쪽 옆문으로
 		var sgn := signf(dx)
 		var a := Vector2(pr.get_center().x + sgn * pr.size.x * 0.4, pr.end.y - P * 12)
 		var b := Vector2(r.get_center().x - sgn * r.size.x * 0.3, r.end.y - P * 8)
@@ -292,13 +301,15 @@ func _draw_label(id: String) -> void:
 		return
 	var font := get_theme_default_font()
 	var text: String = BaseLayout.NAMES[id]
-	var lr := BaseLayout.label_rect(id, rects[id])
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x + P * 6
+	var portrait := BaseLayout.is_portrait(size)
+	var lr := BaseLayout.label_rect(id, rects[id], portrait)
+	# 세로 화면은 상자 여백을 줄여 건물을 덜 가림
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x + P * (4 if portrait else 6)
 	var box := Rect2(BaseLayout.snap(Vector2(lr.get_center().x - w / 2.0, lr.position.y)), BaseLayout.snap(Vector2(w, lr.size.y)))
 	draw_rect(box, LABEL_BG)
 	draw_rect(box.grow(-P / 2.0), Color(GLOW, 0.5 + 0.25 * sin(time * 2.4)), false, P)
 	var color := GOLD if id == "ship" else LABEL_TEXT
-	draw_string(font, Vector2(box.position.x, box.position.y + P * 12), text, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, BaseLayout.FONT_SIZE, color)
+	draw_string(font, Vector2(box.position.x, box.position.y + box.size.y - P * 4), text, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, BaseLayout.FONT_SIZE, color)
 
 
 ## 고른 건물의 윤곽선 (그림 테두리 바깥 1칸, 천천히 맥박)
@@ -357,6 +368,8 @@ func _draw_sign(r: Rect2) -> void:
 	var text := "곧 개방"
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.FONT_SIZE).x + P * 4
 	var foot := r.position + SIGN_SPOT * P
+	if BaseLayout.is_portrait(size):
+		foot = Vector2(r.get_center().x, r.end.y + P * 16)  # 세로: 건물 옆 자리가 좁아 건물 바로 아래 가운데
 	var box := Rect2(BaseLayout.snap(Vector2(foot.x - w / 2.0, foot.y - P * 14)), BaseLayout.snap(Vector2(w, P * 14)))
 	draw_rect(box, YELLOW)
 	draw_rect(Rect2(box.position + Vector2(0, box.size.y - P), Vector2(box.size.x, P)), Color("#a8841e"))

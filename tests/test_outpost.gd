@@ -28,7 +28,7 @@ func test_건물과_이름표가_화면_안에_있고_서로_겹치지_않음() 
 		var screen := Rect2(Vector2(0, BaseLayout.TOP_BAR), size - Vector2(0, BaseLayout.TOP_BAR + BaseLayout.BOTTOM_BAR))  # 위: 보유 광물 줄, 아래: 버전 글자
 		var touch := {}
 		for id in BaseLayout.IDS:
-			var t := BaseLayout.touch_rect(id, rects[id])
+			var t := BaseLayout.touch_rect(id, rects[id], BaseLayout.is_portrait(size))
 			touch[id] = t
 			assert_true(screen.encloses(t), "%s %s 화면 밖: %s" % [size, id, t])
 			assert_true(t.size.x >= MIN_TOUCH.x and t.size.y >= MIN_TOUCH.y, "%s %s 너무 작음" % [size, id])
@@ -43,7 +43,24 @@ func test_세로_화면은_세로_배치() -> void:
 	assert_true(BaseLayout.is_portrait(Vector2(720, 1280)))
 	assert_false(BaseLayout.is_portrait(Vector2(1280, 720)))
 	var r := BaseLayout.rects(Vector2(720, 1280))
-	assert_true(r["research"].position.y < r["ship"].position.y and r["ship"].position.y < r["drone"].position.y, "위 건물 → 착륙장 → 드론 공장")
+	assert_true(r["research"].end.y < r["ship"].position.y and r["hangar"].end.y < r["ship"].position.y, "연구소·격납고는 착륙장 위")
+	assert_true(r["museum"].position.y > r["ship"].end.y, "전시관은 착륙장 아래")
+	assert_true(r["drone"].end.x < r["ship"].position.x and r["storage"].position.x > r["ship"].end.x, "드론 공장·광물 창고는 착륙장 양옆")
+
+
+func test_세로_화면은_건물을_착륙장_주변에_모으고_소행성_안에_둠() -> void:
+	# v0.6.4: 5채가 한 기지로 보이게 (착륙장에서 멀리 흩어지지 않음), 소행성(3:4 둥근 모양) 안
+	for size: Vector2 in [Vector2(720, 1280), Vector2(720, 1558)]:
+		var r := BaseLayout.rects(size)
+		var pad: Vector2 = r["ship"].get_center()
+		var all: Rect2 = r["ship"]
+		for id in BaseLayout.IDS:
+			all = all.merge(r[id])
+			assert_true(absf(r[id].get_center().x - pad.x) <= 260.0 and absf(r[id].get_center().y - pad.y) <= 260.0, "%s %s 착륙장에서 너무 멂" % [size, id])
+			for c: Vector2 in [r[id].position, Vector2(r[id].end.x, r[id].position.y), Vector2(r[id].position.x, r[id].end.y), r[id].end]:
+				var d: Vector2 = (c - size / 2.0) / Vector2(720 * 0.46, 960 * 0.46)
+				assert_true(d.length() <= 1.0, "%s %s 모서리 %s가 소행성 밖" % [size, id, c])
+		assert_true(all.size.x <= 720.0 * 0.75 and all.size.y <= 560.0, "%s 건물 덩어리 %s" % [size, all.size])
 
 
 func test_건물_자리와_글자는_2픽셀_격자에_맞음() -> void:
@@ -65,7 +82,7 @@ func test_건물_폭은_화면_폭의_9에서_11퍼센트() -> void:
 
 func test_지면은_무대_크기_한_장이고_건물은_소행성_안에_있음() -> void:
 	assert_eq(BaseLayout.sprite_size("ground_landscape") * BaseLayout.PIXEL, BaseLayout.STAGE, "가로 지면 = 무대")
-	assert_eq(BaseLayout.sprite_size("ground_portrait") * BaseLayout.PIXEL, Vector2(720, 1280), "세로 지면 = 720x1280")
+	assert_eq(BaseLayout.sprite_size("ground_portrait") * BaseLayout.PIXEL, Vector2(720, 960), "세로 지면 = 720x960 (3:4)")
 	# 소행성 모양(가운데 타원): 건물 그림 네 모서리가 타원 안에 있어야 함 (가로 화면, 소행성은 화면의 약 75%)
 	for id in BaseLayout.IDS:
 		var r: Rect2 = BaseLayout.rects(Vector2(1280, 720))[id]
@@ -107,7 +124,7 @@ func test_누르는_자리_버튼이_그림_자리에_놓임() -> void:
 	var rects := BaseLayout.rects(main.view.size)
 	for id in BaseLayout.IDS:
 		var b: Button = main.spot_buttons[id]
-		assert_eq(Rect2(b.position, b.size), BaseLayout.touch_rect(id, rects[id]), id)
+		assert_eq(Rect2(b.position, b.size), BaseLayout.touch_rect(id, rects[id], BaseLayout.is_portrait(main.view.size)), id)
 	main.queue_free()
 
 

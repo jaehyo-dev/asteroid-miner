@@ -92,7 +92,7 @@ func _place_spots() -> void:
 	%Title.visible = not BaseLayout.is_portrait(view.size)
 	var rects := BaseLayout.rects(view.size)
 	for id in spot_buttons:
-		var r := BaseLayout.touch_rect(id, rects[id])
+		var r := BaseLayout.touch_rect(id, rects[id], BaseLayout.is_portrait(view.size))
 		var b: Button = spot_buttons[id]
 		b.position = r.position
 		b.size = r.size
