@@ -227,6 +227,21 @@ func test_드론_공장은_안내만_띄움() -> void:
 	main.queue_free()
 
 
+func test_건물_화면을_연_채로_휴대폰을_돌리면_배치가_바뀜() -> void:
+	var main: Control = await _main()
+	main.panel.size = Vector2(640, 360)
+	main.press("research")
+	await wait_frames()
+	var grid: GridContainer = main.panel.find_children("*", "GridContainer", true, false)[0]
+	assert_eq(grid.columns, 3, "가로는 3열")
+	main.panel.size = Vector2(360, 640)  # 세로로 돌림
+	await wait_frames()
+	grid = main.panel.find_children("*", "GridContainer", true, false).filter(func(g): return not g.is_queued_for_deletion())[0]
+	assert_eq(grid.columns, 2, "세로는 2열")
+	assert_true(main.panel.visible, "열린 채로")
+	main.queue_free()
+
+
 func test_건물_화면은_닫기와_Esc로_닫힘() -> void:
 	var main: Control = await _main()
 	main.press("research")

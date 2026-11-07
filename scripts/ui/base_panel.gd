@@ -30,6 +30,8 @@ var close_button: Button
 
 var _panel: PanelContainer
 var _content: VBoxContainer
+## 내용을 만들 때의 화면 방향 (휴대폰을 돌리면 다시 만든다)
+var _built_portrait := false
 
 
 ## 능력치 막대 (격납고)
@@ -59,6 +61,7 @@ func _ready() -> void:
 	_content = VBoxContainer.new()
 	_content.add_theme_constant_override("separation", 6)
 	_panel.add_child(_content)
+	resized.connect(_on_resized)
 	hide()
 
 
@@ -90,7 +93,13 @@ static func _icon(tex: Texture2D, tint: Color = Color.WHITE) -> TextureRect:
 
 
 func _portrait() -> bool:
-	return BaseLayout.is_portrait(get_viewport_rect().size)
+	return BaseLayout.is_portrait(size)
+
+
+## 열린 채로 휴대폰을 돌리면 그 방향에 맞는 배치(열 수, 카드 너비)로 다시 만든다
+func _on_resized() -> void:
+	if visible and _portrait() != _built_portrait:
+		_rebuild()
 
 
 ## 건물 화면을 연다.
@@ -123,6 +132,7 @@ func _rebuild() -> void:
 		child.queue_free()
 	buy_buttons.clear()
 	cards.clear()
+	_built_portrait = _portrait()
 	var header := HBoxContainer.new()
 	var title := _label(BaseLayout.NAMES.get(kind, ""), COLOR_TITLE)
 	title.add_theme_font_size_override("font_size", 16)
