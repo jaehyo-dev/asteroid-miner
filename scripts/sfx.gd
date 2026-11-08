@@ -37,7 +37,7 @@ const SOUNDS := {
 	"shield_block": {"files": ["shield_block"], "db": -12.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	# 레벨업: 마림바 도-미-솔-도, 마지막 음은 첫 음으로 돌아와 작게 줄어듦
 	"levelup": {"files": ["levelup"], "db": -9.5, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"card_show": {"files": ["card_show"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"card_show": {"files": ["card_show"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_pick": {"files": ["card_pick"], "db": -6.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	"open": {"files": ["card_show"], "db": -14.0, "pitch": 1.15, "jitter": 0.0, "max": 1},

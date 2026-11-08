@@ -16,14 +16,10 @@ const DIM_NORMAL := 0.4
 const DIM_PAUSE := 0.7
 
 var _dim: ColorRect
-var _center: CenterContainer
-var _pop: Tween
 var _box: VBoxContainer
 var _title: Label
 var _body: Label
 var _buttons: VBoxContainer
-## 메뉴를 열 때마다 1씩 늘린다. 이전 메뉴의 지연 타이머가 새 메뉴를 건드리지 않게 한다.
-var _generation := 0
 
 
 func _ready() -> void:
@@ -39,7 +35,6 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
-	_center = center
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = COLOR_BG
@@ -80,13 +75,10 @@ func set_dim(alpha: float) -> void:
 
 
 ## 메뉴를 보여 준다. options의 순서대로 버튼을 만들고, 누르면 chosen(인덱스)를 보낸다.
-## input_delay초 동안은 버튼을 눌러도 반응하지 않는다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게).
-func show_menu(title: String, body: String, options: PackedStringArray, input_delay: float = 0.0) -> void:
+func show_menu(title: String, body: String, options: PackedStringArray) -> void:
 	_title.text = title
 	_body.text = body
 	_body.visible = not body.is_empty()
-	_generation += 1
-	var generation := _generation
 	for child in _buttons.get_children():
 		_buttons.remove_child(child)
 		child.queue_free()
@@ -94,30 +86,13 @@ func show_menu(title: String, body: String, options: PackedStringArray, input_de
 		var button := Button.new()
 		button.text = options[i]
 		button.custom_minimum_size = Vector2(180, 24)
-		button.disabled = input_delay > 0.0
 		button.add_theme_font_size_override("font_size", 12)
 		button.pressed.connect(_on_pressed.bind(i))
 		add_press_feel(button)
 		_buttons.add_child(button)
 	show()
-	if input_delay > 0.0:
-		await get_tree().create_timer(input_delay, true, false, true).timeout
-		if generation != _generation:
-			return  # 그사이 다른 메뉴가 열렸다
-		for b in buttons():
-			b.disabled = false
-	if visible and not buttons().is_empty():
+	if not buttons().is_empty():
 		buttons()[0].grab_focus()
-
-
-## 메뉴 상자가 아래에서 튀어 오르며(넘쳤다 돌아옴) 나타난다. 위치는 정수 픽셀로만 (정수 배율 규칙)
-func pop_in() -> void:
-	if _pop != null:
-		_pop.kill()
-	_pop = create_tween().set_parallel()
-	_pop.tween_method(func(y: float) -> void: _center.position.y = roundf(y), Juice.CARD_POP_DISTANCE, 0.0, Juice.CARD_POP_TIME) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_pop.tween_property(_center, "modulate:a", 1.0, Juice.CARD_POP_TIME * 0.5).from(0.0)
 
 
 ## 버튼 눌림 연출: 누르는 동안 px만큼 아래로 내려가고 밝아진다 (크기는 그대로: 정수 배율 규칙)

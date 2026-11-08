@@ -38,9 +38,9 @@ func test_실제_이동_속도에_무게가_적용됨() -> void:
 
 func test_이동_속도_강화에_무게가_곱해짐() -> void:
 	var sim := _sim_with_cargo(Balance.CARGO_CAPACITY, {"speed": 2})
-	sim.upgrade_levels["speed"] = 3
-	sim.apply_upgrades()
-	var boosted := Balance.SHIP_SPEED * (1.0 + 3 * Balance.UP_SPEED_ADD + 2 * Balance.BASE_SPEED_ADD)
+	for i in 3:
+		sim.apply_pick("speed", Upgrades.NORMAL)
+	var boosted := Balance.SHIP_SPEED * (1.0 + 3 * Upgrades.value("speed", Upgrades.NORMAL) + 2 * Balance.BASE_SPEED_ADD)
 	_approx(sim.move_speed, boosted, "강화 속도는 무게와 상관없이 기본값 기준")
 	_approx(sim.current_speed(), boosted * (1.0 - Balance.CARGO_HEAVY_SLOW), "무게는 강화된 속도에 곱함")
 	sim.update(STEP, Vector2.UP)

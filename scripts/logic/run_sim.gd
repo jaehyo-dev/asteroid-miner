@@ -130,9 +130,17 @@ var xp := 0
 ## 아직 고르지 않은 레벨업 횟수 (한 번에 여러 레벨이 오를 수 있음)
 var pending_levelups := 0
 ## 지금 보여 주는 강화 선택지. 비어 있지 않으면 고를 때까지 게임이 멈춘다.
-var choices: PackedStringArray = []
+var choices: Array = []
 ## 강화 id → 단계
 var upgrade_levels: Dictionary = {}
+## 강화로 쌓인 값 (등급마다 오르는 양이 달라 단계 수로 계산할 수 없다). Upgrades.add_bonus 참고
+var upgrade_bonus: Dictionary = {}
+## 남은 다시 뽑기 횟수
+var rerolls_left := Balance.REROLLS_PER_RUN
+## 효과·레전드리 카드가 뽑히는지 (보정도 이 값이 켜져야 동작한다)
+var effects_enabled := Balance.EFFECT_CARDS_ENABLED
+## 효과 카드 없이 지나간 레벨업 수 (효과 카드 보정)
+var effect_dry := 0
 
 var _spawn_timer := 0.0
 ## 다음 황금 운석까지 남은 시간
@@ -601,25 +609,47 @@ func gain_xp(amount: int) -> void:
 		pending_levelups += 1
 		events.append("levelup")
 	if choices.is_empty() and pending_levelups > 0:
-		choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT)
+		_roll_choices()
+
+
+## 지금 시각과 보정 상태로 카드를 뽑는다
+func _roll_choices() -> void:
+	choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO)
+
+
+## 다시 뽑기: 3장을 한꺼번에 새로 뽑는다. 남은 횟수가 없거나 고를 카드가 없으면 false.
+func reroll() -> bool:
+	if rerolls_left <= 0 or choices.is_empty():
+		return false
+	rerolls_left -= 1
+	_roll_choices()
+	return true
 
 
 ## 강화 선택지 중 하나를 고른다. 남은 레벨업이 있으면 다음 선택지를 연다.
 func choose(index: int) -> void:
 	if index < 0 or index >= choices.size():
 		return
-	var id := choices[index]
-	if id == Upgrades.REPAIR:
-		hp = minf(hp + Balance.REPAIR_AMOUNT, max_hp)
-	else:
-		upgrade_levels[id] = int(upgrade_levels.get(id, 0)) + 1
-		if id == "max_hp":
-			hp += Balance.UP_MAX_HP_ADD
-		apply_upgrades()
+	var card: Dictionary = choices[index]
+	if effects_enabled:  # 보정은 다시 뽑은 횟수가 아니라, 레벨업(고른 화면) 수로 센다
+		effect_dry = 0 if Upgrades.has_effect(choices) else effect_dry + 1
+	apply_pick(card["id"], card["grade"])
 	pending_levelups = maxi(pending_levelups - 1, 0)
 	choices = []
 	if pending_levelups > 0:
-		choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT)
+		_roll_choices()
+
+
+## 강화 하나를 적용한다. 수리는 단계 없이 회복만, 최대 체력은 오른 만큼 회복한다.
+func apply_pick(id: String, grade: int) -> void:
+	if id == Upgrades.REPAIR:
+		hp = minf(hp + Upgrades.value(id, grade), max_hp)
+		return
+	upgrade_levels[id] = int(upgrade_levels.get(id, 0)) + 1
+	Upgrades.add_bonus(upgrade_bonus, id, grade)
+	if id == "max_hp":
+		hp += Upgrades.value(id, grade)
+	apply_upgrades()
 
 
 ## 지금 이동 속도 = 강화로 오른 속도(move_speed) × 화물 무게 배율
@@ -637,17 +667,17 @@ func apply_base(levels: Dictionary) -> void:
 	hp = max_hp
 
 
-## 강화 단계(레벨업 + 기지)에 맞게 능력치를 다시 계산한다 (항상 기본값에서 계산해 오차가 쌓이지 않게).
+## 강화 누적값(레벨업 + 기지)에 맞게 능력치를 다시 계산한다 (항상 기본값에서 계산해 오차가 쌓이지 않게).
 func apply_upgrades() -> void:
-	var lv := func(id: String) -> int: return int(upgrade_levels.get(id, 0))
+	var up := func(id: String) -> float: return float(upgrade_bonus.get(id, 0.0))
 	var blv := func(id: String) -> int: return int(base_levels.get(id, 0))
-	fire_interval = Balance.FIRE_INTERVAL * pow(Balance.UP_FIRE_INTERVAL_MULT, lv.call("fire_rate"))
-	bullet_count = Balance.BULLET_COUNT + Balance.UP_BULLET_COUNT_ADD * lv.call("multishot")
-	bullet_damage = (Balance.BULLET_DAMAGE + Balance.UP_DAMAGE_ADD * lv.call("damage")) * (1.0 + Balance.BASE_DAMAGE_MULT_ADD * blv.call("damage"))
-	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + Balance.UP_MAGNET_ADD * lv.call("magnet") + Balance.BASE_MAGNET_ADD * blv.call("magnet"))
-	move_speed = Balance.SHIP_SPEED * (1.0 + Balance.UP_SPEED_ADD * lv.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed"))
-	max_hp = Balance.SHIP_MAX_HP + Balance.UP_MAX_HP_ADD * lv.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp")
-	fire_range = Balance.FIRE_RANGE * (1.0 + Balance.UP_RANGE_ADD * lv.call("range"))
+	fire_interval = Balance.FIRE_INTERVAL / (1.0 + up.call("fire_rate"))
+	bullet_count = Balance.BULLET_COUNT + int(up.call("multishot"))
+	bullet_damage = (Balance.BULLET_DAMAGE + up.call("damage")) * (1.0 + up.call("multishot_damage")) * (1.0 + Balance.BASE_DAMAGE_MULT_ADD * blv.call("damage"))
+	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + up.call("magnet") + Balance.BASE_MAGNET_ADD * blv.call("magnet"))
+	move_speed = Balance.SHIP_SPEED * (1.0 + up.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed"))
+	max_hp = Balance.SHIP_MAX_HP + up.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp")
+	fire_range = Balance.FIRE_RANGE * (1.0 + up.call("range"))
 	hp = minf(hp, max_hp)
 
 

@@ -241,30 +241,50 @@ const MAX_MINERALS := 300
 ## 경험치는 광물을 주우면 얻는다 (광물 가치 × MINERAL_XP_PER_VALUE).
 const XP_BASE := 16
 const XP_GROWTH := 38
-## 레벨업 메뉴가 뜬 직후 이 시간 동안은 고를 수 없다 (게임 중 갑자기 뜬 메뉴를 실수로 누르지 않게)
-const LEVEL_UP_INPUT_DELAY := 0.35
 ## 레벨업 때 보여 주는 강화 수
 const UPGRADE_CHOICE_COUNT := 3
-## 강화 목록: id, 이름, 최대 단계. 강화는 그 판에서만 유지된다.
+## 한 판에 쓸 수 있는 다시 뽑기 횟수 (3장을 한꺼번에 새로 뽑음)
+const REROLLS_PER_RUN := 2
+## 등급 확률(%): 노멀·레어·에픽·유니크·레전드리. RISK_RAMP_TIME에 걸쳐 시작값 → 끝값으로 오르고 그 뒤로는 고정
+const GRADE_WEIGHTS_START := [55.0, 27.0, 12.0, 5.0, 1.0]
+const GRADE_WEIGHTS_END := [35.0, 30.0, 20.0, 12.0, 3.0]
+## 효과 강화·레전드리 카드가 뽑히는지. 실제 효과는 5단계 3부에서 만든다: 그때까지 잠가 둔다 (보정도 함께 꺼짐)
+const EFFECT_CARDS_ENABLED := false
+## 에픽·유니크 칸이 효과 강화일 확률 (나머지는 수치 강화)
+const EFFECT_SHARE := 0.6
+## 효과 카드 없는 레벨업이 이만큼 이어지면 다음 화면에 에픽 효과 1장 확정
+const EFFECT_PITY_LEVELUPS := 2
+## 수리 카드는 체력이 이 비율 아래일 때만 뽑기에 들어간다 (봇 측정: 항상 넣으면 returner 사망 34→45%, 꽉 찬 체력엔 빈칸이기도 함)
+const REPAIR_POOL_HP_RATIO := 0.7
+## 수치 강화 8종: 등급별 수치(노멀·레어·에픽·유니크). 최대 단계는 고른 횟수로 센다 (0 = 단계 없음). 강화는 그 판에서만 유지된다.
+## fire_rate는 발사 속도 비율, multishot은 탄 수와 탄 피해 비율. 모두 고를 때마다 더해진다.
 const UPGRADES := [
-	{"id": "fire_rate", "name": "공격 속도", "max": 5},
-	{"id": "multishot", "name": "탄 개수", "max": 4},
-	{"id": "damage", "name": "공격력", "max": 5},
-	{"id": "magnet", "name": "자석 범위", "max": 5},
-	{"id": "speed", "name": "이동 속도", "max": 5},
-	{"id": "max_hp", "name": "최대 체력", "max": 5},
-	{"id": "range", "name": "사거리", "max": 3},
+	{"id": "fire_rate", "name": "시스템 쿨러 개량", "kind": "공격", "max": 5, "values": [0.10, 0.15, 0.20, 0.30]},
+	{"id": "multishot", "name": "다중 포신 장착", "kind": "공격", "max": 4, "values": [1, 1, 1, 2], "bonus_damage": [0.0, 0.10, 0.20, 0.0]},
+	{"id": "damage", "name": "고밀도 탄두", "kind": "공격", "max": 5, "values": [0.75, 1.1, 1.5, 2.25]},
+	{"id": "range", "name": "장거리 조준 센서", "kind": "공격", "max": 3, "values": [0.15, 0.22, 0.30, 0.45]},
+	{"id": "max_hp", "name": "복합 장갑판 보강", "kind": "방어", "max": 5, "values": [15.0, 22.0, 30.0, 45.0]},
+	{"id": "repair", "name": "나노 수리봇 투입", "kind": "방어", "max": 0, "values": [20.0, 30.0, 40.0, 60.0]},
+	{"id": "speed", "name": "추진기 출력 조정", "kind": "이동", "max": 5, "values": [0.09, 0.13, 0.18, 0.27]},
+	{"id": "magnet", "name": "중력 견인 코일", "kind": "채굴", "max": 5, "values": [0.30, 0.45, 0.60, 0.90]},
 ]
-## 강화 한 단계당 효과
-const UP_FIRE_INTERVAL_MULT := 0.85  ## 발사 간격 ×0.85 (단계마다 곱함)
-const UP_BULLET_COUNT_ADD := 1  ## 한 번에 쏘는 탄 +1
-const UP_DAMAGE_ADD := 1.0  ## 탄 피해 +1
-const UP_MAGNET_ADD := 0.4  ## 자석 범위 +40% (기본값 기준)
-const UP_SPEED_ADD := 0.12  ## 이동 속도 +12% (기본값 기준)
-const UP_MAX_HP_ADD := 20.0  ## 최대 체력 +20, 그만큼 회복
-const UP_RANGE_ADD := 0.2  ## 사거리 +20% (기본값 기준)
-## 모든 강화를 최대로 올리면 대신 나오는 "긴급 수리"의 회복량
-const REPAIR_AMOUNT := 30.0
+## 효과 강화 7종 (에픽·유니크만). desc·short는 [에픽, 유니크] 문구, short는 폰 2줄용. 실제 수치와 효과는 3부에서 넣는다
+const EFFECT_UPGRADES := [
+	{"id": "pierce", "name": "텅스텐 관통탄", "kind": "공격", "max": 3, "desc": ["탄이 대상 1개를 더 뚫고 지나감", "탄이 대상 2개를 더 뚫고 지나감"], "short": ["대상 1개를 더 관통", "대상 2개를 더 관통"]},
+	{"id": "ricochet", "name": "반사 코팅 탄", "kind": "공격", "max": 2, "desc": ["맞은 뒤 1번 튕김 (피해 70%)", "맞은 뒤 2번 튕김 (피해 70%)"], "short": ["1번 튕김, 피해 70%", "2번 튕김, 피해 70%"]},
+	{"id": "explosive", "name": "고폭 탄두", "kind": "공격", "max": 3, "desc": ["부술 때 반경 24 폭발, 탄 피해의 50%", "부술 때 반경 36 폭발, 탄 피해의 75%"], "short": ["부술 때 폭발, 탄 피해의 50%", "부술 때 폭발, 탄 피해의 75%"]},
+	{"id": "crit", "name": "표적 분석 AI", "kind": "공격", "max": 3, "desc": ["치명타 확률 15% (2배 피해)", "치명타 확률 25% (2배 피해)"], "short": ["치명타 확률 15%", "치명타 확률 25%"]},
+	{"id": "shield", "name": "편향 실드 발생기", "kind": "방어", "max": 3, "desc": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"], "short": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"]},
+	{"id": "drone", "name": "호위 드론 사출", "kind": "드론", "max": 3, "desc": ["드론 1기가 따라다니며 함께 공격", "드론 2기가 따라다니며 함께 공격"], "short": ["드론 1기가 함께 공격", "드론 2기가 함께 공격"]},
+	{"id": "mining_laser", "name": "정밀 채굴 레이저", "kind": "채굴", "max": 3, "desc": ["운석에서 나오는 광물 +25%", "운석에서 나오는 광물 +50%"], "short": ["운석 광물 +25%", "운석 광물 +50%"]},
+]
+## 레전드리 4종: 한 판에 1번, 한 화면에 1장까지
+const LEGENDARY_UPGRADES := [
+	{"id": "orbit_pierce", "name": "궤도 관통 가속기", "kind": "공격", "max": 1, "desc": "모든 탄이 사거리 끝까지 관통", "short": "모든 탄이 사거리 끝까지 관통"},
+	{"id": "chain_matrix", "name": "연쇄 반사 매트릭스", "kind": "공격", "max": 1, "desc": "3번 연쇄 튕김, 튕길 때마다 피해 -20%", "short": "3번 튕김, 피해 -20%씩"},
+	{"id": "overload", "name": "과부하 반응로", "kind": "공격", "max": 1, "desc": "체력이 절반 이하면 발사 속도 ×2", "short": "체력 절반 이하면 발사 속도 ×2"},
+	{"id": "tractor_beacon", "name": "전역 견인 비콘", "kind": "채굴", "max": 1, "desc": "8초마다 화면 안 모든 광물을 끌어옴", "short": "8초마다 모든 광물을 끌어옴"},
+]
 
 # ── 피격·위험 표시 (조작감) ─────────────────────────
 ## (맞았을 때 화면 흔들림·붉은 번쩍임 수치는 scripts/juice.gd)

@@ -69,9 +69,27 @@ const LEVELUP_SLOWMO_TIME := 0.3
 const LEVELUP_SLOWMO_SCALE := 0.25
 const LEVELUP_LIGHT_COLOR := Color("#fff4c8")
 const LEVELUP_LIGHT_RADIUS := 56.0
-## 레벨업 카드(메뉴)가 아래에서 튀어 오르는 거리(픽셀)와 시간 (넘쳤다 돌아오는 트윈)
-const CARD_POP_DISTANCE := 24.0
-const CARD_POP_TIME := 0.28
+## 레벨업 카드 등장: 뒤 화면 어두워짐 → 첫 카드까지 대기 → 카드마다 간격을 두고 내려옴(뒷면) → 뒤집힘 → 앞면 번쩍 (초)
+const CARD_DIM_TIME := 0.12
+const CARD_FIRST_DELAY := 0.15
+const CARD_STAGGER := 0.28
+const CARD_DROP_TIME := 0.12
+const CARD_DROP_DISTANCE := 60.0
+const CARD_FLIP_TIME := 0.08
+const CARD_FLASH_TIME := 0.25
+## 다시 뽑을 때는 짧게 (어두워짐 없음)
+const CARD_REROLL_STAGGER := 0.08
+const CARD_REROLL_DROP_DISTANCE := 24.0
+## 등급별(노멀~레전드리) 앞면 번쩍임 세기(흰색 섞는 비율), 더 퍼지는 빛 고리 폭(칸), 등장 소리 크기(dB)
+const CARD_FLASH_STRENGTH := [0.25, 0.4, 0.55, 0.7, 0.85]
+const CARD_FLASH_RING := [0, 3, 6, 10, 16]
+const CARD_SHOW_DB := [-5.0, -3.0, -1.0, 1.0, 3.0]
+## 건너뛴 직후 이 시간 동안은 눌러도 고르지 않는다 (연타로 실수 선택 방지)
+const CARD_SKIP_GUARD := 0.2
+## 카드를 고른 순간의 번쩍임, 빛 고리, 화면이 닫히기까지 시간
+const CARD_PICK_FLASH := 0.8
+const CARD_PICK_RING := 8
+const CARD_PICK_TIME := 0.18
 ## HUD 숫자 카운트업: 남은 차이의 초당 비율 + 최소 초당 증가량 (목표에 빠르게 붙음)
 const COUNT_UP_RATE := 12.0
 const COUNT_UP_MIN := 20.0

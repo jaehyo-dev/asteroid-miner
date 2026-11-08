@@ -17,12 +17,12 @@ func test_필요_경험치는_레벨마다_늘어남() -> void:
 func test_선택지는_서로_다른_강화_3개() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3
-	for i in 50:
-		var c := Upgrades.roll_choices(rng, {}, Balance.UPGRADE_CHOICE_COUNT)
+	for i in 200:
+		var c := Upgrades.roll_choices(rng, {}, Balance.UPGRADE_CHOICE_COUNT, 300.0, true)
 		assert_eq(c.size(), Balance.UPGRADE_CHOICE_COUNT)
-		assert_true(c[0] != c[1] and c[1] != c[2] and c[0] != c[2], "중복 없음 %s" % c)
-		for id in c:
-			assert_false(Upgrades.info(id).is_empty(), "알려진 강화 " + id)
+		assert_true(c[0]["id"] != c[1]["id"] and c[1]["id"] != c[2]["id"] and c[0]["id"] != c[2]["id"], "중복 없음 %s" % [c])
+		for card in c:
+			assert_false(Upgrades.info(card["id"]).is_empty(), "알려진 강화 " + card["id"])
 
 
 func test_최대_단계_강화는_나오지_않음() -> void:
@@ -32,26 +32,190 @@ func test_최대_단계_강화는_나오지_않음() -> void:
 	for u in Balance.UPGRADES:
 		levels[u["id"]] = u["max"]
 	levels["speed"] = 0
-	levels["range"] = 0
 	for i in 30:
 		var c := Upgrades.roll_choices(rng, levels, 3)
-		assert_eq(c.size(), 2, "남은 2개만")
-		assert_true(c.has("speed") and c.has("range"))
+		var ids: Array = c.map(func(card: Dictionary) -> String: return card["id"])
+		assert_eq(ids.size(), 2, "남은 2개만")
+		assert_true(ids.has("speed") and ids.has(Upgrades.REPAIR), str(ids))
+	var without := Upgrades.roll_choices(rng, levels, 3, 0.0, false, false, false)
+	assert_eq(without.size(), 1, "수리를 빼면 속도만")
+	assert_eq(without[0]["id"], "speed")
 
 
-func test_모두_최대면_긴급_수리() -> void:
+func test_수리는_체력이_낮을_때만_뽑기에_들어감() -> void:
+	var saw := {true: false, false: false}
+	for low in [true, false]:
+		var sim := _sim()
+		sim.hp = sim.max_hp * (Balance.REPAIR_POOL_HP_RATIO - 0.1 if low else 1.0)
+		for i in 200:
+			sim.choices = [{"id": "speed", "grade": 0}]
+			sim.rerolls_left = 1
+			sim.reroll()
+			for card in sim.choices:
+				saw[low] = saw[low] or card["id"] == Upgrades.REPAIR
+	assert_true(saw[true], "체력이 낮으면 나옴")
+	assert_false(saw[false], "체력이 넉넉하면 안 나옴")
+
+
+func test_모두_최대면_수리만_나옴() -> void:
 	var levels := {}
 	for u in Balance.UPGRADES:
 		levels[u["id"]] = u["max"]
-	assert_eq(Upgrades.roll_choices(RandomNumberGenerator.new(), levels, 3), PackedStringArray([Upgrades.REPAIR]))
+	var c := Upgrades.roll_choices(RandomNumberGenerator.new(), levels, 3, 0.0, false, false, false)
+	assert_eq(c.size(), 1, "체력이 넉넉해도 수리는 나옴")
+	assert_eq(c[0]["id"], Upgrades.REPAIR)
 
 
-func test_모든_강화에_이름과_설명이_있음() -> void:
-	for u in Balance.UPGRADES:
-		assert_false(Upgrades.describe(u["id"]).is_empty(), u["id"] + " 설명")
-		assert_eq(Upgrades.display_name(u["id"]), u["name"])
-	assert_false(Upgrades.describe(Upgrades.REPAIR).is_empty())
-	assert_eq(Upgrades.describe("fire_rate"), "발사 간격 -15%")
+func test_모든_강화에_이름_종류_설명_아이콘이_있음() -> void:
+	for list in [Balance.UPGRADES, Balance.EFFECT_UPGRADES, Balance.LEGENDARY_UPGRADES]:
+		for u in list:
+			assert_eq(Upgrades.display_name(u["id"]), u["name"])
+			assert_false(Upgrades.kind_of(u["id"]).is_empty(), u["id"] + " 종류")
+			var grades: Array = [Upgrades.LEGENDARY] if list == Balance.LEGENDARY_UPGRADES else ([Upgrades.EPIC, Upgrades.UNIQUE] if list == Balance.EFFECT_UPGRADES else [0, 1, 2, 3])
+			for grade in grades:
+				assert_false(Upgrades.describe(u["id"], grade).is_empty(), u["id"] + " 설명")
+				assert_false(Upgrades.describe(u["id"], grade, true).is_empty(), u["id"] + " 짧은 설명")
+			var icon: Texture2D = load("res://assets/sprites/run/card/icons/%s.png" % u["id"])
+			assert_eq(icon.get_size(), Vector2(48, 48), u["id"] + " 아이콘")
+
+
+func test_강화는_8종_효과는_7종_레전드리는_4종() -> void:
+	assert_eq(Balance.UPGRADES.size(), 8)
+	assert_eq(Balance.EFFECT_UPGRADES.size(), 7)
+	assert_eq(Balance.LEGENDARY_UPGRADES.size(), 4)
+
+
+func test_등급별_수치와_설명() -> void:
+	assert_eq(Upgrades.describe("fire_rate", Upgrades.NORMAL), "발사 속도 +10%")
+	assert_eq(Upgrades.describe("fire_rate", Upgrades.UNIQUE), "발사 속도 +30%")
+	assert_eq(Upgrades.describe("multishot", Upgrades.NORMAL), "한 번에 1발 더")
+	assert_eq(Upgrades.describe("multishot", Upgrades.RARE), "한 번에 1발 더, 탄 피해 +10%")
+	assert_eq(Upgrades.describe("multishot", Upgrades.UNIQUE), "한 번에 2발 더")
+	assert_eq(Upgrades.describe("damage", Upgrades.NORMAL), "탄 피해 +0.75")
+	assert_eq(Upgrades.describe("repair", Upgrades.EPIC), "체력 40 회복")
+	assert_eq(Upgrades.describe("pierce", Upgrades.UNIQUE, true), "대상 2개를 더 관통")
+
+
+func test_시간별_등급_확률은_설계_표와_같음() -> void:
+	var expected := {0.0: [55.0, 27.0, 12.0, 5.0, 1.0], 60.0: [51.0, 27.6, 13.6, 6.4, 1.4], 180.0: [43.0, 28.8, 16.8, 9.2, 2.2], 300.0: [35.0, 30.0, 20.0, 12.0, 3.0], 600.0: [35.0, 30.0, 20.0, 12.0, 3.0]}
+	for t in expected:
+		var w := Upgrades.grade_weights(t)
+		var total := 0.0
+		for i in 5:
+			assert_true(absf(w[i] - expected[t][i]) < 0.001, "%s초 %d번 %f" % [t, i, w[i]])
+			total += w[i]
+		assert_true(absf(total - 100.0) < 0.001, "합 100")
+
+
+func test_등급_분포가_확률을_따름() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var counts := [0, 0, 0, 0, 0]
+	for i in 20000:
+		counts[Upgrades.roll_grade(rng, 0.0)] += 1
+	for g in 5:
+		var pct: float = counts[g] / 200.0
+		assert_true(absf(pct - Balance.GRADE_WEIGHTS_START[g]) < 1.0, "%d번 등급 %f%%" % [g, pct])
+
+
+func test_잠겨_있으면_효과와_레전드리가_뽑히지_않음() -> void:
+	assert_false(Balance.EFFECT_CARDS_ENABLED, "3부 전까지는 잠금")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var sim := _sim()
+	sim.effect_dry = 99  # 보정이 켜질 만한 값이어도
+	for i in 3000:
+		sim.rerolls_left = 1
+		sim.choices = [{"id": "speed", "grade": 0}]
+		sim.reroll()
+		for card in sim.choices:
+			assert_false(card["grade"] == Upgrades.LEGENDARY, "레전드리 없음")
+			assert_true(Balance.UPGRADES.any(func(u: Dictionary) -> bool: return u["id"] == card["id"]), "수치 강화만 " + card["id"])
+
+
+func test_잠겨_있으면_보정이_세어지지_않음() -> void:
+	var sim := _sim()
+	sim.gain_xp(Balance.XP_BASE)
+	sim.choose(0)
+	assert_eq(sim.effect_dry, 0)
+
+
+func test_풀리면_효과는_에픽부터_레전드리는_한_화면에_1장() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6
+	var saw_effect := false
+	var saw_legend := false
+	for i in 5000:
+		var c := Upgrades.roll_choices(rng, {}, 3, 300.0, true)
+		var legends := 0
+		for card in c:
+			if card["grade"] == Upgrades.LEGENDARY:
+				legends += 1
+				saw_legend = true
+				assert_true(Balance.LEGENDARY_UPGRADES.any(func(u: Dictionary) -> bool: return u["id"] == card["id"]))
+			elif Upgrades.is_effect(card["id"]):
+				saw_effect = true
+				assert_true(card["grade"] >= Upgrades.EPIC, "효과는 에픽부터")
+			else:
+				assert_true(card["grade"] <= Upgrades.UNIQUE)
+		assert_true(legends <= 1, "레전드리 1장까지")
+	assert_true(saw_effect and saw_legend)
+
+
+func test_보정_확정이면_에픽_효과가_꼭_나옴() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for i in 2000:
+		var c := Upgrades.roll_choices(rng, {}, 3, 0.0, true, true)
+		assert_true(Upgrades.has_effect(c), "효과 카드 있음 %s" % [c])
+		var ids := {}
+		for card in c:
+			ids[card["id"]] = true
+		assert_eq(ids.size(), 3, "확정 카드도 중복 없음")
+
+
+func test_보정은_효과_카드_없는_레벨업_2번_뒤에_동작() -> void:
+	var sim := _sim()
+	sim.effects_enabled = true
+	# 효과 없는 화면 2번을 강제로 지나간다
+	for i in Balance.EFFECT_PITY_LEVELUPS:
+		sim.choices = [{"id": "speed", "grade": 0}]
+		sim.pending_levelups = 1
+		sim.choose(0)
+	assert_eq(sim.effect_dry, Balance.EFFECT_PITY_LEVELUPS)
+	sim.gain_xp(Balance.XP_BASE)
+	assert_true(Upgrades.has_effect(sim.choices), "다음 화면 확정")
+	assert_true(sim.reroll(), "다시 뽑아도")
+	assert_true(Upgrades.has_effect(sim.choices), "확정 유지")
+	assert_eq(sim.effect_dry, Balance.EFFECT_PITY_LEVELUPS, "다시 뽑기는 레벨업으로 세지 않음")
+	sim.choose(0)
+	assert_eq(sim.effect_dry, 0, "효과 카드를 본 레벨업이면 처음부터")
+
+
+func test_다시_뽑기는_한_판에_2번() -> void:
+	var sim := _sim()
+	assert_false(sim.reroll(), "고를 카드가 없으면 안 됨")
+	assert_eq(sim.rerolls_left, Balance.REROLLS_PER_RUN)
+	sim.gain_xp(Balance.XP_BASE)
+	var pending := sim.pending_levelups
+	assert_true(sim.reroll())
+	assert_eq(sim.choices.size(), Balance.UPGRADE_CHOICE_COUNT, "3장 다시")
+	assert_true(sim.reroll())
+	assert_false(sim.reroll(), "3번째는 안 됨")
+	assert_eq(sim.rerolls_left, 0)
+	assert_eq(sim.pending_levelups, pending, "레벨업 수는 그대로")
+	sim.choose(0)
+	sim.gain_xp(Upgrades.xp_to_next(sim.level))
+	assert_eq(sim.rerolls_left, 0, "다음 레벨업에 다시 채워지지 않음")
+
+
+func test_같은_시드면_다시_뽑기_결과도_같음() -> void:
+	var a := _sim()
+	var b := _sim()
+	for sim in [a, b]:
+		sim.gain_xp(Balance.XP_BASE)
+		sim.reroll()
+	assert_eq(a.choices, b.choices)
 
 
 func test_경험치가_모이면_레벨업하고_선택지가_열림() -> void:
@@ -105,53 +269,84 @@ func test_잘못된_번호는_무시() -> void:
 	assert_eq(sim.pending_levelups, 1)
 
 
-func _apply(sim: RunSim, id: String, times: int = 1) -> void:
+func _apply(sim: RunSim, id: String, times: int = 1, grade: int = Upgrades.NORMAL) -> void:
 	for i in times:
-		sim.upgrade_levels[id] = int(sim.upgrade_levels.get(id, 0)) + 1
-	sim.apply_upgrades()
+		sim.apply_pick(id, grade)
 
 
 func test_강화_효과() -> void:
 	var sim := _sim()
 	_apply(sim, "fire_rate", 2)
-	assert_true(is_equal_approx(sim.fire_interval, Balance.FIRE_INTERVAL * Balance.UP_FIRE_INTERVAL_MULT * Balance.UP_FIRE_INTERVAL_MULT))
+	assert_true(is_equal_approx(sim.fire_interval, Balance.FIRE_INTERVAL / 1.2), "발사 속도는 더해짐")
 	_apply(sim, "multishot")
 	assert_eq(sim.bullet_count, Balance.BULLET_COUNT + 1)
 	_apply(sim, "damage")
-	assert_eq(sim.bullet_damage, Balance.BULLET_DAMAGE + Balance.UP_DAMAGE_ADD)
+	assert_eq(sim.bullet_damage, Balance.BULLET_DAMAGE + 0.75)
 	_apply(sim, "magnet")
-	assert_true(is_equal_approx(sim.magnet_radius, Balance.MAGNET_RADIUS * (1.0 + Balance.UP_MAGNET_ADD)))
+	assert_true(is_equal_approx(sim.magnet_radius, Balance.MAGNET_RADIUS * 1.3))
 	_apply(sim, "speed")
-	assert_true(is_equal_approx(sim.move_speed, Balance.SHIP_SPEED * (1.0 + Balance.UP_SPEED_ADD)))
+	assert_true(is_equal_approx(sim.move_speed, Balance.SHIP_SPEED * 1.09))
 	_apply(sim, "range")
-	assert_true(is_equal_approx(sim.fire_range, Balance.FIRE_RANGE * (1.0 + Balance.UP_RANGE_ADD)))
+	assert_true(is_equal_approx(sim.fire_range, Balance.FIRE_RANGE * 1.15))
+
+
+func test_등급이_높으면_더_크게_오르고_단계는_똑같이_1() -> void:
+	var sim := _sim()
+	_apply(sim, "speed", 1, Upgrades.UNIQUE)
+	assert_true(is_equal_approx(sim.move_speed, Balance.SHIP_SPEED * 1.27))
+	assert_eq(sim.upgrade_levels["speed"], 1)
+	_apply(sim, "speed", 1, Upgrades.NORMAL)
+	assert_true(is_equal_approx(sim.move_speed, Balance.SHIP_SPEED * 1.36), "등급마다 오른 양이 쌓임")
+	assert_eq(sim.upgrade_levels["speed"], 2)
+
+
+func test_다중_포신_등급별() -> void:
+	var sim := _sim()
+	_apply(sim, "multishot", 1, Upgrades.EPIC)
+	assert_eq(sim.bullet_count, Balance.BULLET_COUNT + 1)
+	assert_true(is_equal_approx(sim.bullet_damage, Balance.BULLET_DAMAGE * 1.2), "에픽 탄 피해 +20%")
+	_apply(sim, "multishot", 1, Upgrades.UNIQUE)
+	assert_eq(sim.bullet_count, Balance.BULLET_COUNT + 3, "유니크 +2발")
 
 
 func test_이동_속도_강화가_실제_이동에_반영됨() -> void:
 	var sim := _sim()
 	_apply(sim, "speed", 2)
 	sim.update(0.05, Vector2.RIGHT)
-	assert_true(is_equal_approx(sim.player_pos.x, Balance.SHIP_SPEED * (1.0 + 2.0 * Balance.UP_SPEED_ADD) * 0.05))
+	assert_true(is_equal_approx(sim.player_pos.x, Balance.SHIP_SPEED * 1.18 * 0.05))
 
 
 func test_최대_체력_강화는_그만큼_회복() -> void:
 	var sim := _sim()
 	sim.hp = 50.0
-	sim.choices = PackedStringArray(["max_hp"])
+	sim.choices = [{"id": "max_hp", "grade": Upgrades.RARE}]
 	sim.pending_levelups = 1
 	sim.choose(0)
-	assert_eq(sim.max_hp, Balance.SHIP_MAX_HP + Balance.UP_MAX_HP_ADD)
-	assert_eq(sim.hp, 50.0 + Balance.UP_MAX_HP_ADD)
+	assert_eq(sim.max_hp, Balance.SHIP_MAX_HP + 22.0)
+	assert_eq(sim.hp, 72.0)
 
 
-func test_긴급_수리는_최대_체력까지만_회복() -> void:
+func test_수리는_최대_체력까지만_회복하고_단계가_없음() -> void:
 	var sim := _sim()
 	sim.hp = sim.max_hp - 5.0
-	sim.choices = PackedStringArray([Upgrades.REPAIR])
+	sim.choices = [{"id": Upgrades.REPAIR, "grade": Upgrades.NORMAL}]
 	sim.pending_levelups = 1
 	sim.choose(0)
 	assert_eq(sim.hp, sim.max_hp)
 	assert_true(sim.upgrade_levels.is_empty(), "강화 단계는 그대로")
+	sim.hp = 10.0
+	sim.apply_pick(Upgrades.REPAIR, Upgrades.UNIQUE)
+	assert_eq(sim.hp, 70.0, "유니크 60 회복")
+
+
+func test_효과_카드를_골라도_깨지지_않음() -> void:
+	var sim := _sim()
+	var before := sim.bullet_damage
+	sim.choices = [{"id": "pierce", "grade": Upgrades.EPIC}]
+	sim.pending_levelups = 1
+	sim.choose(0)
+	assert_eq(sim.upgrade_levels["pierce"], 1)
+	assert_eq(sim.bullet_damage, before, "효과는 3부에서")
 
 
 func test_운석을_부숴도_경험치는_없음() -> void:

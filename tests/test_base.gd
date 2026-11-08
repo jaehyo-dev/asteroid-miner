@@ -90,12 +90,12 @@ func test_기지_업그레이드_효과() -> void:
 func test_레벨업_강화와_기지_업그레이드가_함께_적용됨() -> void:
 	var sim := RunSim.new(1)
 	sim.apply_base({"damage": 5, "max_hp": 2, "speed": 2})
-	sim.upgrade_levels = {"damage": 1, "max_hp": 1, "speed": 1}
-	sim.apply_upgrades()
+	for id in ["damage", "max_hp", "speed"]:
+		sim.apply_pick(id, Upgrades.NORMAL)
 	# 공격력: (기본 + 강화) × 기지 배율
-	assert_true(is_equal_approx(sim.bullet_damage, (Balance.BULLET_DAMAGE + Balance.UP_DAMAGE_ADD) * (1.0 + 5 * Balance.BASE_DAMAGE_MULT_ADD)), "공격력 %f" % sim.bullet_damage)
-	assert_eq(sim.max_hp, Balance.SHIP_MAX_HP + Balance.UP_MAX_HP_ADD + 2 * Balance.BASE_MAX_HP_ADD, "체력")
-	assert_true(is_equal_approx(sim.move_speed, Balance.SHIP_SPEED * (1.0 + Balance.UP_SPEED_ADD + 2 * Balance.BASE_SPEED_ADD)), "속도")
+	assert_true(is_equal_approx(sim.bullet_damage, (Balance.BULLET_DAMAGE + Upgrades.value("damage", Upgrades.NORMAL)) * (1.0 + 5 * Balance.BASE_DAMAGE_MULT_ADD)), "공격력 %f" % sim.bullet_damage)
+	assert_eq(sim.max_hp, Balance.SHIP_MAX_HP + Upgrades.value("max_hp", Upgrades.NORMAL) + 2 * Balance.BASE_MAX_HP_ADD, "체력")
+	assert_true(is_equal_approx(sim.move_speed, Balance.SHIP_SPEED * (1.0 + Upgrades.value("speed", Upgrades.NORMAL) + 2 * Balance.BASE_SPEED_ADD)), "속도")
 
 
 func test_보험_단계에_따라_죽어도_더_많이_남음() -> void:

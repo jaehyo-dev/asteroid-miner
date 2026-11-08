@@ -31,6 +31,8 @@ const FPS_TAP_WINDOW_MS := 2000
 @onready var danger: DangerOverlay = $UI/Danger
 
 var sim: RunSim
+## 레벨업 카드 화면
+var cards := LevelUpCards.new()
 var current_menu := Menu.NONE
 ## 기지 저장 (출격 전 업그레이드 적용, 판이 끝나면 광물을 더해 저장)
 var save: SaveData
@@ -71,6 +73,9 @@ func _ready() -> void:
 	MenuPanel.add_press_feel(pause_button)
 	menu.chosen.connect(_on_menu_chosen)
 	menu.title_tapped.connect(_on_title_tapped)
+	$UI.add_child(cards)
+	cards.chosen.connect(_on_card_chosen)
+	cards.reroll_pressed.connect(_on_reroll)
 	Music.set_run_time(0.0)
 	# 폰을 세로로 들면 일시 정지 (가로로 돌리면 일시 정지 메뉴에서 이어서 한다)
 	App.portrait_changed.connect(_on_portrait_changed)
@@ -130,11 +135,18 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# 레벨업 메뉴에서는 숫자키 1, 2, 3으로도 고를 수 있다.
+	# 레벨업 카드: 숫자키 1, 2, 3으로 고르고 R로 다시 뽑는다. 다 펼쳐지기 전이면 건너뛰기만 한다.
 	if current_menu == Menu.LEVEL_UP and event is InputEventKey and event.pressed and not event.echo:
-		var index := number_key_index(event.physical_keycode)
-		if index >= 0 and index < sim.choices.size():
-			menu.choose(index)
+		var key: Key = event.physical_keycode
+		var index := number_key_index(key)
+		var known: bool = (index >= 0 and index < sim.choices.size()) or key == KEY_R or event.is_action("confirm")
+		if known:
+			if cards.is_revealing():
+				cards.skip()
+			elif key == KEY_R:
+				cards.reroll()
+			else:
+				cards.choose(index)
 			get_viewport().set_input_as_handled()
 			return
 	if event.is_action_pressed("pause"):
@@ -360,26 +372,24 @@ func bank_result() -> int:
 	return earned
 
 
-## 레벨업 강화 선택 메뉴
+## 레벨업 카드 화면을 연다
 func _show_level_up() -> void:
-	var options: PackedStringArray = []
-	for i in sim.choices.size():
-		var id := sim.choices[i]
-		var next := int(sim.upgrade_levels.get(id, 0)) + 1
-		var label := Upgrades.display_name(id)
-		if id != Upgrades.REPAIR:
-			label += " Lv%d" % next
-		options.append("%d. %s\n%s" % [i + 1, label, Upgrades.describe(id)])
-	_open_menu(Menu.LEVEL_UP, "레벨 업! Lv %d" % (sim.level - sim.pending_levelups + 1), "강화를 하나 고르세요", options, Balance.LEVEL_UP_INPUT_DELAY)
-	Sfx.play("card_show")
-	menu.pop_in()  # 카드가 아래에서 튀어 오르며 등장 (카드 화면 자체는 5단계에서 새로 만듦)
+	_enter_menu(Menu.LEVEL_UP)
+	cards.show_cards(sim.choices, sim.upgrade_levels, sim.rerolls_left)
 
 
-func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray, input_delay: float = 0.0) -> void:
+func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray) -> void:
+	_enter_menu(kind)
+	menu.set_dim(MenuPanel.DIM_PAUSE if kind == Menu.PAUSE else MenuPanel.DIM_NORMAL)
+	menu.show_menu(title, body, options)
+
+
+## 메뉴(일시 정지·레벨업·게임 오버)가 떠 있는 동안의 공통 상태
+func _enter_menu(kind: Menu) -> void:
 	current_menu = kind
 	sim.run_during_levelup = false
 	world.levelup_light = 0.0
-	# 메뉴(일시 정지·레벨업·게임 오버)가 떠 있는 동안 붉은 화면 효과가 멈춘 채 남지 않게 끈다
+	# 붉은 화면 효과가 멈춘 채 남지 않게 끈다
 	alert.clear_effects()
 	Sfx.pause_gate_sounds(true)
 	gate_view.process_mode = Node.PROCESS_MODE_DISABLED  # 빛 알갱이(입자)는 따로 움직이므로 메뉴 동안 멈춘다
@@ -387,8 +397,6 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 	pause_button.hide()
 	world.moving = false
 	hud.hide_tip = kind == Menu.PAUSE  # 안내 말풍선이 일시 정지 메뉴와 겹치지 않게
-	menu.set_dim(MenuPanel.DIM_PAUSE if kind == Menu.PAUSE else MenuPanel.DIM_NORMAL)
-	menu.show_menu(title, body, options, input_delay)
 
 
 func _close_menu() -> void:
@@ -402,9 +410,7 @@ func _close_menu() -> void:
 
 
 func _on_menu_chosen(index: int) -> void:
-	if current_menu == Menu.LEVEL_UP:
-		Sfx.play("card_pick")
-	elif not (current_menu == Menu.PAUSE and index >= PAUSE_SHAKE and index <= PAUSE_MUSIC):
+	if not (current_menu == Menu.PAUSE and index >= PAUSE_SHAKE and index <= PAUSE_MUSIC):
 		Sfx.play("click")  # 설정 버튼은 바뀐 크기로 _change_setting에서 딸깍
 	match current_menu:
 		Menu.PAUSE:
@@ -414,11 +420,18 @@ func _on_menu_chosen(index: int) -> void:
 				_change_setting(index)
 			else:
 				get_tree().change_scene_to_file(MAIN_SCENE)
-		Menu.LEVEL_UP:
-			sim.choose(index)
-			_close_menu()  # 남은 레벨업이 있으면 다음 프레임에 다시 뜬다
 		Menu.GAME_OVER:
 			if index == 0:
 				get_tree().reload_current_scene()
 			else:
 				get_tree().change_scene_to_file(MAIN_SCENE)
+
+
+func _on_card_chosen(index: int) -> void:
+	sim.choose(index)
+	_close_menu()  # 남은 레벨업이 있으면 다음 프레임에 다시 뜬다
+
+
+func _on_reroll() -> void:
+	if sim.reroll():
+		cards.show_cards(sim.choices, sim.upgrade_levels, sim.rerolls_left, true)

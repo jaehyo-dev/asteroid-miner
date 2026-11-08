@@ -93,55 +93,143 @@ func test_광물과_파편이_있어도_오류_없이_진행() -> void:
 	run.queue_free()
 
 
-func test_레벨업하면_강화_메뉴가_뜨고_고르면_닫힘() -> void:
+## 카드가 뜰 때까지 기다렸다가 건너뛰고, 고를 수 있는 상태로 만든다
+func _ready_cards(run: Node) -> void:
+	await wait_frames(2)
+	run.cards.skip()
+	await get_tree().create_timer(Juice.CARD_SKIP_GUARD + 0.05).timeout
+
+
+func _pick(run: Node, index: int) -> void:
+	run.cards.choose(index)
+	await get_tree().create_timer(Juice.CARD_PICK_TIME + 0.05).timeout
+	await wait_frames(2)
+
+
+func test_레벨업하면_카드가_뜨고_고르면_닫힘() -> void:
 	var run: Node = await _start()
 	run.sim.gain_xp(Balance.XP_BASE)
 	await wait_frames(2)
-	assert_true(run.menu.visible, "레벨업 메뉴")
-	assert_true(run.menu.title_text().begins_with("레벨 업"), run.menu.title_text())
-	assert_eq(run.menu.buttons().size(), Balance.UPGRADE_CHOICE_COUNT)
-	assert_true(run.menu.buttons()[0].disabled, "뜬 직후에는 누를 수 없음")
+	assert_true(run.cards.visible, "카드 화면")
+	assert_false(run.menu.visible, "일반 메뉴는 안 씀")
+	assert_eq(run.cards.cards.size(), Balance.UPGRADE_CHOICE_COUNT)
+	assert_true(run.cards.is_revealing(), "등장 연출 중")
+	var view: Vector2 = run.get_viewport_rect().size
+	assert_eq(run.cards.size, view, "화면 전체를 덮음")
+	assert_eq(run.cards._dim.size, view, "어두운 판도 화면 전체")
+	for c in run.cards.cards:
+		assert_true(Rect2(Vector2.ZERO, view).encloses(Rect2(c.home, c.size)), "카드가 화면 안: %s" % c.home)
 	var t: float = run.sim.time
-	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
-	assert_false(run.menu.buttons()[0].disabled, "잠시 뒤 누를 수 있음")
+	await _ready_cards(run)
+	assert_false(run.cards.is_revealing(), "다 펼쳐짐")
 	assert_eq(run.sim.time, t, "고르는 동안 멈춤")
-	run.menu.choose(1)
-	await wait_frames(2)
-	assert_false(run.menu.visible, "닫힘")
+	await _pick(run, 1)
+	assert_false(run.cards.visible, "닫힘")
 	assert_eq(run.sim.pending_levelups, 0)
 	assert_true(run.sim.time > t, "다시 진행")
 	run.queue_free()
 
 
-func test_두_번_레벨업하면_메뉴가_두_번_뜸() -> void:
+func test_두_번_레벨업하면_카드가_두_번_뜸() -> void:
 	var run: Node = await _start()
 	run.sim.gain_xp(Upgrades.xp_to_next(1) + Upgrades.xp_to_next(2))
-	await wait_frames(2)
-	assert_true(run.menu.title_text().contains("Lv 2"), run.menu.title_text())
-	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
-	run.menu.choose(0)
-	await wait_frames(2)
-	assert_true(run.menu.visible, "두 번째 메뉴")
-	assert_true(run.menu.title_text().contains("Lv 3"), run.menu.title_text())
-	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
-	run.menu.choose(0)
-	await wait_frames(2)
-	assert_false(run.menu.visible)
+	await _ready_cards(run)
+	await _pick(run, 0)
+	assert_true(run.cards.visible, "두 번째 카드")
+	assert_eq(run.sim.pending_levelups, 1)
+	await _ready_cards(run)
+	await _pick(run, 0)
+	assert_false(run.cards.visible)
 	run.queue_free()
+
+
+func _key(run: Node, code: Key) -> void:
+	var key := InputEventKey.new()
+	key.physical_keycode = code
+	key.pressed = true
+	run._unhandled_input(key)
 
 
 func test_숫자키로_강화를_고름() -> void:
 	var run: Node = await _start()
 	run.sim.gain_xp(Balance.XP_BASE)
+	await _ready_cards(run)
+	var expected: String = run.sim.choices[2]["id"]
+	_key(run, KEY_3)
+	await get_tree().create_timer(Juice.CARD_PICK_TIME + 0.05).timeout
+	if expected == Upgrades.REPAIR:
+		assert_true(run.sim.upgrade_levels.is_empty(), "수리는 단계 없음")
+	else:
+		assert_eq(int(run.sim.upgrade_levels.get(expected, 0)), 1, "3번 강화 적용")
+	run.queue_free()
+
+
+func test_다_펼쳐지기_전_누름은_건너뛰기만_하고_고르지_않음() -> void:
+	var run: Node = await _start()
+	run.sim.gain_xp(Balance.XP_BASE)
 	await wait_frames(2)
-	await get_tree().create_timer(Balance.LEVEL_UP_INPUT_DELAY + 0.1).timeout
-	var expected: String = run.sim.choices[2]
-	var key := InputEventKey.new()
-	key.physical_keycode = KEY_3
-	key.pressed = true
-	run._unhandled_input(key)
+	var taps := InputEventMouseButton.new()
+	taps.button_index = MOUSE_BUTTON_LEFT
+	taps.pressed = true
+	assert_eq(run.cards.cards[0].mouse_filter, Control.MOUSE_FILTER_IGNORE, "연출 중 카드는 입력을 받지 않음")
+	run.cards._gui_input(taps)
+	assert_eq(run.cards.state, LevelUpCards.State.GUARD, "건너뜀")
+	for c in run.cards.cards:
+		assert_true(c.visible and c.flash_strength() == 0.0, "다 펼쳐짐")
+	# 연타해도 선택되지 않는다
+	run.cards._gui_input(taps)
+	run.cards.choose(0)
+	_key(run, KEY_1)
+	await wait_frames(2)
+	assert_eq(run.sim.pending_levelups, 1, "아직 안 고름")
+	assert_eq(run.cards.state, LevelUpCards.State.GUARD)
+	await get_tree().create_timer(Juice.CARD_SKIP_GUARD + 0.05).timeout
+	assert_eq(run.cards.state, LevelUpCards.State.READY)
+	assert_eq(run.cards.cards[0].mouse_filter, Control.MOUSE_FILTER_STOP, "이제 받음")
+	run.queue_free()
+
+
+func test_연출_중_숫자키도_건너뛰기만() -> void:
+	var run: Node = await _start()
+	run.sim.gain_xp(Balance.XP_BASE)
+	await wait_frames(2)
+	_key(run, KEY_1)
+	await wait_frames(2)
+	assert_eq(run.sim.pending_levelups, 1, "안 고름")
+	assert_eq(run.cards.state, LevelUpCards.State.GUARD, "건너뜀")
+	run.queue_free()
+
+
+func test_연출이_끝나면_저절로_고를_수_있음() -> void:
+	var run: Node = await _start()
+	run.sim.gain_xp(Balance.XP_BASE)
 	await wait_frames(1)
-	assert_eq(int(run.sim.upgrade_levels.get(expected, 0)), 1, "3번 강화 적용")
+	await get_tree().create_timer(run.cards._reveal_end() + 0.1).timeout
+	assert_eq(run.cards.state, LevelUpCards.State.READY)
+	run.queue_free()
+
+
+func test_R키로_다시_뽑고_0회면_꺼짐() -> void:
+	var run: Node = await _start()
+	run.sim.gain_xp(Balance.XP_BASE)
+	await _ready_cards(run)
+	assert_false(run.cards.reroll_button.disabled)
+	_key(run, KEY_R)
+	assert_eq(run.sim.rerolls_left, 1, "1회 씀")
+	assert_true(run.cards.is_revealing(), "다시 등장 연출")
+	assert_true(run.cards._reveal_end() < 0.7, "짧은 연출")
+	_key(run, KEY_R)
+	assert_eq(run.sim.rerolls_left, 1, "연출 중 R은 건너뛰기만")
+	await get_tree().create_timer(Juice.CARD_SKIP_GUARD + 0.05).timeout
+	run.cards.reroll_button.pressed.emit()
+	assert_eq(run.sim.rerolls_left, 0, "버튼으로도")
+	run.cards.skip()
+	await get_tree().create_timer(Juice.CARD_SKIP_GUARD + 0.05).timeout
+	assert_true(run.cards.reroll_button.disabled, "0회면 꺼짐")
+	var before: Array = run.sim.choices.duplicate()
+	_key(run, KEY_R)
+	assert_eq(run.sim.choices, before, "0회면 안 바뀜")
+	assert_eq(run.cards.state, LevelUpCards.State.READY)
 	run.queue_free()
 
 
@@ -190,13 +278,13 @@ func test_레벨업하면_슬로모션과_빛_뒤에_강화_메뉴() -> void:
 	run.sim.drop_mineral(run.sim.player_pos, 0)  # 다음 프레임에 주워 레벨업
 	await wait_frames(2)
 	assert_true(run.slowmo > 0.0, "슬로모션 시작")
-	assert_false(run.menu.visible, "슬로모션 동안은 메뉴가 아직 안 뜸")
+	assert_false(run.cards.visible, "슬로모션 동안은 카드가 아직 안 뜸")
 	assert_true(run.world.levelup_light > 0.0, "빛")
 	var t: float = run.sim.time
 	await wait_frames(3)
 	assert_true(run.sim.time > t, "느리게라도 진행")
 	await get_tree().create_timer(Juice.LEVELUP_SLOWMO_TIME + 0.1).timeout
-	assert_true(run.menu.visible and run.menu.title_text().begins_with("레벨 업"), "슬로모션 뒤 메뉴")
+	assert_true(run.cards.visible, "슬로모션 뒤 카드")
 	assert_false(run.sim.run_during_levelup, "고르는 동안은 멈춤")
 	run.queue_free()
 
