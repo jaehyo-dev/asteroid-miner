@@ -1,6 +1,6 @@
 class_name GateView
 extends Node2D
-## 워프 게이트 그리기: 광부 조합이 설치한 기계식 고리(조각 8개, 깜빡이는 표시등), 안쪽 소용돌이(셰이더),
+## 워프 게이트 그리기: 광부 조합이 설치한 기계식 고리(Codex 그림 조각 8개, 깜빡이는 표시등), 안쪽 소용돌이(셰이더),
 ## 안으로 빨려 드는 빛 알갱이(입자), 둘레 원형 게이지, 충전 빛줄기, 등장·닫힘·붕괴 연출.
 ## 상태는 RunSim(게임 규칙)과 GateFx(연출 시간)에서 읽기만 한다. 월드보다 먼저 그려 적·우주선 아래에 깔린다.
 
@@ -14,11 +14,11 @@ const GAUGE_COLOR := Color("#3ff0d8")
 const GAUGE_CHARGE := Color("#d8fff8")
 const GAUGE_HOT := Color("#ff4a4a")
 const GAUGE_OFF := Color(0.1, 0.22, 0.28, 0.7)
-## 표시등 색: 장갑판(청록), 집게(주황), 닫히기 직전(빨강), 꺼짐
-const LIGHT_TEAL := Color("#3ff0d8")
-const LIGHT_ORANGE := Color("#ff9a2e")
-const LIGHT_RED := Color("#ff3030")
-const LIGHT_OFF := Color("#2a2c3c")
+## 표시등 색: 안쪽 띠(청록), 바깥 등(주황), 닫히기 직전(빨강), 꺼짐 (void32 색)
+const LIGHT_TEAL := Color("#99e9e6")
+const LIGHT_ORANGE := Color("#f6ce50")
+const LIGHT_RED := Color("#f25c76")
+const LIGHT_OFF := Color("#3c3544")
 ## 조각이 모이기 전 흩어져 있는 거리, 닫힐 때 흩어지는 거리 (픽셀)
 const ASSEMBLE_SPREAD := 40.0
 const SCATTER_SPREAD := 34.0
@@ -43,6 +43,8 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	for i in PixelArt.GATE_SEGMENTS:
+		PixelArt.gate_segment(i)  # 판 시작 때 미리 만들어 게이트가 처음 열릴 때 끊기지 않게
 	vortex = ColorRect.new()
 	vortex.size = Vector2(VORTEX_SIZE, VORTEX_SIZE)
 	vortex.position = -vortex.size / 2.0
@@ -177,7 +179,7 @@ func _draw() -> void:
 ## 표시등: 평소 청록이 차례로 도는 불빛(충전하면 빨라짐), 주황은 천천히 깜빡임, 닫히기 직전엔 모두 빨갛게 빠르게 깜빡임
 func _draw_lights(g: WarpGate, heat: float, built: float) -> void:
 	var chase_speed := 6.0 + 18.0 * g.charge_progress()
-	var chase := int(_time * chase_speed) % 4
+	var chase := int(_time * chase_speed) % PixelArt.GATE_SEGMENTS
 	var lights := PixelArt.gate_lights()
 	for light in lights:
 		var seg: int = light["segment"]
@@ -188,7 +190,7 @@ func _draw_lights(g: WarpGate, heat: float, built: float) -> void:
 			elif light["clamp"]:
 				color = LIGHT_ORANGE if int(_time * 2.0 + seg) % 3 != 0 else LIGHT_ORANGE.darkened(0.5)
 			else:
-				color = LIGHT_TEAL if (seg - 1) / 2 == chase else LIGHT_TEAL.darkened(0.55)
+				color = LIGHT_TEAL if seg == chase else LIGHT_TEAL.darkened(0.45)
 		var p: Vector2 = (light["pos"] as Vector2).round()
 		if heat > 0.0:
 			p += shake_offset(seg, _time, heat)

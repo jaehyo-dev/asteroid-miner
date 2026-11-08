@@ -419,7 +419,7 @@ func test_건물_화면이_열려_있으면_다른_건물이나_출격을_누를
 	main.queue_free()
 
 
-func test_우주선을_누르면_짧은_이륙_뒤_출격() -> void:
+func test_우주선을_누르면_워프_이륙_뒤_출격() -> void:
 	var main: Control = await _main()
 	var state := {"launched": false}
 	main.launched.connect(func() -> void: state["launched"] = true)
@@ -431,12 +431,13 @@ func test_우주선을_누르면_짧은_이륙_뒤_출격() -> void:
 	await get_tree().create_timer(BaseView.LAUNCH_TIME * 0.5).timeout
 	assert_false(state["launched"], "아직 연출 중")
 	await get_tree().create_timer(BaseView.LAUNCH_TIME * 0.6 + 0.1).timeout
-	assert_true(state["launched"], "약 1초 뒤 출격")
+	assert_true(state["launched"], "이륙 연출 뒤 출격")
 	main.queue_free()
 
 
 func test_기지_효과음이_있음() -> void:
-	assert_true(Sfx.synth(Sfx.TAKEOFF_SOUND["notes"], Sfx.TAKEOFF_SOUND["wave"], Sfx.TAKEOFF_SOUND["volume"]).data.size() > 0)
+	for s in Sfx.jump_streams():
+		assert_true(s.data.size() > 1000)
 	for sound_name in ["open", "click"]:
 		assert_true(Sfx.SOUNDS.has(sound_name), sound_name)
 

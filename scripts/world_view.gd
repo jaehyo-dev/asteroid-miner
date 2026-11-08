@@ -78,6 +78,8 @@ var gate_fx: GateFx
 var moving := false
 ## 레벨업 빛 세기 (1 → 0, scripts/run.gd가 슬로모션 동안 정함)
 var levelup_light := 0.0
+## 워프 도착 때 우주선 그림이 밀려 들어오는 위치 (실제 위치는 그대로)
+var ship_offset := Vector2.ZERO
 
 ## 파편 효과: [위치, 속도, 남은 시간, 색, 크기(픽셀)]
 var _debris: Array = []
@@ -619,7 +621,7 @@ func _draw_ship() -> void:
 	if sim.invuln > 0.0 and int(sim.invuln / Juice.BLINK_INTERVAL) % 2 == 1:
 		return
 	var dir := maxi(_ship_dir, 0)
-	var center := (sim.player_pos + recoil_offset(_cannon_t, _ship_angle)).round()
+	var center := (sim.player_pos + ship_offset + recoil_offset(_cannon_t, _ship_angle)).round()
 	# 과부하 반응로: 체력이 낮을 때 붉게 맥동하고, 쏠 때 총구 불꽃이 커진다
 	var tint := Color.WHITE
 	if sim.overload_active():

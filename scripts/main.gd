@@ -39,6 +39,11 @@ var spot_buttons: Dictionary = {}
 var launching := false
 ## 이륙이 끝나면 출격 화면으로 넘어갈지 (테스트에서는 끈다)
 var auto_start := true
+## 지금까지 소리를 낸 워프 단계 (WarpJump.Phase)
+var _launch_phase := WarpJump.Phase.TAKEOFF
+var _launch_done := false
+## 점프·착륙 때 화면 전체를 덮는 흰 번쩍임
+var _white := ColorRect.new()
 var _toast_time := 0.0
 ## 마지막 입력이 키보드였는지 (건물 화면을 키보드로 닫았을 때만 우주선에 포커스 테두리를 보인다)
 var _keyboard := false
@@ -87,6 +92,15 @@ func _ready() -> void:
 	view.resized.connect(_place_spots)
 	_place_spots()
 	refresh()
+	_white.color = Color.WHITE
+	_white.modulate.a = 0.0
+	_white.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_white)
+	_white.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if App.landing:
+		App.landing = false
+		view.start_landing()
+		Sfx.play_landing()
 	# 처음엔 포커스 테두리를 띄우지 않는다. Enter/Space는 바로 출격, 방향키를 누르면 그때부터 포커스가 생긴다 (_unhandled_input).
 
 
@@ -122,7 +136,7 @@ func refresh() -> void:
 
 ## 우주선·건물을 눌렀을 때
 func press(id: String) -> void:
-	if launching or panel.visible:
+	if launching or panel.visible or view.landing_t >= 0.0:
 		return
 	match id:
 		"ship":
@@ -135,7 +149,7 @@ func press(id: String) -> void:
 			panel.open(id)
 
 
-## 조종사가 올라타고 이륙하는 짧은 연출 뒤 출격한다.
+## 워프 점프 출격: 이륙 → 충전 → 점프 뒤 출격 화면(터널 → 도착)으로 넘어간다.
 func launch() -> void:
 	if launching:
 		return
@@ -145,9 +159,31 @@ func launch() -> void:
 	Sfx.play_takeoff()
 	for b in spot_buttons.values():
 		b.disabled = true
-	await get_tree().create_timer(BaseView.LAUNCH_TIME).timeout
+
+
+## 이륙 진행: 단계가 바뀔 때 소리를 내고, 끝나면 출격 화면으로 넘어간다.
+func _step_launch() -> void:
+	var t := view.launch_t
+	var phase := WarpJump.phase(t)
+	if phase != _launch_phase:
+		_launch_phase = phase
+		if phase == WarpJump.Phase.CHARGE:
+			Sfx.play_warp_launch()
+		elif phase == WarpJump.Phase.JUMP:
+			Sfx.play_warp_done()
+	_white.modulate.a = WarpJump.base_white(t)
+	if t >= BaseView.LAUNCH_TIME:
+		_finish_launch(true)
+
+
+## with_tunnel: 끝까지 봤으면 터널이 이어지고, 건너뛰었으면 바로 출격 화면
+func _finish_launch(with_tunnel: bool) -> void:
+	if _launch_done:
+		return
+	_launch_done = true
 	launched.emit()
 	if auto_start:
+		App.warp_intro = with_tunnel
 		start_run()
 
 
@@ -162,6 +198,12 @@ func show_toast(text: String) -> void:
 
 
 func _process(delta: float) -> void:
+	if launching and not _launch_done:
+		_step_launch()
+	elif view.landing_t >= 0.0:
+		_white.modulate.a = WarpJump.land_white(view.landing_t)
+	else:
+		_white.modulate.a = 0.0
 	if _toast_time > 0.0:
 		_toast_time -= delta
 		toast.modulate.a = clampf(_toast_time / 0.4, 0.0, 1.0)
@@ -184,6 +226,10 @@ func _input(event: InputEvent) -> void:
 		_keyboard = true
 	elif event is InputEventMouseButton or event is InputEventScreenTouch:
 		_keyboard = false
+	# 두 번째 출격부터는 눌러서 건너뛴다 (저장)
+	if launching and not _launch_done and save.warp_seen and WarpJump.is_skip_press(event):
+		Sfx.stop_launch_sounds()
+		_finish_launch(false)
 
 
 func _exit_tree() -> void:

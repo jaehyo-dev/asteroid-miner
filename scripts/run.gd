@@ -55,6 +55,11 @@ var _enemy_sounds := {}
 var _hitstop_ready_at := 0.0
 ## 일시 정지 제목을 누른 시각 (FPS 표시)
 var _title_taps: Array[int] = []
+## 워프 도착 연출: 지난 시간 (-1이면 없음), 배경 터널, 화면을 덮는 흰 번쩍임
+var intro_t := -1.0
+var tunnel := WarpTunnel.new()
+var _white := ColorRect.new()
+var _arrived := false
 
 
 func _ready() -> void:
@@ -81,9 +86,72 @@ func _ready() -> void:
 	App.portrait_changed.connect(_on_portrait_changed)
 	if App.portrait:
 		pause()
+	if App.warp_intro:
+		App.warp_intro = false
+		_start_intro()
+
+
+## 워프 터널로 판을 시작한다: 시뮬레이션은 멈춰 있고, HUD와 조이스틱은 도착할 때까지 없다.
+func _start_intro() -> void:
+	intro_t = 0.0
+	_arrived = false
+	$Background.add_child(tunnel)
+	tunnel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_white.color = Color.WHITE
+	_white.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$UI.add_child(_white)
+	_white.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud.hide()
+	pause_button.hide()
+	joystick.enabled = false
+	world.moving = true
+	_step_intro(0.0)
+
+
+func _step_intro(delta: float) -> void:
+	intro_t += delta
+	tunnel.t = intro_t
+	tunnel.queue_redraw()
+	_white.modulate.a = WarpJump.run_white(intro_t)
+	world.ship_offset = Vector2(0, WarpJump.arrive_slide(intro_t))
+	world.step(delta)
+	if intro_t >= Juice.WARP_TUNNEL_TIME and not _arrived:
+		_arrived = true
+		hud.show()
+		Sfx.play_warp_arrive()
+		alert.kick(Juice.WARP_ARRIVE_SHAKE_TIME, Juice.WARP_ARRIVE_SHAKE)
+	if _arrived:
+		alert.update(delta, false, 1.0)
+		hud.position.y = -roundf(Juice.WARP_HUD_SLIDE * (1.0 - WarpJump.hud_in(intro_t)))
+	camera.position = sim.player_pos.round()
+	camera.offset = alert.shake_offset(_shake_rng) if App.settings.shake else Vector2.ZERO
+	starfield.scroll = camera.position
+	world.queue_redraw()
+	if intro_t >= WarpJump.RUN_TIME:
+		_end_intro()
+
+
+## 도착 연출을 끝낸다 (끝까지 봤거나 건너뜀). 한 번 본 것을 저장한다.
+func _end_intro() -> void:
+	intro_t = -1.0
+	hud.show()
+	hud.position = Vector2.ZERO
+	pause_button.show()
+	joystick.enabled = true
+	world.ship_offset = Vector2.ZERO
+	tunnel.queue_free()
+	_white.queue_free()
+	if not save.warp_seen:
+		save.warp_seen = true
+		save.save_file()
+	if App.portrait:
+		pause()
 
 
 func _process(delta: float) -> void:
+	if intro_t >= 0.0:
+		_step_intro(delta)
+		return
 	sim.view_size = get_viewport_rect().size
 	Music.set_run_time(sim.time)
 	if current_menu == Menu.NONE and not sim.is_over() and hitstop > 0.0:
@@ -135,12 +203,19 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if intro_t >= 0.0:
+		if save.warp_seen and WarpJump.is_skip_press(event):
+			_end_intro()
+			get_viewport().set_input_as_handled()  # 같은 누름이 일시 정지 등으로 이어지지 않게
+		return
 	# 레벨업 슬로모션 동안의 누름은 카드가 뜰 때 건너뛰기로 친다 (0.3초 먼저 눌러도 한 번에 넘어가게)
 	if slowmo > 0.0 and current_menu == Menu.NONE and event.is_pressed() and (event is InputEventScreenTouch or event is InputEventMouseButton):
 		cards.queue_skip()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if intro_t >= 0.0:
+		return
 	# 레벨업 카드: 숫자키 1, 2, 3으로 고르고 R로 다시 뽑는다. 다 펼쳐지기 전이면 건너뛰기만 한다.
 	if current_menu == Menu.LEVEL_UP and event is InputEventKey and event.pressed and not event.echo:
 		var key: Key = event.physical_keycode
@@ -321,7 +396,7 @@ func _on_portrait_changed(is_portrait: bool) -> void:
 
 
 func pause() -> void:
-	if current_menu != Menu.NONE or sim.is_over():
+	if current_menu != Menu.NONE or sim.is_over() or intro_t >= 0.0:
 		return
 	_open_menu(Menu.PAUSE, "일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", _pause_options())
 
@@ -436,8 +511,10 @@ func _on_menu_chosen(index: int) -> void:
 				get_tree().change_scene_to_file(MAIN_SCENE)
 		Menu.GAME_OVER:
 			if index == 0:
+				App.warp_intro = true  # 다시 출격도 터널로 시작
 				get_tree().reload_current_scene()
 			else:
+				App.landing = sim.returned  # 귀환했으면 기지에 내려앉는 연출
 				get_tree().change_scene_to_file(MAIN_SCENE)
 
 

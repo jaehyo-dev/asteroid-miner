@@ -5,9 +5,8 @@ extends Control
 ## 코드로 그리는 것(길, 불빛, 드론, 운석, 이름표)도 같은 격자(_cell)에 맞춰 그려서 한 화면의 픽셀 크기를 통일한다.
 ## 누르기는 main.gd가 BaseLayout.touch_rect 자리에 놓은 버튼이 맡고, 여기서는 그리기만 한다.
 
-## 이륙 연출 시간: 앞부분은 조종사가 우주선에 오르고, 나머지는 우주선이 솟아오른다
-const LAUNCH_TIME := 1.0
-const BOARD_TIME := 0.3
+## 이륙 연출 시간: 조종사 탑승 + 이륙 → 워프 충전 → 점프 (WarpJump)
+const LAUNCH_TIME := WarpJump.BASE_TIME
 const P := BaseLayout.PIXEL
 
 const DARK := Color("#1c1d30")
@@ -55,6 +54,8 @@ var credits := 0
 var time := 0.0
 ## 이륙 연출 진행 시간 (-1이면 이륙 전)
 var launch_t := -1.0
+## 귀환 착륙 연출 진행 시간 (-1이면 없음)
+var landing_t := -1.0
 ## 지금 배치 (BaseLayout.rects)
 var rects: Dictionary = {}
 ## 지나가는 운석: [위치, 속도]
@@ -179,6 +180,11 @@ func start_launch() -> void:
 	launch_t = 0.0
 
 
+## 귀환해서 내려오는 착륙 연출을 시작한다.
+func start_landing() -> void:
+	landing_t = 0.0
+
+
 ## 누른 순간 더 밝게 번쩍인다 (main.gd가 버튼을 누를 때 부름)
 func flash(id: String) -> void:
 	pressed_id = id
@@ -190,6 +196,8 @@ func _process(delta: float) -> void:
 	press_time = maxf(press_time - delta, 0.0)
 	if launch_t >= 0.0:
 		launch_t += delta
+	if landing_t >= 0.0:
+		landing_t = landing_t + delta if landing_t + delta < Juice.WARP_LAND_TIME else -1.0
 	# 가끔 하늘을 가로지르는 운석
 	_meteor_timer -= delta
 	if _meteor_timer <= 0.0:
@@ -225,6 +233,10 @@ func _sprite(t: Texture2D, foot: Vector2, modulate: Color = BUILDING_SHADE) -> v
 func _draw() -> void:
 	if rects.is_empty():
 		return
+	if launch_t >= 0.0 and App.settings.shake:
+		# 충전이 진행될수록 화면 전체가 격자 칸 단위로 떨린다
+		var amp := WarpJump.shake_cells(launch_t)
+		draw_set_transform(BaseLayout.snap(Vector2(_rng.randf_range(-amp, amp), _rng.randf_range(-amp, amp)) * P))
 	_draw_ground()
 	for id in BaseLayout.IDS:
 		_draw_shadow(id)
@@ -376,27 +388,77 @@ func _draw_ship_and_pilot(pad: Rect2) -> void:
 	var pilot := tex("pilot")
 	var ship_foot := pad.position + SHIP_SPOT * P
 	var pilot_foot := pad.position + PILOT_SPOT * P
+	if landing_t >= 0.0:
+		_draw_landing(ship, ship_foot)
+		# 내려앉을 무렵 조종사가 우주선에서 걸어 나온다 (갑자기 나타나지 않게)
+		var out := clampf((landing_t / Juice.WARP_LAND_TIME - 0.7) / 0.3, 0.0, 1.0)
+		if out > 0.0:
+			_sprite(pilot, (ship_foot - Vector2(0, P * 4)).lerp(pilot_foot, out), Color(1, 1, 1, out))
+		return
 	if launch_t < 0.0:
 		_sprite(ship, ship_foot)
 		# 숨 쉬듯 살짝 움직이는 대기 동작: 2초마다 그림 1픽셀 오르내림
 		_sprite(pilot, pilot_foot - Vector2(0, P if _blink(2.0, 0.0, 0.45) else 0))
 		return
-	# 이륙 연출: 조종사가 우주선에 오르고(사라짐), 우주선이 불꽃을 뿜으며 솟아오른다
-	var board := clampf(launch_t / BOARD_TIME, 0.0, 1.0)
+	# 이륙: 조종사가 우주선에 오르고(사라짐), 우주선이 불꽃을 뿜으며 떠오른다
+	var board := clampf(launch_t / Juice.WARP_BOARD_TIME, 0.0, 1.0)
 	if board < 1.0:
 		_sprite(pilot, pilot_foot.lerp(ship_foot - Vector2(0, P * 4), board), Color(1, 1, 1, 1.0 - board))
-	var k := clampf((launch_t - BOARD_TIME) / (LAUNCH_TIME - BOARD_TIME), 0.0, 1.0)
-	var rise := k * k * (ship_foot.y + ship.get_height() * P)
-	var foot := ship_foot - Vector2(0, rise)
+	var k := WarpJump.lift(launch_t)
+	var foot := ship_foot - Vector2(0, k * Juice.WARP_HOVER_CELLS * P)
 	if k > 0.0:
-		# 땅에 이는 먼지와 엔진 불꽃 (격자 칸)
-		for i in 8:
-			var spread := (i - 3.5) * (4.0 + k * 10.0)
-			_cell(ship_foot + Vector2(spread * P / 3.0, 0), Color(0.75, 0.68, 0.62, 0.7 * (1.0 - k)), 2, 1)
-		var flame := 3 + int(k * 5) + (1 if _blink(0.08) else 0)
-		_cell(foot + Vector2(-P, 0), PixelArt.FLAME_COLORS[1], 3, flame)
-		_cell(foot, PixelArt.FLAME_COLORS[0], 1, flame - 1)
+		_draw_dust(ship_foot, k, 1.0 - WarpJump.jump(launch_t))
+		var flame := 3 + int(k * 3) + int(WarpJump.charge(launch_t) * 5.0) + (1 if _blink(0.08) else 0)
+		_draw_flame(foot, flame)
+	var jump := WarpJump.jump(launch_t)
+	var nose := foot - Vector2(0, ship.get_height() * P)
+	if jump > 0.0:
+		# 점프: 앞으로 길게 늘어나며 사라진다 (빛 효과라 잠깐 격자를 벗어남)
+		var s := ship.get_size() * P * Vector2(1.0 - 0.8 * jump, 1.0 + 7.0 * jump)
+		draw_texture_rect(ship, Rect2(foot - Vector2(s.x / 2.0, s.y + 70.0 * jump), s), false, Color(1.6, 1.6, 1.8, 1.0 - jump * jump))
+	else:
+		_sprite(ship, foot)
+		_draw_warp_glow(nose, WarpJump.charge(launch_t))
+
+
+## 땅에 이는 먼지 (격자 칸)
+func _draw_dust(ground_pos: Vector2, spread: float, alpha: float) -> void:
+	for i in 10:
+		var w := (i - 4.5) * (4.0 + spread * 12.0)
+		var lift_cells := float((i * 7) % 3)
+		_cell(ground_pos + Vector2(w * P / 2.0, -lift_cells * P * spread), Color(0.75, 0.68, 0.62, 0.6 * alpha * (1.0 - spread * 0.4)), 2, 1)
+
+
+func _draw_flame(foot: Vector2, length: int) -> void:
+	_cell(foot + Vector2(-P, 0), PixelArt.FLAME_COLORS[1], 3, length)
+	_cell(foot, PixelArt.FLAME_COLORS[0], 1, maxi(length - 1, 1))
+
+
+## 워프 충전: 기수 앞에 빛 알갱이가 모이고, 가운데 빛이 커진다 (격자 칸)
+func _draw_warp_glow(nose: Vector2, k: float) -> void:
+	if k <= 0.0:
+		return
+	var center := nose - Vector2(0, P * 3)
+	for i in Juice.WARP_GATHER_PARTS:
+		var f := fposmod(time * 1.8 + i * 0.37, 1.0)
+		var dir := Vector2.from_angle(i * 2.4)
+		_cell(center + dir * (1.0 - f) * Juice.WARP_GATHER_CELLS * P * (0.6 + 0.4 * k), Color(CYAN, f * k))
+	var r := roundi(Juice.WARP_GLOW_CELLS * k)
+	for y in range(-r, r + 1):
+		for x in range(-r, r + 1):
+			if x * x + y * y <= r * r:
+				_cell(center + Vector2(x, y) * P, Color(1, 1, 1, 0.9) if x * x + y * y <= r * r / 4 else Color(CYAN, 0.45))
+
+
+## 귀환 착륙: 위에서 감속하며 내려와 먼지를 일으킨다
+func _draw_landing(ship: Texture2D, ship_foot: Vector2) -> void:
+	var k := landing_t / Juice.WARP_LAND_TIME
+	var height := (1.0 - k) * (1.0 - k) * Juice.WARP_LAND_CELLS * P  # 감속
+	var foot := ship_foot - Vector2(0, height)
+	_draw_flame(foot, 2 + int((1.0 - k) * 6.0) + (1 if _blink(0.08) else 0))
 	_sprite(ship, foot)
+	if k > 0.6:
+		_draw_dust(ship_foot, (k - 0.6) / 0.4, 1.0)
 
 
 # ── 움직이는 것들 ─────────────────────────────────

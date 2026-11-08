@@ -132,37 +132,28 @@ func test_떨림은_닫히기_직전에만_1에서_2픽셀() -> void:
 	assert_true(moved, "떨림")
 
 
-func test_고리는_겹치지_않는_8조각이고_집게에는_경고_줄무늬() -> void:
+func test_고리는_겹치지_않는_8조각() -> void:
 	var size := PixelArt.GATE_TEX_SIZE
 	var owner := {}
-	var hazard := [0, 0, 0, 0, 0, 0, 0, 0]
 	for i in PixelArt.GATE_SEGMENTS:
 		var img := PixelArt.gate_segment(i).get_image()
 		assert_eq(img.get_size(), Vector2i(size, size))
 		var count := 0
 		for y in size:
 			for x in size:
-				var c := img.get_pixel(x, y)
-				if c.a > 0.0:
+				if img.get_pixel(x, y).a > 0.0:
 					count += 1
 					assert_false(owner.has(Vector2i(x, y)), "조각 %d가 다른 조각과 겹침" % i)
 					owner[Vector2i(x, y)] = i
-					if c.is_equal_approx(PixelArt.GATE_HAZARD[0]):
-						hazard[i] += 1
 		assert_true(count > 100, "조각 %d 픽셀 %d개" % [i, count])
-	for i in PixelArt.GATE_SEGMENTS:
-		if i % 2 == 0:
-			assert_true(hazard[i] > 5, "집게 %d 경고 줄무늬" % i)
-		else:
-			assert_eq(hazard[i], 0, "장갑판 %d에는 줄무늬 없음" % i)
 
 
 func test_표시등은_고리_위에_있다() -> void:
 	var lights := PixelArt.gate_lights()
-	assert_eq(lights.size(), 12, "장갑판 4 + 집게 8")
+	assert_eq(lights.size(), 16, "조각마다 청록 1 + 주황 1")
 	for l in lights:
 		var r := (l["pos"] as Vector2).length()
-		assert_true(r > PixelArt.GATE_RING_IN and r < PixelArt.GATE_RING_OUT, "반지름 %.1f" % r)
+		assert_true(r >= PixelArt.GATE_RING_IN and r <= PixelArt.GATE_RING_OUT, "반지름 %.1f" % r)
 
 
 func test_상태별_게이트_소리가_있고_웅웅거림은_반복된다() -> void:

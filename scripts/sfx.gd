@@ -57,19 +57,9 @@ const RAID_SOUND := {"wave": "square", "notes": [[220.0, 0.22], [165.0, 0.22], [
 
 ## 고대 경비선 발사음: 낮고 짧은 "퉁" (포격보다 작게)
 const GUARD_SOUND := {"wave": "triangle", "notes": [[330.0, 0.04], [220.0, 0.06]], "volume": 0.35}
-## 워프 게이트 상태별 소리 (음표 [주파수, 길이] 또는 [시작 주파수, 길이, 끝 주파수]로 미끄러지는 소리, 주파수 0은 쉼)
-## 등장: 금속 조각이 맞물리는 "철컥" 세 번 (잡음) / 맞물림: 맑게 올라가는 세 음 / 열려 있음: 낮게 맥박치는 웅웅거림(반복)
-## 충전: 5초 동안 천천히 올라가는 소리 / 닫히기 직전: 빠른 경보 / 닫힘: 무너지며 내려가는 잡음 / 귀환: 높이 솟는 휘익 소리
-const GATE_ASSEMBLE_SOUND := {"wave": "noise", "notes": [[1800.0, 0.04], [0.0, 0.1], [1500.0, 0.04], [0.0, 0.1], [1200.0, 0.07]], "volume": 0.35}
-const GATE_LOCK_SOUND := {"wave": "triangle", "notes": [[523.0, 0.08], [784.0, 0.08], [1047.0, 0.16]], "volume": 0.45}
-const GATE_HUM_SOUND := {"wave": "triangle", "notes": [[82.0, 0.5], [87.0, 0.5]], "volume": 0.25}
-const WARP_CHARGE_SOUND := {"wave": "triangle", "notes": [[196.0, 1.0], [233.0, 1.0], [277.0, 1.0], [330.0, 1.0], [392.0, 1.0]], "volume": 0.35}
-const GATE_ALARM_SOUND := {"wave": "square", "notes": [[988.0, 0.08], [0.0, 0.06], [988.0, 0.08], [0.0, 0.06], [988.0, 0.08], [0.0, 0.06], [988.0, 0.08]], "volume": 0.22}
-const GATE_COLLAPSE_SOUND := {"wave": "noise", "notes": [[2400.0, 0.5, 300.0]], "volume": 0.3}
-const WARP_DONE_SOUND := {"wave": "square", "notes": [[220.0, 0.55, 1760.0], [1760.0, 0.25]], "volume": 0.28}
-
-## 기지 이륙(낮게 시작해 솟는 엔진음)
-const TAKEOFF_SOUND := {"wave": "noise", "notes": [[200.0, 0.35, 900.0], [900.0, 0.6, 2600.0]], "volume": 0.3}
+## 워프 게이트·워프 점프 소리 (assets/sfx/game/, tools/make_sfx.py의 gate_sounds): 이름 → 크기(dB)
+const WARP_SOUND_DB := {"gate_assemble": -12.0, "gate_lock": -12.0, "gate_hum": -22.0, "gate_alarm": -16.0, "gate_collapse": -11.0,
+	"warp_charge": -15.0, "warp_done": -11.0, "takeoff": -11.0, "warp_launch": -13.0, "warp_arrive": -8.0, "landing": -11.0}
 
 ## 음 높이 랜덤용 (테스트에서 seed로 고정할 수 있음)
 var rng := RandomNumberGenerator.new()
@@ -77,6 +67,9 @@ var rng := RandomNumberGenerator.new()
 var _streams := {}
 var _pools := {}
 var _takeoff_player: AudioStreamPlayer
+var _warp_launch_player: AudioStreamPlayer
+var _warp_arrive_player: AudioStreamPlayer
+var _landing_player: AudioStreamPlayer
 var _guard_player: AudioStreamPlayer
 var _gate_assemble_player: AudioStreamPlayer
 var _gate_lock_player: AudioStreamPlayer
@@ -105,20 +98,33 @@ func _ready() -> void:
 		_pools[sound_name] = pool
 	_warning_player = _make_player(WARNING_SOUND)
 	_guard_player = _make_player(GUARD_SOUND)
-	_gate_assemble_player = _make_player(GATE_ASSEMBLE_SOUND)
-	_gate_lock_player = _make_player(GATE_LOCK_SOUND)
-	_gate_hum_player = _make_player(GATE_HUM_SOUND)
+	_gate_assemble_player = _wav_player("gate_assemble")
+	_gate_lock_player = _wav_player("gate_lock")
+	_gate_hum_player = _wav_player("gate_hum")
 	var hum := _gate_hum_player.stream as AudioStreamWAV
 	hum.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	hum.loop_end = hum.data.size() / 2  # 16비트 모노: 2바이트 = 1샘플
-	_gate_alarm_player = _make_player(GATE_ALARM_SOUND)
-	_gate_collapse_player = _make_player(GATE_COLLAPSE_SOUND)
-	_warp_charge_player = _make_player(WARP_CHARGE_SOUND)
-	_warp_done_player = _make_player(WARP_DONE_SOUND)
-	_takeoff_player = _make_player(TAKEOFF_SOUND)
+	hum.loop_begin = 0
+	hum.loop_end = int(hum.get_length() * hum.mix_rate)  # 압축돼 있을 수 있어 바이트 수로 세지 않는다
+	_gate_alarm_player = _wav_player("gate_alarm")
+	_gate_collapse_player = _wav_player("gate_collapse")
+	_warp_charge_player = _wav_player("warp_charge")
+	_warp_done_player = _wav_player("warp_done")
+	_takeoff_player = _wav_player("takeoff")
+	_warp_launch_player = _wav_player("warp_launch")
+	_warp_arrive_player = _wav_player("warp_arrive")
+	_landing_player = _wav_player("landing")
 	_raid_player = _make_player(RAID_SOUND)
 	for child in get_children():
 		(child as AudioStreamPlayer).bus = &"SFX"  # 효과음은 모두 효과음 버스로 (설정의 크기 조절)
+
+
+func _wav_player(sound_name: String) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.stream = load(SFX_DIR + sound_name + ".wav")
+	player.volume_db = WARP_SOUND_DB[sound_name]
+	player.max_polyphony = MAX_POLYPHONY
+	add_child(player)
+	return player
 
 
 func _make_player(sound: Dictionary) -> AudioStreamPlayer:
@@ -151,12 +157,12 @@ func pool(sound_name: String) -> Array:
 	return _pools[sound_name]
 
 
-## 실드가 공격을 막았을 때 (5단계 편향 실드에서 부름)
 ## 레전드리 카드에 빛이 모이는 소리
 func play_card_gather() -> void:
 	play("barrage_warn", 0.0, 2.0, -8.0)
 
 
+## 실드가 공격을 막았을 때
 func play_shield_block() -> void:
 	play("shield_block")
 
@@ -297,3 +303,26 @@ static func synth(notes: Array, wave: String, volume: float) -> AudioStreamWAV:
 ## 기지 이륙 소리
 func play_takeoff() -> void:
 	_takeoff_player.play()
+
+
+## 워프 점프: 충전(소리가 점점 높아짐), 도착 충격, 기지 착륙. 건너뛰면 멈춘다
+func play_warp_launch() -> void:
+	_warp_launch_player.play()
+
+
+func play_warp_arrive() -> void:
+	_warp_arrive_player.play()
+
+
+func play_landing() -> void:
+	_landing_player.play()
+
+
+func stop_launch_sounds() -> void:
+	_takeoff_player.stop()
+	_warp_launch_player.stop()
+
+
+## 워프 점프 소리 (테스트용)
+func jump_streams() -> Array[AudioStreamWAV]:
+	return [_takeoff_player.stream, _warp_launch_player.stream, _warp_arrive_player.stream, _landing_player.stream]

@@ -14,6 +14,9 @@ var base_mode := false
 ## 창이 세로로 길어 안내 화면이 떠 있는지 (출격 화면이 이 신호로 일시 정지한다)
 var portrait := false
 signal portrait_changed(is_portrait: bool)
+## 다음 출격 화면이 워프 터널로 시작할지, 다음 기지 화면이 착륙으로 시작할지 (화면을 넘어가며 한 번만 쓴다)
+var warp_intro := false
+var landing := false
 ## 플레이어 설정 (화면 흔들림, 효과음·배경음 크기, FPS 표시). 바꾸면 apply_settings()로 적용하고 save_file()로 저장한다.
 var settings := GameSettings.load_file()
 

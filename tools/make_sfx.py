@@ -464,6 +464,62 @@ COPY = {
 }
 
 
+# ── 게이트·워프 소리 (v0.7.0 6단계: 예전 네모파 합성음을 Kenney 금속·기계음과 낮게 깎은 합성으로 바꿈) ──
+def rising(f0: float, f1: float, dur: float, bright: float = 0.35) -> np.ndarray:
+    """f0 → f1로 오르며 커지고 떨림이 빨라지는 에너지 충전음 (높은 음은 깎음)"""
+    t = np.arange(int(SR * dur)) / SR
+    f = f0 * (f1 / f0) ** (t / dur)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    tone = np.sin(ph) + bright * np.sin(2 * ph) + 0.5 * np.sin(0.5 * ph)
+    wobble = 0.8 + 0.2 * np.sin(2 * np.pi * np.cumsum(4.0 + 14.0 * t / dur) / SR)
+    env = np.minimum(t / 0.05, 1.0) * (0.3 + 0.7 * t / dur) * wobble * np.minimum((dur - t) / 0.03, 1.0)
+    return peak(ffx((tone * env).astype(np.float32), "lowpass=f=2600"))
+
+
+def clank(p: float) -> np.ndarray:
+    return trim(pitch(load("kenney_sci-fi/impactMetal_000"), p), 0.14, 0.06)
+
+
+def gate_hum(dur: float = 2.0) -> np.ndarray:
+    """게이트 웅웅거림: 2초에 정수 번 도는 파형만 써서 반복해도 끊기지 않는다"""
+    t = np.arange(int(SR * dur)) / SR
+    tone = np.sin(2 * np.pi * 70 * t) + 0.5 * np.sin(2 * np.pi * 105 * t) + 0.25 * np.sin(2 * np.pi * 140 * t)
+    return peak((tone * (0.8 + 0.2 * np.sin(2 * np.pi * 1.5 * t))).astype(np.float32))
+
+
+def gate_alarm() -> np.ndarray:
+    """닫히기 직전: 둥근 경보 4번 (네모파 대신 세모파, 높은 음 깎음)"""
+    return peak(ffx(np.concatenate([x for _ in range(4) for x in (tri(780.0, 0.09, 8.0), silence(0.05))]), "lowpass=f=2400"))
+
+
+def whoosh(dur: float, seed: int) -> np.ndarray:
+    """점프: 잡음이 위로 쓸려 올라가는 "휘익" + 오르는 음"""
+    t = np.arange(int(SR * dur)) / SR
+    noise = np.random.default_rng(seed).uniform(-1, 1, len(t)).astype(np.float32)
+    k = t / dur
+    # 낮은 소리를 점점 덜 깎아 쓸려 올라가게: 두 대역을 시간에 따라 섞는다
+    low = ffx(noise, "lowpass=f=700")[: len(t)]
+    high = ffx(noise, "highpass=f=1800,lowpass=f=6000")[: len(t)]
+    env = np.minimum(t / 0.03, 1.0) * np.minimum((dur - t) / 0.12, 1.0)
+    return tail_fade(peak(((low * (1 - k) + high * k) * env).astype(np.float32) + 0.5 * sweep(180.0, 1400.0, dur, 2.0, 0.02)), 0.08)
+
+
+def gate_sounds() -> dict[str, np.ndarray]:
+    return {
+        "gate_assemble": layered([(0.0, clank(1.4)), (0.15, clank(1.2)), (0.3, clank(1.0))]),
+        "gate_lock": layered([(0.0, trim(load("kenney_impact/impactMetal_heavy_000"), 0.2, 0.1)), (0.04, trim(load("kenney_sci-fi/forceField_000"), 0.4, 0.2))]),
+        "gate_hum": gate_hum(),
+        "gate_alarm": gate_alarm(),
+        "gate_collapse": layered([(0.0, trim(load("kenney_sci-fi/explosionCrunch_003"), 0.55, 0.2)), (0.0, sweep(500.0, 70.0, 0.55, 3.0) * 0.5)]),
+        "warp_charge": rising(110.0, 520.0, 5.0),
+        "warp_done": whoosh(0.7, 21),
+        "takeoff": layered([(0.0, trim(pitch(load("kenney_sci-fi/spaceEngineLow_001"), 0.8), 0.9, 0.25)), (0.0, rising(60.0, 130.0, 0.9, 0.2) * 0.6)]),
+        "warp_launch": rising(150.0, 900.0, 0.95),
+        "warp_arrive": layered([(0.0, trim(load("kenney_sci-fi/lowFrequency_explosion_000"), 0.5, 0.2)), (0.0, trim(load("kenney_sci-fi/forceField_002"), 0.4, 0.2) * 0.6)]),
+        "landing": layered([(0.0, rising(300.0, 80.0, 0.7, 0.2) * 0.7), (0.62, trim(load("kenney_impact/impactSoft_heavy_000"), 0.3, 0.1))]),
+    }
+
+
 def game_sounds() -> dict[str, np.ndarray]:
     out = {name: load(src) for name, src in COPY.items()}
     out.update({name: fn() for name, fn in BREAKS.items()})
@@ -478,6 +534,7 @@ def game_sounds() -> dict[str, np.ndarray]:
     out["hit_bug"], out["destroy_bug"] = CHOICE["bug"]()
     for grade, s in enumerate(CHOICE["pickup"]()):
         out[f"pickup_{grade}"] = s
+    out.update(gate_sounds())
     return out
 
 

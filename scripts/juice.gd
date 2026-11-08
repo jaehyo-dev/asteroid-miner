@@ -89,6 +89,37 @@ const SHIELD_BREAK_TIME := 0.14
 const OVERLOAD_PULSE := 7.0
 const BEACON_RING_TIME := 0.7
 
+# ── 워프 점프 (GAME_SPEC 11번, 합쳐서 3.5초) ─────────────────────
+## 기지 쪽: 이륙(조종사 탑승 포함), 충전, 점프(늘어나며 사라짐 + 흰 번쩍)
+const WARP_TAKEOFF_TIME := 0.9
+const WARP_BOARD_TIME := 0.25
+const WARP_CHARGE_TIME := 0.9
+const WARP_JUMP_TIME := 0.2
+## 출격 화면 쪽: 터널(별이 빛줄기), 도착(감속, 충격파 고리, HUD가 밀려 들어옴)
+const WARP_TUNNEL_TIME := 1.0
+const WARP_ARRIVE_TIME := 0.5
+## 터널 시작 때 흰 번쩍임이 사라지는 시간, 빛줄기 수·속도·길이, 도착 때 우주선이 밀려 들어오는 거리, 충격파 고리 반지름, HUD가 들어오는 거리
+const WARP_WHITE_FADE := 0.25
+const WARP_STREAKS := 70
+const WARP_STREAK_SPEED := 620.0
+const WARP_STREAK_LEN := 90.0
+const WARP_ARRIVE_SLIDE := 34.0
+const WARP_RING_RADIUS := 170.0
+const WARP_HUD_SLIDE := 40.0
+## 이륙 뒤 떠 있는 높이(기지 그림 칸), 충전 때 흔들림 최대(기지 그림 칸), 기수 앞 빛 알갱이 수, 모이는 거리(그림 칸), 빛 반지름(그림 칸)
+const WARP_HOVER_CELLS := 26.0
+const WARP_SHAKE_CELLS := 2.0
+const WARP_GATHER_PARTS := 28
+const WARP_GATHER_CELLS := 42.0
+const WARP_GLOW_CELLS := 9
+## 귀환 후 기지 착륙: 시간(출격보다 훨씬 짧게), 흰 번쩍임이 사라지는 시간, 내려오는 높이(그림 칸)
+const WARP_LAND_TIME := 0.9
+const WARP_LAND_WHITE := 0.25
+const WARP_LAND_CELLS := 70.0
+## 도착 충격 흔들림 (시간, 세기 픽셀)
+const WARP_ARRIVE_SHAKE_TIME := 0.25
+const WARP_ARRIVE_SHAKE := 2.0
+
 # ── 레벨업과 화면 ─────────────────────
 ## 레벨업 순간 슬로모션: 실제 시간, 시뮬레이션 배율. 그동안 우주선 둘레에 빛이 퍼진다
 const LEVELUP_SLOWMO_TIME := 0.3

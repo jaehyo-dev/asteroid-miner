@@ -102,5 +102,21 @@ class MakeSfxTest(unittest.TestCase):
                 self.assertLess(high_ratio(part), 0.01, fn.__name__)
 
 
+class GateSoundTest(unittest.TestCase):
+    def test_게이트_소리는_길이가_맞고_끝이_부드러움(self):
+        sounds = ms.gate_sounds()
+        self.assertEqual(set(sounds), {"gate_assemble", "gate_lock", "gate_hum", "gate_alarm", "gate_collapse", "warp_charge", "warp_done", "takeoff", "warp_launch", "warp_arrive", "landing"})
+        self.assertAlmostEqual(len(sounds["warp_charge"]) / ms.SR, 5.0, delta=0.05)
+        self.assertLess(len(sounds["landing"]) / ms.SR, 1.1)
+        for name, a in sounds.items():
+            self.assertLessEqual(abs(a).max(), 1.0, name)
+            if name != "gate_hum":
+                self.assertLess(abs(a[-1]), 0.05, name)
+
+    def test_웅웅거림은_반복해도_이어짐(self):
+        a = ms.gate_hum()
+        self.assertLess(abs(float(a[0]) - float(a[-1])), 0.05)
+
+
 if __name__ == "__main__":
     unittest.main()
