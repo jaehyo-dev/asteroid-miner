@@ -109,8 +109,12 @@ def plate(bg, x, y, w, h, s=None, size=12, fill=INK):
         text(bg, (x + w // 2, y + h // 2), s, size, fill, "mm")
 
 
+def tag_w(s, size=12):
+    return max(tw(s, size) + 72, 52)  # 양끝 장식이 글자를 가리지 않게
+
+
 def tag(bg, cx, y, s, size=12, fill=INK):
-    w = max(tw(s, size) + 62, 52)  # 양끝 장식이 글자를 가리지 않게
+    w = tag_w(s, size)
     h = 21 if size == 12 else 34
     paste(bg, nine("pill", w, h), (cx - w // 2, y))
     text(bg, (cx, y + h // 2), s, size, fill, "mm")
@@ -150,21 +154,21 @@ def top_bar(bg, w, big):
     """상단 바: 제목, 보유 광물, 전체 화면을 금속 판 위에"""
     size = 24 if big else 12
     h = 36 if big else 25
-    plate(bg, 4, 3, tw("소행성 광부", size) + 64, h, "소행성 광부", size, TEAL)
+    plate(bg, 4, 3, tw("소행성 광부", size) + 84, h, "소행성 광부", size, TEAL)
     label = "보유 광물 2,340"
-    bw = tw(label, size) + 86
+    bw = tw(label, size) + 100
     plate(bg, w // 2 - bw // 2, 3, bw, h, None)
     ore = Image.open(os.path.join(RUN, "mineral_3.png")).convert("RGBA")
     paste(bg, ore, (w // 2 - bw // 2 + 28, 3 + (h - ore.height) // 2))
     text(bg, (w // 2 + 10, 3 + h // 2), label, size, GOLD, "mm")
-    fw = tw("전체 화면", size) + 64
+    fw = tw("전체 화면", size) + 84
     plate(bg, w - fw - 4, 3, fw, h, "전체 화면", size)
 
 
 def bottom_bar(bg, w, h, big):
     size = 12
-    tag(bg, 66, h - 25, "이전 버전", size, TEAL)
-    tag(bg, w - 58, h - 25, "v0.7.0", size, TEAL)
+    tag(bg, 70, h - 25, "이전 버전", size, TEAL)
+    tag(bg, w - 62, h - 25, "v0.7.0", size, TEAL)
 
 
 NAMES = ["연구소", "격납고", "광물 창고", "전시관", "드론 공장"]
@@ -222,15 +226,15 @@ def mock_b(a, w, h, big, t=0, shift=0.0):
     gw = int(w * 1.3)
     ground = fit(a["ground_raw"], a["ground_box"], gw)
     paste(bg, ground, ((w - gw) // 2 + 40, h - ground.height // 2 + 10))
-    col_w = 148 if not big else 196
-    y = 34 if not big else 46
-    row = 56 if not big else 62
+    col_w = 148 if not big else 250
+    y = 34 if not big else 42
+    row = 56 if not big else 63
     for i, s in enumerate(NAMES):
         paste(bg, nine("button", col_w, row - 4), (6, y))
         icon = build(a, i, 44)
         paste(bg, icon, (14, y + (row - 4 - icon.height) // 2))
-        text(bg, (64, y + 10), s, 12 if not big else 24, INK)
-        text(bg, (64, y + (26 if not big else 34)), ["강화 3/12", "전투기 1대", "가져온 광물", "도감 41%", "공사 중"][i], 12, TEAL if i != 4 else DIM)
+        text(bg, (64, y + (10 if not big else 3)), s, 12 if not big else 24, INK)
+        text(bg, (64, y + (26 if not big else 29)), ["강화 3/12", "전투기 1대", "가져온 광물", "도감 41%", "공사 중"][i], 12 if not big else 24, TEAL if i != 4 else TEAL)
         y += row
     # 가운데 무대
     stage_x = col_w + 12 + (w - col_w - 12) // 2
@@ -261,13 +265,13 @@ def mock_c(a, w, h, big, t=0, shift=0.0):
     paste(bg, flame(t), (cx - 24, cy - 24))
     paste(bg, ship_sprite(), (cx - 24, cy - 24))
     r = st.width // 2 + 2
-    for i, s in enumerate(NAMES):
-        ang = -math.pi / 2 + i * math.tau / 5
-        tx = int(cx + math.cos(ang) * (r + (70 if abs(math.cos(ang)) > 0.3 else 0)))
-        ty = int(cy + math.sin(ang) * r * 0.86) - 10
-        if i == 0:
-            tx += 92  # 위쪽 건물과 겹치지 않게 옆으로
-        tag(bg, tx, max(min(ty, h - (70 if big else 50)), 42 if big else 30), s, 24 if big else 12)
+    size = 24 if big else 12
+    gap = r + 8
+    # 그림의 모듈 자리: 위 연구소, 오른쪽 광물 창고, 오른쪽 아래 격납고, 왼쪽 아래 전시관, 왼쪽 드론 공장
+    for s, side, ky in [("연구소", 0.55, -0.82), ("광물 창고", 1, -0.1), ("격납고", 1, 0.42 if big else 0.62), ("전시관", -1, 0.42 if big else 0.62), ("드론 공장", -1, -0.1)]:
+        half = tag_w(s, size) // 2
+        tx = cx + side * (gap + half) if side != 0.55 else cx + r // 2 + half + 8
+        tag(bg, int(tx), int(cy + ky * r), s, size)
     k = t / 40.0 * math.tau
     paste(bg, drone(t // 2), (int(cx + math.cos(k) * r * 0.55) - 8, int(cy + math.sin(k) * r * 0.55) - 8))
     fw, fh = (170, 40) if big else (110, 28)
