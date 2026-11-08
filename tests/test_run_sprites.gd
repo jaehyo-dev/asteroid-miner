@@ -53,6 +53,9 @@ func test_모든_시트가_있고_돌아가는_시트는_8방향() -> void:
 	assert_eq(RunSprites.frames("ship_cannon"), 7, "자동 포 7프레임")
 	assert_eq(RunSprites.frames("ship_flame_idle"), 3)
 	assert_eq(RunSprites.frames("ship_flame_power"), 4)
+	# 우주선은 팩 원본의 60% (보이는 몸 약 20x16, PLAN 15번). 피해 단계가 달라도 몸 크기는 같다
+	for f in 4:
+		assert_eq(RunSprites.icon("ship", f).get_size(), Vector2(20, 16), "60퍼센트 우주선 몸 %d" % f)
 	for i in 3:
 		assert_eq(RunSprites.frames("rock_%d" % i), 3, "운석: 멀쩡·금 1·금 2")
 		assert_eq(RunSprites.frames("rock_%d_boom" % i), 8, "운석 깨짐 8프레임")

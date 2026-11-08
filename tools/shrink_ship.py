@@ -9,9 +9,10 @@
 4) 혼자 떨어진 1픽셀 색 점(줄이며 생긴 부스러기)을 지운다.
 5) FIXES의 손질(시안을 보고 고친 픽셀)을 마지막에 덮어쓴다.
 모든 층(몸·엔진·불꽃·자동 포)은 같은 칸 가운데(24, 24)를 기준으로 줄여 겹쳐 그려도 맞는다.
-결과는 48x48 칸 그대로(그림만 작아짐)라 게임의 RunSprites.CELL을 바꾸지 않고 시안을 끼워 볼 수 있다.
+결과는 48x48 칸 그대로(그림만 작아짐)라 게임의 RunSprites.CELL을 바꾸지 않는다.
 
-실행: python3 tools/shrink_ship.py   → review/ship_options/s60/, s50/ 에 8방향 시트 저장
+게임 우주선: tools/build_run_sprites.py가 팩 원본을 GAME_SIZE(60%, 사용자 선택)로 줄여 assets/sprites/run/에 바로 저장한다.
+시안 다시 만들기: python3 tools/shrink_ship.py   → review/ship_options/s60/, s50/ (비교 기록용)
 """
 
 from __future__ import annotations
@@ -26,13 +27,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 import rotsprite  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
-SRC = os.path.join(ROOT, "assets/sprites/run")
 OUT = os.path.join(ROOT, "review/ship_options")
 CELL = 48
 BLACK = (0, 0, 0, 255)
 SHEETS = ["ship", "ship_engine", "ship_flame_idle", "ship_flame_power", "ship_cannon"]
 ## 시안 이름 → 배율
 SIZES = {"s60": 0.6, "s50": 0.5}
+## 게임에 쓰는 시안 (PLAN 15번)
+GAME_SIZE = "s60"
 ## 손질: (시안, 시트, 프레임) → {(x, y): 색, None(지움) 또는 "mirror"(좌우 반대 칸 색을 복사)}. 좌표는 48 칸 안.
 ## 줄이면서 오른쪽 날개 창(어두운 파랑 점)이 흰 날개에 묻혀 사라져, 왼쪽 창을 거울로 옮긴다 (피해 4단계 모두).
 FIXES: dict[tuple[str, str, int], dict[tuple[int, int], object]] = {
@@ -134,28 +136,31 @@ def _outline(img: Image.Image) -> None:
         p[xy] = BLACK
 
 
-def shrink_sheet(name: str, option: str, scale: float) -> Image.Image:
-    """게임 시트의 위쪽 방향(0행) 프레임들을 줄이고 손질한 뒤 8방향 시트로"""
-    sheet = Image.open(os.path.join(SRC, name + ".png")).convert("RGBA")
+def shrink_sheet(strip: Image.Image, name: str, option: str = GAME_SIZE) -> Image.Image:
+    """팩 원본의 위쪽 방향 프레임 줄(48 칸 x N)을 줄이고 손질한 뒤 8방향 시트로"""
+    strip = strip.convert("RGBA")
     frames = []
-    for f in range(sheet.width // CELL):
-        fr = shrink_frame(sheet.crop((f * CELL, 0, f * CELL + CELL, CELL)), scale)
+    for f in range(strip.width // CELL):
+        fr = shrink_frame(strip.crop((f * CELL, 0, f * CELL + CELL, CELL)), SIZES[option])
         for (x, y), col in FIXES.get((option, name, f), {}).items():
             if col == "mirror":
                 col = fr.getpixel((CELL - 1 - x, y))
             fr.putpixel((x, y), col if col else (0, 0, 0, 0))
         frames.append(fr)
-    strip = Image.new("RGBA", (CELL * len(frames), CELL), (0, 0, 0, 0))
+    out = Image.new("RGBA", (CELL * len(frames), CELL), (0, 0, 0, 0))
     for i, fr in enumerate(frames):
-        strip.paste(fr, (i * CELL, 0))
-    return rotsprite.dir8_sheet(strip, CELL, CELL)
+        out.paste(fr, (i * CELL, 0))
+    return rotsprite.dir8_sheet(out, CELL, CELL)
 
 
 def build() -> None:
-    for option, scale in SIZES.items():
+    import build_run_sprites  # 서로 부르므로 여기서 가져옴
+
+    strips = build_run_sprites.ship_strips()
+    for option in SIZES:
         os.makedirs(os.path.join(OUT, option), exist_ok=True)
         for name in SHEETS:
-            shrink_sheet(name, option, scale).save(os.path.join(OUT, option, name + ".png"))
+            shrink_sheet(strips[name], name, option).save(os.path.join(OUT, option, name + ".png"))
 
 
 if __name__ == "__main__":

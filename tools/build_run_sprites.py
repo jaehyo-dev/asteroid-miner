@@ -22,6 +22,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(__file__))
 import rotsprite  # noqa: E402
+import shrink_ship  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 VENDOR = os.path.join(ROOT, "assets/vendor/foozle")
@@ -201,18 +202,25 @@ def rock_sheets(name: str, base: Image.Image, cell: int, seed: int) -> None:
     row(boom).save(f"{OUT}/{name}_boom.png")
 
 
+def ship_strips() -> dict[str, Image.Image]:
+    """내 우주선 팩 원본의 위쪽 방향 프레임 줄: 피해 4단계(멀쩡 → 아주 망가짐), 엔진 몸체, 엔진 불꽃(대기·출력), 자동 포(7프레임)"""
+    states = ["Full health", "Slight damage", "Damaged", "Very damaged"]
+    fx = f"{SHIP}/Main Ship - Engine Effects/PNGs/Main Ship - Engines - Base Engine"
+    return {
+        "ship": row([vendor(f"{SHIP}/Main Ship - Bases/PNGs/Main Ship - Base - {s}.png") for s in states]),
+        "ship_engine": vendor(f"{SHIP}/Main Ship - Engines/PNGs/Main Ship - Engines - Base Engine.png"),
+        "ship_flame_idle": vendor(f"{fx} - Idle.png"),
+        "ship_flame_power": vendor(f"{fx} - Powering.png"),
+        "ship_cannon": vendor(f"{SHIP}/Main Ship - Weapons/PNGs/Main Ship - Weapons - Auto Cannon.png"),
+    }
+
+
 def build() -> None:
     os.makedirs(OUT, exist_ok=True)
     d8 = rotsprite.dir8_sheet
-    # 내 우주선: 피해 4단계(멀쩡 → 아주 망가짐)를 열로, 엔진 몸체, 엔진 불꽃(대기·출력), 자동 포(7프레임), 탄(4프레임)
-    states = ["Full health", "Slight damage", "Damaged", "Very damaged"]
-    ship = row([vendor(f"{SHIP}/Main Ship - Bases/PNGs/Main Ship - Base - {s}.png") for s in states])
-    d8(ship, 48, 48).save(f"{OUT}/ship.png")
-    d8(vendor(f"{SHIP}/Main Ship - Engines/PNGs/Main Ship - Engines - Base Engine.png"), 48, 48).save(f"{OUT}/ship_engine.png")
-    fx = f"{SHIP}/Main Ship - Engine Effects/PNGs/Main Ship - Engines - Base Engine"
-    d8(vendor(f"{fx} - Idle.png"), 48, 48).save(f"{OUT}/ship_flame_idle.png")
-    d8(vendor(f"{fx} - Powering.png"), 48, 48).save(f"{OUT}/ship_flame_power.png")
-    d8(vendor(f"{SHIP}/Main Ship - Weapons/PNGs/Main Ship - Weapons - Auto Cannon.png"), 48, 48).save(f"{OUT}/ship_cannon.png")
+    # 내 우주선: 팩 원본을 60%로 다시 그려 저장 (tools/shrink_ship.py, PLAN 15번). 큰 원본 시트는 게임에 두지 않는다
+    for name, strip in ship_strips().items():
+        shrink_ship.shrink_sheet(strip, name).save(f"{OUT}/{name}.png")
     d8(vendor("main_ship/Main ship weapons/PNGs/Main ship weapon - Projectile - Auto cannon bullet.png"), 32, 32).save(f"{OUT}/bullet.png")
 
     # 적 3종 (팩은 아래를 봄 → 뒤집음): 몸, 엔진, 파괴

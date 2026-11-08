@@ -22,9 +22,10 @@ const ENGINE_FPS := 12.0
 const SPUTTER_RATE := 2.5
 const SPUTTER_MAX := 0.35
 const SMOKE_COLOR := Color("#917487")
-## 연기가 나오는 곳: 두 엔진(몸 가운데에서 옆으로 SMOKE_SIDE, 뒤로 SMOKE_TAIL)
-const SMOKE_TAIL := 11.0
-const SMOKE_SIDE := 7.0
+## 연기가 나오는 곳: 두 엔진 불꽃 끝(몸 가운데에서 옆으로 SMOKE_SIDE, 뒤로 SMOKE_TAIL), 뒤로 SMOKE_TRAVEL만큼 흐른다
+const SMOKE_TAIL := 8.0
+const SMOKE_SIDE := 4.5
+const SMOKE_TRAVEL := 8.0
 ## 심연의 포격 에너지 구체: 맥동 프레임 속도, 바깥 빛 반지름(맥동 폭), 꼬리 점 수와 간격(초 단위: 그만큼 전 위치)
 const ORB_FPS := 10.0
 const ORB_GLOW_RADIUS := 11.0
@@ -405,7 +406,7 @@ func _draw_smoke(center: Vector2, heavy: float) -> void:
 		var origin := center + back * SMOKE_TAIL + back.orthogonal() * SMOKE_SIDE * side
 		for i in 3:
 			var t := fmod(_time * 1.6 + i / 3.0 + side * 0.17, 1.0)
-			draw_circle((origin + back * t * 12.0).round(), 1.0 + t * 2.0, Color(SMOKE_COLOR, (1.0 - t) * 0.7 * heavy))
+			draw_circle((origin + back * t * SMOKE_TRAVEL).round(), 1.0 + t * 2.0, Color(SMOKE_COLOR, (1.0 - t) * 0.7 * heavy))
 
 
 ## 자동 포 프레임: 쏜 직후 1번부터 끝까지 빠르게, 그 뒤엔 0번(쉼)
