@@ -44,6 +44,8 @@ const CARD_W_SMALL := 144
 const CARD_W_LARGE := 190
 ## 프레임 그림이 찌그러지지 않는 최소 높이 (9칸 나누기의 위아래 모서리)
 const FRAME_MIN_H := 169
+## 꼬리표 글자 양옆 여백 (알약 양끝 장식이 글자를 가리지 않게)
+const TAG_SIDE := 44
 ## 아이콘 한 변 (게임 그림과 같은 1배)
 const ICON_SIZE := 48
 
@@ -293,7 +295,7 @@ func _add_body(card: Dictionary, next_level: int, lay: Dictionary, mat: ShaderMa
 	var kind := Upgrades.kind_of(card["id"])
 	var tag_size: int = lay["tag_size"]
 	var tag_h: int = lay["tag_h"]
-	var tag_w := maxi(int(FONT.get_string_size(kind, HORIZONTAL_ALIGNMENT_LEFT, -1, tag_size).x) + 30, tex("pill").get_width())
+	var tag_w := maxi(int(FONT.get_string_size(kind, HORIZONTAL_ALIGNMENT_LEFT, -1, tag_size).x) + TAG_SIDE, tex("pill").get_width())
 	var y: int = py + lay["ped_h"] - tag_h / 2
 	var pill := NinePatchRect.new()
 	var pill_art := tex("pill")
