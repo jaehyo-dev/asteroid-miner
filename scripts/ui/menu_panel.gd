@@ -129,13 +129,6 @@ func body_text() -> String:
 	return _body.text
 
 
-## 번호로 고르기 (키보드 1, 2, 3). 버튼이 막혀 있으면 무시한다.
-func choose(index: int) -> void:
-	var list := buttons()
-	if visible and index >= 0 and index < list.size() and not list[index].disabled:
-		_on_pressed(index)
-
-
 func _on_pressed(index: int) -> void:
 	hide()
 	chosen.emit(index)
