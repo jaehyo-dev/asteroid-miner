@@ -54,3 +54,25 @@ func test_한_프레임에_운석이_많이_깨져도_소리는_최대_수까지
 	assert_eq(dbs.size(), Juice.BREAK_SOUND_MAX, "최대 수까지만")
 	assert_true(is_equal_approx(dbs[0], Juice.BREAK_SOUND_STEP_DB * 2) and is_equal_approx(dbs[2], 0.0), "뒤로 갈수록 작게 %s" % [dbs])
 	run.queue_free()
+
+
+func test_큰_운석은_몰려도_제_크기로_남() -> void:
+	var run: Node = load("res://scenes/run.tscn").instantiate()
+	add_child(run)
+	await wait_frames(2)
+	for p: AudioStreamPlayer in Sfx.pool("break_big"):
+		p.stop()
+	for i in Juice.BREAK_SOUND_MAX:
+		run._break_sounds.next_db(run.sim.time)  # 이미 다 찬 상태
+	run.sim.events.clear()
+	run.sim.picked.clear()
+	run.sim.crashed.clear()
+	run.sim.destroyed.clear()
+	var big := RunSim.Enemy.new()
+	big.type = 2
+	run.sim.destroyed.append(big)
+	run._play_sounds()
+	var player: AudioStreamPlayer = Sfx.pool("break_big")[0]
+	assert_true(player.playing, "소리가 남")
+	assert_eq(player.volume_db, float(Sfx.SOUNDS["break_big"]["db"]), "작아지지 않음")
+	run.queue_free()

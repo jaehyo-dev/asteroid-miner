@@ -231,6 +231,8 @@ func _play_sounds() -> void:
 			Sfx.play("levelup")
 	for a in sim.destroyed + sim.crashed:
 		var db := _break_sounds.next_db(sim.time) if a.kind == RunSim.ROCK else 0.0
+		if a.golden or (a.kind == RunSim.ROCK and a.type == 2):
+			db = 0.0  # 큰·황금 운석은 멈칫하는 순간이므로 몰려도 소리를 그대로 낸다 (수에는 들어감)
 		if db > -INF:
 			Sfx.play(break_sound(a), -1.0, 1.0, db)
 	# 줍기: 같은 등급은 한 프레임에 한 번만, 1초 안에 연속으로 주우면 음이 올라감

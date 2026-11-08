@@ -97,13 +97,6 @@ def arp(notes: list[float], step: float, voice, dur: float) -> np.ndarray:
     return out
 
 
-def mix(*parts: np.ndarray) -> np.ndarray:
-    out = np.zeros(max(len(p) for p in parts), np.float32)
-    for p in parts:
-        out[: len(p)] += p
-    return out
-
-
 def energy_swell(dur: float = 0.7) -> np.ndarray:
     """포격 예고(합성): 낮게 깔리며 올라가는 웅웅거림 (90 → 140Hz, 떨림 7Hz)"""
     t = np.arange(int(SR * dur)) / SR
@@ -125,9 +118,9 @@ def energy_whomp(dur: float = 0.4) -> np.ndarray:
     return ((np.sin(ph) + 0.5 * noise * np.exp(-12.0 * t)) * env).astype(np.float32)
 
 
-def beat_grid(a: np.ndarray, length_s: float = 0.0, guess: float = 0.557) -> tuple[float, float]:
+def beat_grid(a: np.ndarray, guess: float = 0.557) -> tuple[float, float]:
     """곡의 (박 길이, 첫 박 위치)를 찾는다: 곡 길이를 나누어떨어지는 박 수로 맞추고(반복해도 어긋나지 않게), 소리가 커지는 순간이 가장 많이 겹치는 위치"""
-    length_s = length_s or len(a) / SR
+    length_s = len(a) / SR
     period = length_s / round(length_s / guess)
     hop = 512
     e = np.array([np.sum(a[i:i + hop] ** 2) for i in range(0, len(a) - hop, hop)])
@@ -159,7 +152,7 @@ def pulse_layer(samples: int, period: float, offset: float) -> np.ndarray:
 # ── 후보 (사용자가 들어 보고 고름) ─────────────────────
 ## 음 이름 → 주파수
 C6, E6, G6, C7 = 1046.5, 1318.5, 1568.0, 2093.0
-G5, B5, D6, G6_ = 784.0, 987.8, 1174.7, 1568.0
+G5, B5, D6 = 784.0, 987.8, 1174.7
 GS6, B6, E7 = 1661.2, 1975.5, 2637.0
 
 
@@ -194,7 +187,7 @@ def levelup_b() -> np.ndarray:
 
 def levelup_c() -> np.ndarray:
     """부드러운 8비트 삼각파 솔-시-레-솔 (45ms 간격)"""
-    return peak(ffx(arp([G5, B5, D6, G6_], 0.045, lambda f, d: tri(f, d, 10.0), 0.32), "lowpass=f=5000"), -3.0)
+    return peak(ffx(arp([G5, B5, D6, G6], 0.045, lambda f, d: tri(f, d, 10.0), 0.32), "lowpass=f=5000"), -3.0)
 
 
 ## 광물 줍기 후보: 등급 0~3 소리 (게임에서 연속 줍기는 재생 속도로 최대 +12반음 올림)

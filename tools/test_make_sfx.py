@@ -1,5 +1,6 @@
 """tools/make_sfx.py 테스트: 합성 소리와 꼬리 자르기, 리듬 층 박자, 포격 후보의 높은 소리."""
 
+import shutil
 import unittest
 
 import numpy as np
@@ -40,10 +41,11 @@ class MakeSfxTest(unittest.TestCase):
 
     def test_박_찾기(self):
         layer = ms.pulse_layer(ms.SR * 8, 0.5, 0.125)
-        period, offset = ms.beat_grid(layer, 8.0, 0.5)
+        period, offset = ms.beat_grid(layer, 0.5)
         self.assertAlmostEqual(period, 0.5)
         self.assertAlmostEqual(offset, 0.125, delta=0.03)
 
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg가 없는 환경(CI)은 건너뜀")
     def test_포격_후보는_높은_소리가_거의_없음(self):
         for fn in (ms.barrage_a, ms.barrage_b, ms.barrage_c):
             for part in fn():

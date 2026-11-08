@@ -56,6 +56,15 @@ func _process(delta: float) -> void:
 	_layer.volume_db = lerpf(_layer.volume_db, target_layer_db, k)
 
 
+## 다른 앱·탭으로 가면 멈추고, 돌아오면 이어서 낸다 (게임도 이때 일시 정지한다)
+func _notification(what: int) -> void:
+	if not is_node_ready():
+		return
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		for p in players():
+			p.stream_paused = what == NOTIFICATION_APPLICATION_FOCUS_OUT
+
+
 ## 곡과 리듬 층 (테스트용)
 func players() -> Array[AudioStreamPlayer]:
 	return [_main, _layer]

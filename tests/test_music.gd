@@ -29,6 +29,15 @@ func test_곡과_리듬_층은_길이가_같고_음악_버스로_반복() -> voi
 	assert_true(AudioServer.get_bus_effect(bus, 0) is AudioEffectLowPassFilter, "높은 음 깎는 필터")
 
 
+func test_다른_앱으로_가면_멈추고_돌아오면_이어서_남() -> void:
+	Music.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	for p in Music.players():
+		assert_true(p.stream_paused, "멈춤")
+	Music.notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	for p in Music.players():
+		assert_false(p.stream_paused, "이어서")
+
+
 func test_기지는_출격보다_작고_먹먹함() -> void:
 	Music.set_run_time(0.0)
 	var run_cut := Music.target_cutoff

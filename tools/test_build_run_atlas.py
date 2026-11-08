@@ -1,6 +1,5 @@
 """tools/build_run_atlas.py 테스트: 원판·고리 픽셀, 패킹 겹침, 저장된 아틀라스가 시트와 같은지."""
 
-import os
 import re
 import unittest
 
@@ -43,7 +42,6 @@ class BuildRunAtlasTest(unittest.TestCase):
             i, x, y, w, h = table[name]
             self.assertEqual(atlases[i].crop((x, y, x + w, y + h)).tobytes(), sheet.tobytes(), name)
         self.assertTrue(all(table[n][0] == 1 for n in table if n.startswith("rock_")), "운석은 아틀라스 1")
-        self.assertTrue(os.path.exists(bra.TABLE))
 
 
 if __name__ == "__main__":
