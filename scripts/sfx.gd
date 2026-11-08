@@ -1,5 +1,5 @@
 extends Node
-## 효과음 (자동 로드: Sfx). 게임 행동 소리는 Kenney 효과음 팩(CC0, assets/sfx/)을 play(이름)으로 낸다.
+## 효과음 (자동 로드: Sfx). 게임 행동 소리는 assets/sfx/game/의 wav(tools/make_sfx.py)를 play(이름)으로 낸다.
 ## 게이트·워프·이륙·경고음은 6단계 연출과 함께 다듬을 때까지 코드로 만든 8비트 소리(synth)를 쓴다.
 
 const MIX_RATE := 22050
@@ -7,36 +7,38 @@ const MIX_RATE := 22050
 const VOLUME_DB := -7.0
 ## 코드로 만든 소리가 동시에 겹쳐 날 수 있는 최대 수
 const MAX_POLYPHONY := 4
-const SFX_DIR := "res://assets/sfx/"
+const SFX_DIR := "res://assets/sfx/game/"
 
-## Kenney 효과음 표: 이름 → files(여러 개면 무작위 하나), db(음량), pitch(기본 음 높이), jitter(음 높이 랜덤 ±비율), max(동시 재생 수)
-## 크기: 자주 나는 발사·맞음은 작게, 큰 운석·피격·레벨업은 크게 (팩 소리는 모두 최고 -1dB로 맞춰져 있어 평균 크기 기준으로 정함)
+## 효과음 표: 이름 → files(여러 개면 무작위 하나, assets/sfx/game/*.wav), db(음량), pitch(기본 음 높이), jitter(음 높이 랜덤 ±비율), max(동시 재생 수)
+## 파일은 tools/make_sfx.py가 Kenney 효과음 팩(CC0)을 다듬거나 직접 합성해 만든다 (wav: 웹에서 ogg보다 재생 시작이 싸다).
+## 크기: 자주 나는 발사·맞음은 작게, 큰 운석·피격·레벨업은 크게. 바꾼 소리는 예전 소리와 비슷한 크기(평균 크기 기준)로 맞춤
 const SOUNDS := {
-	"shoot": {"files": ["kenney_sci-fi/laserSmall_000", "kenney_sci-fi/laserSmall_002"], "db": -14.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
-	"hit_rock": {"files": ["kenney_impact/impactMining_000", "kenney_impact/impactMining_001"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
-	"hit_enemy": {"files": ["kenney_sci-fi/impactMetal_000", "kenney_sci-fi/impactMetal_002"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
-	# 운석 깨짐: 클수록 낮고 묵직하게 (작음 → 중간 → 큼)
-	"break_small": {"files": ["kenney_sci-fi/explosionCrunch_000"], "db": -14.0, "pitch": 1.3, "jitter": 0.05, "max": 3},
-	"break_mid": {"files": ["kenney_sci-fi/explosionCrunch_002"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
-	"break_big": {"files": ["kenney_sci-fi/lowFrequency_explosion_001"], "db": -1.0, "pitch": 0.85, "jitter": 0.03, "max": 2},
-	"enemy_destroy": {"files": ["kenney_sci-fi/explosionCrunch_003"], "db": -10.0, "pitch": 0.9, "jitter": 0.05, "max": 3},
-	# 광물 줍기: 등급마다 음색이 다르고, 연속으로 주우면 음이 올라가므로 랜덤은 없음
-	"pickup_0": {"files": ["kenney_interface/drop_002"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
-	"pickup_1": {"files": ["kenney_interface/glass_002"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
-	"pickup_2": {"files": ["kenney_interface/pluck_001"], "db": -5.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
-	"pickup_3": {"files": ["kenney_interface/confirmation_003"], "db": -5.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
-	"player_hit": {"files": ["kenney_impact/impactMetal_heavy_000"], "db": 0.0, "pitch": 1.0, "jitter": 0.05, "max": 1},
+	"shoot": {"files": ["shoot_0", "shoot_1"], "db": -14.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
+	"hit_rock": {"files": ["hit_rock_0", "hit_rock_1"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
+	"hit_enemy": {"files": ["hit_enemy_0", "hit_enemy_1"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
+	# 운석 깨짐: 클수록 낮고 묵직하게 (작음 → 중간 → 큼). 꼬리를 잘라 약 0.3초(큰 것 약 0.5초), 몰리면 run.gd가 작게·적게 낸다
+	"break_small": {"files": ["break_small"], "db": -15.0, "pitch": 1.3, "jitter": 0.05, "max": 2},
+	"break_mid": {"files": ["break_mid"], "db": -10.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
+	"break_big": {"files": ["break_big"], "db": -4.0, "pitch": 0.85, "jitter": 0.03, "max": 2},
+	"enemy_destroy": {"files": ["enemy_destroy"], "db": -10.0, "pitch": 0.9, "jitter": 0.05, "max": 3},
+	# 광물 줍기: 등급마다 음이 다른 종소리 "띠링", 연속으로 주우면 음이 올라가므로 랜덤은 없음
+	"pickup_0": {"files": ["pickup_0"], "db": -16.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
+	"pickup_1": {"files": ["pickup_1"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
+	"pickup_2": {"files": ["pickup_2"], "db": -11.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
+	"pickup_3": {"files": ["pickup_3"], "db": -7.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
+	"player_hit": {"files": ["player_hit"], "db": 0.0, "pitch": 1.0, "jitter": 0.05, "max": 1},
 	# 실드가 막음 (5단계 편향 실드용, 지금은 부르는 곳 없음)
-	"shield_block": {"files": ["kenney_sci-fi/forceField_000"], "db": -12.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
-	"levelup": {"files": ["kenney_interface/maximize_006"], "db": -3.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"card_show": {"files": ["kenney_interface/open_002"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"card_pick": {"files": ["kenney_interface/select_002"], "db": -6.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"click": {"files": ["kenney_interface/click_002"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
-	"open": {"files": ["kenney_interface/open_002"], "db": -8.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
-	"cargo_heavy": {"files": ["kenney_impact/impactSoft_heavy_000"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},
-	# 심연의 포격: 예고(붉은 조준선이 보일 때, 낮게 웅웅) → 에너지 구체 발사
-	"barrage_warn": {"files": ["kenney_sci-fi/forceField_002"], "db": -10.0, "pitch": 0.8, "jitter": 0.0, "max": 2},
-	"barrage_fire": {"files": ["kenney_sci-fi/laserLarge_000"], "db": -3.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
+	"shield_block": {"files": ["shield_block"], "db": -12.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
+	# 레벨업: 종소리 아르페지오 "띠리링"
+	"levelup": {"files": ["levelup"], "db": -7.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"card_show": {"files": ["card_show"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"card_pick": {"files": ["card_pick"], "db": -6.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
+	"open": {"files": ["card_show"], "db": -8.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
+	"cargo_heavy": {"files": ["cargo_heavy"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},
+	# 심연의 포격: 예고(붉은 조준선이 보일 때, 낮게 웅웅) → 에너지 구체 발사. 높은 소리를 깎아 낮고 둔탁하게, 예전보다 작게
+	"barrage_warn": {"files": ["barrage_warn"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
+	"barrage_fire": {"files": ["barrage_fire"], "db": -10.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
 }
 
 ## 체력 낮음 경고음: 높낮이를 두 번 오가는 경보
@@ -84,7 +86,7 @@ func _ready() -> void:
 		var sound: Dictionary = SOUNDS[sound_name]
 		var list: Array[AudioStream] = []
 		for f in sound["files"]:
-			list.append(load(SFX_DIR + f + ".ogg"))
+			list.append(load(SFX_DIR + f + ".wav"))
 		_streams[sound_name] = list
 		var pool: Array[AudioStreamPlayer] = []
 		for i in int(sound["max"]):
@@ -120,15 +122,16 @@ func _make_player(sound: Dictionary) -> AudioStreamPlayer:
 	return player
 
 
-## Kenney 효과음을 낸다. pitch_jitter: 음 높이 랜덤 ±비율 (음수면 표의 값), pitch: 표의 음 높이에 곱할 배율.
+## 효과음을 낸다. pitch_jitter: 음 높이 랜덤 ±비율 (음수면 표의 값), pitch: 표의 음 높이에 곱할 배율, db: 표의 음량에 더할 값.
 ## 같은 소리가 이미 max개 나고 있으면 내지 않고 false를 돌려준다 (한꺼번에 너무 겹치지 않게).
-func play(sound_name: String, pitch_jitter: float = -1.0, pitch: float = 1.0) -> bool:
+func play(sound_name: String, pitch_jitter: float = -1.0, pitch: float = 1.0, db: float = 0.0) -> bool:
 	var sound: Dictionary = SOUNDS[sound_name]
 	var jitter: float = sound["jitter"] if pitch_jitter < 0.0 else pitch_jitter
 	for player: AudioStreamPlayer in _pools[sound_name]:
 		if not player.playing:
 			var list: Array = _streams[sound_name]
 			player.stream = list[rng.randi() % list.size()]
+			player.volume_db = float(sound["db"]) + db
 			player.pitch_scale = float(sound["pitch"]) * pitch * (1.0 + rng.randf_range(-jitter, jitter))
 			player.play()
 			return true

@@ -46,6 +46,7 @@ var _keyboard := false
 
 func _ready() -> void:
 	App.set_base_mode(true)  # 기지 화면은 1280x720 기준 (그림 1픽셀 = 화면 3픽셀)
+	Music.set_base()
 	version_label.text = "v" + game_version()
 	# 이전 버전 링크는 웹(GitHub Pages)에서만 의미가 있으므로 웹에서만 보여 준다.
 	old_versions_button.visible = OS.has_feature("web")

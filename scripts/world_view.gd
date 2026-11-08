@@ -142,7 +142,7 @@ func step(delta: float) -> void:
 func _add_boom(a: RunSim.Enemy) -> void:
 	var is_rock := a.kind == RunSim.ROCK
 	_booms.append({"name": boom_sheet(a), "dir": 0 if is_rock else enemy_dir(a), "pos": a.pos.round(), "t": 0.0,
-		"start": ROCK_BOOM_START if is_rock else 1, "fps": boom_fps(a)})
+		"start": ROCK_BOOM_START if is_rock else 1, "fps": boom_fps(a), "rock": is_rock})
 	var key := "gold" if a.golden else ("rock" if is_rock else a.kind)
 	var count := Juice.GOLDEN_DEBRIS_COUNT if a.golden else Juice.DEBRIS_COUNT + int(a.radius / Juice.RADIUS_PER_DEBRIS)
 	var size := 2.0 if a.radius >= Juice.DEBRIS_BIG_RADIUS else 1.0
@@ -189,6 +189,7 @@ static func enemy_dir(e: RunSim.Enemy) -> int:
 func _draw() -> void:
 	if sim == null:
 		return
+	# 그리기 호출을 줄이려고 같은 아틀라스끼리 몰아 그린다: 운석(아틀라스 1) → 나머지(아틀라스 0)
 	for a in sim.enemies:
 		if a.kind == RunSim.ROCK:
 			if a.golden:
@@ -196,14 +197,19 @@ func _draw() -> void:
 			_draw_rock(a)
 			if a.golden:
 				_draw_sparkles(a.pos, a.radius, 3, 0.0)
-		else:
+	for b in _booms:
+		if b["rock"]:
+			RunSprites.draw(self, b["name"], b["start"] + int(b["t"] * b["fps"]), b["dir"], b["pos"])
+	for a in sim.enemies:
+		if a.kind != RunSim.ROCK:
 			_draw_ship_enemy(a)
 	for b in _booms:
-		RunSprites.draw(self, b["name"], b["start"] + int(b["t"] * b["fps"]), b["dir"], b["pos"])
+		if not b["rock"]:
+			RunSprites.draw(self, b["name"], b["start"] + int(b["t"] * b["fps"]), b["dir"], b["pos"])
 	for m in sim.minerals:
 		_draw_mineral(m)
 	for d in _debris:
-		draw_rect(Rect2((d[0] as Vector2).round(), Vector2.ONE * d[4]), d[3])
+		RunSprites.rect(self, Rect2((d[0] as Vector2).round(), Vector2.ONE * d[4]), d[3])
 	_draw_barrages()
 	var bullet_frame := int(_time * BULLET_FPS)
 	for b in sim.bullets:
@@ -246,14 +252,14 @@ func _draw_barrages() -> void:
 		if b.phase == Barrage.Phase.FIRE or b.phase == Barrage.Phase.DONE:
 			alpha = BARRAGE_LINE_FIRE_ALPHA * fade  # 쏘는 순간 밝게 길을 비추고 금방 사라진다
 		# 바깥 빛 → 붉은 선 → 밝은 가운데 줄 (어두운 배경에서도, 작은 화면에서도 잘 보이게)
-		draw_line(start, end, Color(BARRAGE_RED, alpha * 0.3), width + BARRAGE_LINE_GLOW)
-		draw_line(start, end, Color(BARRAGE_RED, alpha), width)
-		draw_line(start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
+		RunSprites.line(self, start, end, Color(BARRAGE_RED, alpha * 0.3), width + BARRAGE_LINE_GLOW)
+		RunSprites.line(self, start, end, Color(BARRAGE_RED, alpha), width)
+		RunSprites.line(self, start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
 	var frame := int(_time * ENGINE_FPS)
 	for s in sim.shots:
 		if s.guard:
 			# 경비선 탄: 빨간 Kla'ed 탄. 둘레 빛은 내 탄(주황)과 구분되는 색
-			draw_circle(s.pos.round(), s.radius + 3.0, Color(GUARD_SHOT_GLOW, 0.3))
+			RunSprites.disc(self, s.pos.round(), s.radius + 3.0, Color(GUARD_SHOT_GLOW, 0.3))
 			RunSprites.draw(self, "guard_shot", frame, PixelArt.dir8(s.vel.angle() + PI / 2.0), s.pos)
 		else:
 			_draw_orb(s)
@@ -264,9 +270,9 @@ func _draw_orb(s: RunSim.Shot) -> void:
 	var pulse := 0.5 + 0.5 * sin(_time * TAU * ORB_FPS / 4.0)
 	for i in range(ORB_TRAIL_COUNT, 0, -1):
 		var k := float(i) / ORB_TRAIL_COUNT
-		draw_circle((s.pos - s.vel * ORB_TRAIL_STEP * i).round(), 6.0 * (1.0 - k * 0.6), Color(SHOT_GLOW, 0.45 * (1.0 - k)))
-	draw_circle(s.pos.round(), ORB_GLOW_RADIUS + ORB_GLOW_PULSE * pulse, Color(SHOT_GLOW, 0.18 + 0.1 * pulse))
-	draw_circle(s.pos.round(), ORB_GLOW_RADIUS * 0.7, Color(SHOT_GLOW, 0.22))
+		RunSprites.disc(self, (s.pos - s.vel * ORB_TRAIL_STEP * i).round(), 6.0 * (1.0 - k * 0.6), Color(SHOT_GLOW, 0.45 * (1.0 - k)))
+	RunSprites.disc(self, s.pos.round(), ORB_GLOW_RADIUS + ORB_GLOW_PULSE * pulse, Color(SHOT_GLOW, 0.18 + 0.1 * pulse))
+	RunSprites.disc(self, s.pos.round(), ORB_GLOW_RADIUS * 0.7, Color(SHOT_GLOW, 0.22))
 	RunSprites.draw(self, "barrage_shot", int(_time * ORB_FPS), 0, s.pos)
 
 
@@ -288,11 +294,11 @@ func _draw_ship_enemy(e: RunSim.Enemy) -> void:
 	RunSprites.draw(self, e.kind + "_engine", int(e.age * ENGINE_FPS) + e.variant, dir, center)
 	RunSprites.draw(self, e.kind, 0, dir, center)
 	if e.kind == RunSim.GUARD:
-		draw_circle(center, 4.0, Color(GUARD_GLOW, 0.1 + 0.08 * sin(e.age * 4.0) + 0.25 * charge))
+		RunSprites.disc(self, center, 4.0, Color(GUARD_GLOW, 0.1 + 0.08 * sin(e.age * 4.0) + 0.25 * charge))
 		if charge > 0.0:
-			var nose := center + Vector2.from_angle(e.aim) * GUARD_NOSE
-			draw_circle(nose, 2.0 + 5.0 * charge, Color(GUARD_SHOT_GLOW, 0.25 + 0.35 * charge))
-			draw_circle(nose, 1.0 + 2.0 * charge, Color(GUARD_SHOT_CORE, 0.6 + 0.4 * charge))
+			var nose := (center + Vector2.from_angle(e.aim) * GUARD_NOSE).round()
+			RunSprites.disc(self, nose, 2.0 + 5.0 * charge, Color(GUARD_SHOT_GLOW, 0.25 + 0.35 * charge))
+			RunSprites.disc(self, nose, 1.0 + 2.0 * charge, Color(GUARD_SHOT_CORE, 0.6 + 0.4 * charge))
 
 
 ## 적 함선 그림 가운데 (정수 픽셀): 맞으면 밀리고, 경비선은 쏜 직후 뒤로 살짝 밀린다(반동)
@@ -330,8 +336,8 @@ static func crack_level(hp: float, max_hp: float) -> int:
 ## 황금 운석 둘레에서 숨 쉬듯 커졌다 작아지는 금빛 후광 (멀리서도 눈에 띄게)
 func _draw_golden_glow(a: RunSim.Enemy) -> void:
 	var pulse := 0.5 + 0.5 * sin(sim.time * 4.0)
-	draw_circle(a.pos.round(), a.radius + 6.0 + pulse * 3.0, Color(1.0, 0.85, 0.3, 0.1 + 0.08 * pulse))
-	draw_arc(a.pos.round(), a.radius + 5.0 + pulse * 4.0, 0.0, TAU, 32, Color(1.0, 0.9, 0.4, 0.35 * (1.0 - pulse) + 0.15), 1.0)
+	RunSprites.disc(self, a.pos.round(), a.radius + 6.0 + pulse * 3.0, Color(1.0, 0.85, 0.3, 0.1 + 0.08 * pulse))
+	RunSprites.ring(self, a.pos.round(), a.radius + 5.0 + pulse * 4.0, Color(1.0, 0.9, 0.4, 0.35 * (1.0 - pulse) + 0.15))
 
 
 ## 대상 둘레에서 깜빡이는 흰 반짝임 점들 (위치는 시간에 따라 바뀜).
@@ -343,30 +349,30 @@ func _draw_sparkles(center: Vector2, radius: float, count: int, seed_offset: flo
 			continue  # 반짝였다 꺼졌다
 		var angle := floorf(phase) * 2.4 + i * 1.7
 		var p := (center + Vector2.from_angle(angle) * radius * (0.4 + 0.5 * fposmod(angle, 1.0))).round()
-		draw_rect(Rect2(p, Vector2.ONE), Color.WHITE)
+		RunSprites.rect(self, Rect2(p, Vector2.ONE), Color.WHITE)
 		if i == 0 and cross > 0:
 			# 십자 모양 반짝임
-			draw_rect(Rect2(p + Vector2(-cross, 0), Vector2(cross * 2 + 1, 1)), Color(1, 1, 1, 0.6))
-			draw_rect(Rect2(p + Vector2(0, -cross), Vector2(1, cross * 2 + 1)), Color(1, 1, 1, 0.6))
+			RunSprites.rect(self, Rect2(p + Vector2(-cross, 0), Vector2(cross * 2 + 1, 1)), Color(1, 1, 1, 0.6))
+			RunSprites.rect(self, Rect2(p + Vector2(0, -cross), Vector2(1, cross * 2 + 1)), Color(1, 1, 1, 0.6))
 
 
 ## 등급별 광물: 모두 등급색의 은은한 빛과 반짝임(등급이 높을수록 자주·크게), 전설은 도는 빛줄기
 func _draw_mineral(m: RunSim.Mineral) -> void:
-	var tex := RunSprites.mineral(m.grade)
+	var size := RunSprites.entry_rect("mineral_%d" % m.grade).size
 	var center := m.pos.round()
 	var color: Color = MINERAL_GLOW[m.grade]
 	var bob := sin(sim.time * 3.0 + m.pos.x * 0.1)  # 둥실거림 (-1~1)
 	var r: float = MINERAL_GLOW_RADIUS[m.grade] + bob
 	var a: float = MINERAL_GLOW_ALPHA[m.grade]
-	draw_circle(center, r + 3.0, Color(color, a * 0.5))
-	draw_circle(center, r, Color(color, a))
+	RunSprites.disc(self, center, r + 3.0, Color(color, a * 0.5))
+	RunSprites.disc(self, center, r, Color(color, a))
 	if m.grade == 3:
 		# 빛줄기 4개가 천천히 돈다
 		var spin := sim.time * 1.2
 		for i in 4:
 			var dir := Vector2.from_angle(spin + i * TAU / 4.0)
-			draw_line(center + dir * 7.0, center + dir * (14.0 + 2.0 * bob), Color(1.0, 0.9, 0.4, 0.45), 1.0)
-	draw_texture(tex, center - (tex.get_size() / 2.0).floor() + Vector2(0, roundf(bob * 0.6)))
+			RunSprites.line(self, center + dir * 7.0, center + dir * (14.0 + 2.0 * bob), Color(1.0, 0.9, 0.4, 0.45))
+	RunSprites.draw_mineral(self, m.grade, center - (size / 2.0).floor() + Vector2(0, roundf(bob * 0.6)))
 	# 반짝임: 일반은 가끔 점 하나, 높은 등급일수록 자주·여러 개·큰 십자 (켜진 시간은 짧게 0.25)
 	_draw_sparkles(m.pos, 7.0, 1 + mini(m.grade, 2), m.pos.x, Juice.SPARKLE_RATE[m.grade], 0.25, Juice.SPARKLE_SIZE[m.grade])
 
@@ -384,22 +390,22 @@ func _draw_pickup_fx(fx: Dictionary) -> void:
 		# 주운 순간 십자 반짝임 (등급이 높을수록 길게): 처음에 길고 빨리 줄어든다
 		var arm := roundi((2.0 + grade * 2.0) * (1.0 - k))
 		if arm > 0:
-			draw_rect(Rect2(pos + Vector2(-arm, 0), Vector2(arm * 2 + 1, 1)), Color(1, 1, 1, alpha))
-			draw_rect(Rect2(pos + Vector2(0, -arm), Vector2(1, arm * 2 + 1)), Color(1, 1, 1, alpha))
+			RunSprites.rect(self, Rect2(pos + Vector2(-arm, 0), Vector2(arm * 2 + 1, 1)), Color(1, 1, 1, alpha))
+			RunSprites.rect(self, Rect2(pos + Vector2(0, -arm), Vector2(1, arm * 2 + 1)), Color(1, 1, 1, alpha))
 		if grade == 0:
 			# 작은 부스러기 4개가 튄다
 			for i in 4:
 				var dir := Vector2.from_angle(i * TAU / 4.0 + 0.6)
-				draw_rect(Rect2((pos + dir * ring * k).round(), Vector2.ONE), Color(color, alpha))
+				RunSprites.rect(self, Rect2((pos + dir * ring * k).round(), Vector2.ONE), Color(color, alpha))
 		else:
-			draw_arc(pos, 2.0 + ring * k, 0.0, TAU, 20, Color(color, alpha), 1.0)
+			RunSprites.ring(self, pos, 2.0 + ring * k, Color(color, alpha))
 		if grade >= 2:
 			var rays := 6 if grade == 2 else 10
 			for i in rays:
 				var dir := Vector2.from_angle(i * TAU / rays)
-				draw_rect(Rect2((pos + dir * ring * k * 0.8).round(), Vector2.ONE), Color(1, 1, 1, alpha))
+				RunSprites.rect(self, Rect2((pos + dir * ring * k * 0.8).round(), Vector2.ONE), Color(1, 1, 1, alpha))
 		if grade == 3:
-			draw_circle(pos, 10.0 * (1.0 - k), Color(1.0, 0.95, 0.6, 0.5 * alpha))
+			RunSprites.disc(self, pos, 10.0 * (1.0 - k), Color(1.0, 0.95, 0.6, 0.5 * alpha))
 	# 화물칸에서 늘어난 가치만 띄운다 (꽉 차서 바꿔 실으면 가치 차이, 못 실으면 띄우지 않음)
 	var value: int = fx["gain"]
 	if grade >= 1 and value > 0 and t < POPUP_TIME:
@@ -430,7 +436,9 @@ func _draw_ship_warp() -> void:
 	var angle := (target - sim.player_pos).angle() if sim.player_pos.distance_to(target) > 0.5 else sim.facing
 	draw_set_transform(pos.round(), angle + PI / 2.0, Vector2(1.0 - 0.75 * k, 1.0 + 3.5 * k))
 	var c: int = RunSprites.CELL["ship"]
-	draw_texture_rect_region(RunSprites.tex("ship"), Rect2(-Vector2(c, c) / 2.0, Vector2(c, c)), RunSprites.region("ship", damage_stage(sim.hp, sim.max_hp)), Color(1, 1, 1, 1.0 - smoothstep(0.7, 1.0, k)))
+	var src := RunSprites.region("ship", damage_stage(sim.hp, sim.max_hp))
+	src.position += RunSprites.entry_rect("ship").position
+	draw_texture_rect_region(RunSprites.atlas(0), Rect2(-Vector2(c, c) / 2.0, Vector2(c, c)), src, Color(1, 1, 1, 1.0 - smoothstep(0.7, 1.0, k)))
 	draw_set_transform(Vector2.ZERO)
 
 
@@ -465,7 +473,7 @@ func _draw_smoke(center: Vector2, heavy: float) -> void:
 		var origin := center + back * SMOKE_TAIL + back.orthogonal() * SMOKE_SIDE * side
 		for i in 3:
 			var t := fmod(_time * 1.6 + i / 3.0 + side * 0.17, 1.0)
-			draw_circle((origin + back * t * SMOKE_TRAVEL).round(), 1.0 + t * 2.0, Color(SMOKE_COLOR, (1.0 - t) * 0.7 * heavy))
+			RunSprites.disc(self, (origin + back * t * SMOKE_TRAVEL).round(), 1.0 + t * 2.0, Color(SMOKE_COLOR, (1.0 - t) * 0.7 * heavy))
 
 
 ## 레벨업 빛: 우주선에서 밝은 빛이 퍼지며 사라진다 (슬로모션 동안)
@@ -474,9 +482,9 @@ func _draw_levelup_light() -> void:
 		return
 	var k := 1.0 - levelup_light  # 0 → 1로 퍼짐
 	var center := sim.player_pos.round()
-	draw_circle(center, Juice.LEVELUP_LIGHT_RADIUS * (0.3 + 0.7 * k), Color(Juice.LEVELUP_LIGHT_COLOR, 0.25 * levelup_light))
-	draw_circle(center, Juice.LEVELUP_LIGHT_RADIUS * 0.35 * (1.0 - 0.5 * k), Color(Juice.LEVELUP_LIGHT_COLOR, 0.4 * levelup_light))
-	draw_arc(center, Juice.LEVELUP_LIGHT_RADIUS * k, 0.0, TAU, 40, Color(Color.WHITE, 0.8 * levelup_light), 1.0)
+	RunSprites.disc(self, center, Juice.LEVELUP_LIGHT_RADIUS * (0.3 + 0.7 * k), Color(Juice.LEVELUP_LIGHT_COLOR, 0.25 * levelup_light))
+	RunSprites.disc(self, center, Juice.LEVELUP_LIGHT_RADIUS * 0.35 * (1.0 - 0.5 * k), Color(Juice.LEVELUP_LIGHT_COLOR, 0.4 * levelup_light))
+	RunSprites.ring(self, center, Juice.LEVELUP_LIGHT_RADIUS * k, Color(Color.WHITE, 0.8 * levelup_light))
 
 
 ## 쏜 뒤 반동 위치: 바라보는 반대쪽으로 RECOIL_PX 밀렸다가 RECOIL_TIME 동안 돌아온다

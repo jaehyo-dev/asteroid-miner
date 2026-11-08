@@ -83,3 +83,20 @@ const BUTTON_PRESS_MODULATE := Color(1.35, 1.35, 1.35)
 ## 광물 연속 줍기: 앞 줍기에서 이 시간(초) 안에 또 주우면 음이 1반음씩 올라감, 최대 반음 수
 const PICKUP_COMBO_WINDOW := 1.0
 const PICKUP_COMBO_MAX_SEMITONES := 12
+## 운석 깨짐 소리 몰림 줄이기: BREAK_SOUND_WINDOW초 안에 이미 난 수마다 BREAK_SOUND_STEP_DB씩 작게, BREAK_SOUND_MAX개 넘으면 안 냄
+const BREAK_SOUND_WINDOW := 0.5
+const BREAK_SOUND_MAX := 3
+const BREAK_SOUND_STEP_DB := -5.0
+## 히트스톱이 끝난 뒤 이 시간 안에는 다시 걸지 않는다 (후반에 큰 운석이 연달아 깨질 때 멈춤이 이어져 버벅여 보이지 않게)
+const HITSTOP_COOLDOWN := 0.4
+## 배경음: 기지(작고 먹먹하게), 출격(필터가 START → END Hz로 RAMP초 동안 열림), 리듬 층(LAYER_TIME초부터 LAYER_FADE초 동안 커짐), 값이 바뀔 때 따라가는 빠르기
+const MUSIC_BASE_CUTOFF := 450.0
+const MUSIC_BASE_DB := -24.0
+const MUSIC_RUN_DB := -15.0
+const MUSIC_CUTOFF_START := 900.0
+const MUSIC_CUTOFF_END := 12000.0
+const MUSIC_CUTOFF_RAMP := 180.0
+const MUSIC_LAYER_TIME := 120.0
+const MUSIC_LAYER_FADE := 10.0
+const MUSIC_LAYER_DB := -16.0
+const MUSIC_SMOOTH := 1.5

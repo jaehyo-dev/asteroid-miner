@@ -57,6 +57,8 @@ var white := 0.0
 var bonus := RiskBonus.new()
 ## 광물 보너스 말풍선 남은 시간
 var tip_time := 0.0
+## 일시 정지 중에는 말풍선을 숨긴다 (메뉴와 겹치지 않게)
+var hide_tip := false
 ## 광물 보너스 글자 왼쪽 위치 (말풍선 꼬리가 가리킴)
 var _bonus_pos := Vector2.ZERO
 ## 화면에 보이는 숫자 (실제 값까지 빠르게 카운트업): 파괴 수, 화물 가치, 등급별 광물 수
@@ -111,6 +113,8 @@ func _draw() -> void:
 	_draw_tip(font)
 	# 버틴 시간 (가운데 위)
 	draw_string(font, Vector2(0, MARGIN + 10), format_time(sim.time), HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
+	if App.settings.show_fps:
+		draw_string(font, Vector2(0, MARGIN + 24), "%d FPS · 호출 %d" % [Engine.get_frames_per_second(), Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)], HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
 	if white > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(1, 1, 1, white))
 
@@ -192,7 +196,7 @@ func show_tip() -> void:
 
 ## 말풍선: 보너스 글자 아래에 두 줄, 꼬리가 보너스 글자를 가리킨다. 처음과 끝은 서서히.
 func _draw_tip(font: Font) -> void:
-	if tip_time <= 0.0:
+	if tip_time <= 0.0 or hide_tip:
 		return
 	var a := clampf(minf(tip_time, TIP_TIME - tip_time) / 0.3, 0.0, 1.0)
 	var w := 0.0

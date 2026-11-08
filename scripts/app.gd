@@ -14,7 +14,7 @@ var base_mode := false
 ## 창이 세로로 길어 안내 화면이 떠 있는지 (출격 화면이 이 신호로 일시 정지한다)
 var portrait := false
 signal portrait_changed(is_portrait: bool)
-## 플레이어 설정 (화면 흔들림, 효과음 크기). 바꾸면 apply_settings()로 적용하고 save_file()로 저장한다.
+## 플레이어 설정 (화면 흔들림, 효과음·배경음 크기, FPS 표시). 바꾸면 apply_settings()로 적용하고 save_file()로 저장한다.
 var settings := GameSettings.load_file()
 
 ## 세로일 때 게임 위를 덮는 안내 (CanvasLayer가 가장 위)
@@ -58,11 +58,14 @@ func _ready() -> void:
 		JavaScriptBridge.eval(LOCK_LANDSCAPE_JS)
 
 
-## 설정의 효과음 크기를 효과음 버스(SFX)에 적용한다. 0단계는 음소거.
+## 설정의 효과음·배경음 크기를 각 버스(SFX, Music)에 적용한다. 0단계는 음소거.
 func apply_settings() -> void:
 	var bus := AudioServer.get_bus_index("SFX")
 	AudioServer.set_bus_mute(bus, settings.sfx_level == 0)
 	AudioServer.set_bus_volume_db(bus, settings.sfx_db() if settings.sfx_level > 0 else 0.0)
+	bus = AudioServer.get_bus_index("Music")
+	AudioServer.set_bus_mute(bus, settings.music_level == 0)
+	AudioServer.set_bus_volume_db(bus, settings.music_db() if settings.music_level > 0 else 0.0)
 
 
 ## 가로 안내 화면: 게임을 가리는 꽉 찬 배경 + 큰 글자. 눌러도 아래 게임으로 입력이 가지 않는다.

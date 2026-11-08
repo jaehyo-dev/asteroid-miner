@@ -4,12 +4,18 @@ extends Control
 ## 첫 버튼에 포커스를 주므로 Enter/Space로 바로 고를 수 있다.
 
 signal chosen(index: int)
+## 제목을 눌렀을 때 (일시 정지 화면 제목 5번 = 숨은 FPS 표시)
+signal title_tapped
 
 const COLOR_BG := Color(0.03, 0.03, 0.08, 0.92)
 const COLOR_BORDER := Color("#4fd1ff")
 const COLOR_TITLE := Color("#ffd34f")
 const COLOR_TEXT := Color("#c8cde0")
+## 메뉴 뒤를 덮는 검정의 진하기: 보통, 일시 정지
+const DIM_NORMAL := 0.4
+const DIM_PAUSE := 0.7
 
+var _dim: ColorRect
 var _center: CenterContainer
 var _pop: Tween
 var _box: VBoxContainer
@@ -23,11 +29,11 @@ var _generation := 0
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP  # 메뉴가 떠 있으면 뒤쪽 클릭을 막는다
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.4)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(dim)
+	_dim = ColorRect.new()
+	_dim.color = Color(0, 0, 0, DIM_NORMAL)
+	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_dim)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -47,6 +53,10 @@ func _ready() -> void:
 	_box.add_theme_constant_override("separation", 8)
 	panel.add_child(_box)
 	_title = _label(COLOR_TITLE, 24)
+	_title.mouse_filter = Control.MOUSE_FILTER_STOP
+	_title.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			title_tapped.emit())
 	_body = _label(COLOR_TEXT, 12)
 	_buttons = VBoxContainer.new()
 	_buttons.add_theme_constant_override("separation", 4)
@@ -62,6 +72,11 @@ func _label(color: Color, font_size: int) -> Label:
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_font_size_override("font_size", font_size)
 	return label
+
+
+## 메뉴 뒤를 덮는 검정의 진하기를 정한다
+func set_dim(alpha: float) -> void:
+	_dim.color.a = alpha
 
 
 ## 메뉴를 보여 준다. options의 순서대로 버튼을 만들고, 누르면 chosen(인덱스)를 보낸다.

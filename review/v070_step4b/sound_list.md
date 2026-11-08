@@ -1,5 +1,7 @@
 # v0.7.0 4b 소리 · 설정 · 성능
 
+(4c에서 소리 파일·음량이 바뀌었어요: `scripts/sfx.gd`의 `SOUNDS`와 `review/v070_step4c/listen.md` 참고)
+
 ## 1. 행동별 효과음 (`scripts/sfx.gd`의 `SOUNDS` 표)
 
 Kenney 효과음 3팩(모두 CC0 1.0, 각 1.0판). 파일은 `assets/sfx/kenney_*/`에 쓰는 것만 23개를 두었고, 원본은 수정하지 않았다.

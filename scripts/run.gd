@@ -14,6 +14,10 @@ enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
 ## 일시 정지 메뉴의 설정 버튼 번호
 const PAUSE_SHAKE := 1
 const PAUSE_SFX := 2
+const PAUSE_MUSIC := 3
+## 일시 정지 제목을 이만큼 이 시간(밀리초) 안에 누르면 FPS 표시를 켜고 끈다
+const FPS_TAPS := 5
+const FPS_TAP_WINDOW_MS := 2000
 
 
 @onready var world: WorldView = $World
@@ -41,6 +45,12 @@ var hitstop := 0.0
 var slowmo := 0.0
 ## 광물 연속 줍기 음 높이
 var _combo := PickupCombo.new()
+## 운석 깨짐 소리가 몰리면 작게·적게
+var _break_sounds := SoundThrottle.new(Juice.BREAK_SOUND_WINDOW, Juice.BREAK_SOUND_MAX, Juice.BREAK_SOUND_STEP_DB)
+## 다음 히트스톱을 걸 수 있는 시뮬레이션 시각
+var _hitstop_ready_at := 0.0
+## 일시 정지 제목을 누른 시각 (FPS 표시)
+var _title_taps: Array[int] = []
 
 
 func _ready() -> void:
@@ -58,6 +68,8 @@ func _ready() -> void:
 		pause())
 	MenuPanel.add_press_feel(pause_button)
 	menu.chosen.connect(_on_menu_chosen)
+	menu.title_tapped.connect(_on_title_tapped)
+	Music.set_run_time(0.0)
 	# 폰을 세로로 들면 일시 정지 (가로로 돌리면 일시 정지 메뉴에서 이어서 한다)
 	App.portrait_changed.connect(_on_portrait_changed)
 	if App.portrait:
@@ -66,6 +78,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	sim.view_size = get_viewport_rect().size
+	Music.set_run_time(sim.time)
 	if current_menu == Menu.NONE and not sim.is_over() and hitstop > 0.0:
 		# 히트스톱: 시뮬레이션·월드 효과는 멈추고 화면 흔들림·HUD만 진행 (입력은 매 프레임 다시 읽으므로 끊기지 않음)
 		hitstop = maxf(hitstop - delta, 0.0)
@@ -134,8 +147,10 @@ func _unhandled_input(event: InputEvent) -> void:
 func _start_juice() -> void:
 	for a in sim.destroyed:
 		if a.golden or (a.kind == RunSim.ROCK and a.type == 2):
-			hitstop = maxf(hitstop, Juice.HITSTOP_GOLD if a.golden else Juice.HITSTOP_BIG)
 			alert.kick(Juice.BREAK_SHAKE_TIME, Juice.BREAK_SHAKE_STRENGTH)
+			if sim.time >= _hitstop_ready_at or a.golden:
+				hitstop = maxf(hitstop, Juice.HITSTOP_GOLD if a.golden else Juice.HITSTOP_BIG)
+				_hitstop_ready_at = sim.time + Juice.HITSTOP_COOLDOWN
 	if sim.events.has("levelup") and slowmo <= 0.0:
 		slowmo = Juice.LEVELUP_SLOWMO_TIME
 
@@ -215,7 +230,9 @@ func _play_sounds() -> void:
 		elif e == "levelup":
 			Sfx.play("levelup")
 	for a in sim.destroyed + sim.crashed:
-		Sfx.play(break_sound(a))
+		var db := _break_sounds.next_db(sim.time) if a.kind == RunSim.ROCK else 0.0
+		if db > -INF:
+			Sfx.play(break_sound(a), -1.0, 1.0, db)
 	# 줍기: 같은 등급은 한 프레임에 한 번만, 1초 안에 연속으로 주우면 음이 올라감
 	if sim.picked.is_empty():
 		return
@@ -268,18 +285,34 @@ func pause() -> void:
 	_open_menu(Menu.PAUSE, "일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", _pause_options())
 
 
-## 일시 정지 메뉴 버튼: 계속하기, 설정 2개(누를 때마다 바뀜), 포기
+## 일시 정지 메뉴 버튼: 계속하기, 설정 3개(누를 때마다 바뀜), 포기
 func _pause_options() -> PackedStringArray:
-	return ["계속하기", App.settings.shake_label(), App.settings.sfx_label(), "포기하고 기지로"]
+	return ["계속하기", App.settings.shake_label(), App.settings.sfx_label(), App.settings.music_label(), "포기하고 기지로"]
+
+
+## 일시 정지 제목을 빠르게 FPS_TAPS번 누르면 숨은 FPS 표시를 켜고 끈다 (폰에서 직접 확인하는 용도)
+func _on_title_tapped() -> void:
+	if current_menu != Menu.PAUSE:
+		return
+	var now := Time.get_ticks_msec()
+	_title_taps = _title_taps.filter(func(t: int) -> bool: return now - t < FPS_TAP_WINDOW_MS)
+	_title_taps.append(now)
+	if _title_taps.size() >= FPS_TAPS:
+		_title_taps.clear()
+		App.settings.show_fps = not App.settings.show_fps
+		App.settings.save_file()
+		Sfx.play("click")
 
 
 ## 일시 정지 메뉴의 설정 버튼: 바꾸고 저장한 뒤 메뉴를 그대로 다시 보여 준다 (누른 버튼에 포커스 유지)
 func _change_setting(index: int) -> void:
 	if index == PAUSE_SHAKE:
 		App.settings.shake = not App.settings.shake
-	else:
+	elif index == PAUSE_SFX:
 		App.settings.cycle_sfx()
-		App.apply_settings()
+	else:
+		App.settings.cycle_music()
+	App.apply_settings()
 	App.settings.save_file()
 	Sfx.play("click")  # 바뀐 효과음 크기를 바로 들려준다
 	menu.show_menu("일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", _pause_options())
@@ -338,11 +371,14 @@ func _open_menu(kind: Menu, title: String, body: String, options: PackedStringAr
 	joystick.enabled = false
 	pause_button.hide()
 	world.moving = false
+	hud.hide_tip = kind == Menu.PAUSE  # 안내 말풍선이 일시 정지 메뉴와 겹치지 않게
+	menu.set_dim(MenuPanel.DIM_PAUSE if kind == Menu.PAUSE else MenuPanel.DIM_NORMAL)
 	menu.show_menu(title, body, options, input_delay)
 
 
 func _close_menu() -> void:
 	current_menu = Menu.NONE
+	hud.hide_tip = false
 	Sfx.pause_gate_sounds(false)
 	gate_view.process_mode = Node.PROCESS_MODE_INHERIT
 	menu.hide()
@@ -353,13 +389,13 @@ func _close_menu() -> void:
 func _on_menu_chosen(index: int) -> void:
 	if current_menu == Menu.LEVEL_UP:
 		Sfx.play("card_pick")
-	elif not (current_menu == Menu.PAUSE and (index == PAUSE_SHAKE or index == PAUSE_SFX)):
+	elif not (current_menu == Menu.PAUSE and index >= PAUSE_SHAKE and index <= PAUSE_MUSIC):
 		Sfx.play("click")  # 설정 버튼은 바뀐 크기로 _change_setting에서 딸깍
 	match current_menu:
 		Menu.PAUSE:
 			if index == 0:
 				_close_menu()
-			elif index == PAUSE_SHAKE or index == PAUSE_SFX:
+			elif index >= PAUSE_SHAKE and index <= PAUSE_MUSIC:
 				_change_setting(index)
 			else:
 				get_tree().change_scene_to_file(MAIN_SCENE)

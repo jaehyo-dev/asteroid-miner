@@ -1,0 +1,93 @@
+extends Node
+## 성능 측정용 (임시 복사본에만 자동 로드로 넣음). 주소 ?mode=stress | late
+## stress: 4b와 같은 극한 상황(적·운석 120, 광물 300). late: 140초까지 빨리 감은 뒤 실제로 30초 진행하며 느린 프레임 원인을 기록.
+var run: Node
+var mode := "stress"
+var frames := 0
+var log_t := 0.0
+var last_us := 0
+var ready_run := false
+
+
+func _ready() -> void:
+	if OS.has_feature("web"):
+		var q = JavaScriptBridge.eval("location.search")
+		if str(q).find("late") >= 0:
+			mode = "late"
+		elif str(q).find("full") >= 0:
+			mode = "full"
+		elif str(q).find("pause") >= 0:
+			mode = "pause"
+	await get_tree().create_timer(2.0).timeout
+	get_tree().change_scene_to_file("res://scenes/run.tscn")
+	await get_tree().create_timer(1.0).timeout
+	run = get_tree().current_scene
+	if mode == "stress":
+		run.sim.bullet_count = 5
+		run.sim.fire_interval = 0.05
+		run.sim.fire_range = 400.0
+	elif mode == "late":
+		var sim = run.sim
+		var guard := 0
+		while sim.time < 140.0 and guard < 20000:
+			guard += 1
+			sim.invuln = 99.0
+			sim.hp = sim.max_hp
+			if not sim.choices.is_empty():
+				sim.choose(0)
+			sim.update(1.0 / 60.0, Vector2.ZERO)
+		print("LATE ffwd done t=%.1f enemies=%d minerals=%d level=%d" % [sim.time, sim.enemies.size(), sim.minerals.size(), sim.level])
+	if mode == "pause":
+		run.hud.show_tip()
+		await get_tree().create_timer(1.0).timeout
+		run.pause()
+		print("STRESS paused")
+		return
+	if mode == "late":
+		App.settings.show_fps = true  # 화면 확인용 (저장하지 않음)
+	ready_run = true
+	last_us = Time.get_ticks_usec()
+
+
+func _process(delta: float) -> void:
+	if not ready_run or run == null or not is_instance_valid(run):
+		return
+	var sim = run.sim
+	if run.current_menu != 0:
+		run.menu.choose(0)
+	sim.invuln = 0.0 if mode == "late" else 99.0
+	sim.hp = sim.max_hp
+	if mode == "stress":
+		sim.bullet_count = 5
+		sim.fire_interval = 0.05
+		sim.fire_range = 400.0
+		while sim.enemies.size() < 120:
+			var a
+			var r := randi() % 6
+			if r < 4:
+				a = sim.spawn_asteroid()
+			else:
+				a = sim.spawn_creature("jelly" if r == 4 else "bug")
+			a.pos = sim.player_pos + Vector2.from_angle(randf() * TAU) * randf_range(60.0, 320.0)
+	else:
+		# 우주선이 원을 그리며 돌아다님 (광물도 줍게)
+		run.joystick.vector = Vector2.from_angle(sim.time * 0.7)
+	var now := Time.get_ticks_usec()
+	var dt := (now - last_us) / 1000.0
+	last_us = now
+	# 아래 값은 바로 앞 프레임의 것 (이 노드가 출격 화면보다 먼저 처리됨)
+	var m := Engine.get_meta("probe", {})
+	if mode != "stress" and (dt > 40.0 or m.get("big", 0) > 0):
+		print("SPIKE ev=[%s] " % m.get("ev", "") + "gate=%.1f ann=%.1f proc=%.1f " % [m.get("gate", 0) / 1000.0, m.get("ann", 0) / 1000.0, Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0] + " t=%.2f dt=%.1f sim=%.1f step=%.1f sfx=%.1f draw=%.1f hitstop=%s big=%d enemies=%d minerals=%d debris=%d dc=%d" % [
+			sim.time, dt, m.get("sim", 0) / 1000.0, m.get("step", 0) / 1000.0, m.get("sfx", 0) / 1000.0, m.get("draw", 0) / 1000.0,
+			m.get("hitstop", false), m.get("big", 0), sim.enemies.size(), sim.minerals.size(), run.world._debris.size(),
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
+	log_t += delta
+	frames += 1
+	if log_t >= 1.0:
+		print("STRESS t=%.1f menu=%d enemies=%d bullets=%d minerals=%d debris=%d fps=%d process_ms=%.1f draw_ms=%.1f sim_ms=%.1f draw_calls=%d" % [
+			sim.time, run.current_menu, sim.enemies.size(), sim.bullets.size(), sim.minerals.size(), run.world._debris.size(), frames,
+			Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, m.get("draw", 0) / 1000.0, m.get("sim", 0) / 1000.0,
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
+		log_t = 0.0
+		frames = 0

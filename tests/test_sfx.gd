@@ -1,5 +1,5 @@
 extends TestCase
-## 효과음 (Kenney 팩): 파일·라이선스, 동시 재생 수 제한, 음 높이 랜덤, 연속 줍기 음 높이, 행동별 소리 이름
+## 효과음 (Kenney 팩을 다듬은 wav, tools/make_sfx.py): 파일·라이선스, 동시 재생 수 제한, 음 높이 랜덤, 연속 줍기 음 높이, 행동별 소리 이름
 
 const PACKS := ["kenney_sci-fi", "kenney_impact", "kenney_interface"]
 
@@ -12,11 +12,11 @@ func _stop_all() -> void:
 
 func test_모든_소리_파일과_라이선스가_있음() -> void:
 	for pack in PACKS:
-		assert_true(FileAccess.file_exists(Sfx.SFX_DIR + pack + "/LICENSE.txt"), pack + " 라이선스")
+		assert_true(FileAccess.file_exists("res://assets/sfx/" + pack + "/LICENSE.txt"), pack + " 라이선스")
 	for sound_name in Sfx.SOUNDS:
 		var sound: Dictionary = Sfx.SOUNDS[sound_name]
 		for f in sound["files"]:
-			assert_true(load(Sfx.SFX_DIR + f + ".ogg") is AudioStream, f)
+			assert_true(load(Sfx.SFX_DIR + f + ".wav") is AudioStreamWAV, f)
 		assert_eq(Sfx.pool(sound_name).size(), int(sound["max"]), sound_name + " 재생기 수")
 		for p: AudioStreamPlayer in Sfx.pool(sound_name):
 			assert_eq(p.bus, &"SFX", "효과음 버스")

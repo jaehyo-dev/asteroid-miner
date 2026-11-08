@@ -219,6 +219,15 @@ func test_큰_운석과_황금_운석만_히트스톱() -> void:
 	assert_eq(run.sim.time, t, "히트스톱 동안 시뮬레이션 멈춤")
 	await get_tree().create_timer(Juice.HITSTOP_GOLD + 0.05).timeout
 	assert_true(run.sim.time > t, "다시 진행")
+	# 바로 이어 깨진 큰 운석은 멈추지 않음 (연달아 멈춰 버벅여 보이지 않게), 흔들림은 그대로
+	run.hitstop = 0.0
+	run.sim.destroyed.clear()
+	run.sim.destroyed.append(big)
+	run._start_juice()
+	assert_eq(run.hitstop, 0.0, "쿨다운 안에서는 히트스톱 없음")
+	run.sim.time += Juice.HITSTOP_COOLDOWN
+	run._start_juice()
+	assert_eq(run.hitstop, Juice.HITSTOP_BIG, "쿨다운이 지나면 다시")
 	run.queue_free()
 
 
