@@ -4,6 +4,7 @@
 2) 가로로 놓인 4개를 나누고, 등급마다 긴 변 8/10/11/12픽셀로 평균(BOX) 축소 (아주 작은 그림은 nearest보다 모양이 잘 남음)
 3) 투명도 0/255, 등급별 색 범위(32색 팔레트 void32 안)에서 가장 가까운 색으로
 4) 보라 보석은 팔레트에 중간 보라가 없어 면이 사라지므로 깎인 면(오른쪽 아래 어둡게)과 반짝임 2픽셀을 더한다
+5) 4등급 모두 바깥에 검정 1픽셀 외곽선(팩 그림과 같은 방식)을 둘러 별 조각과 구분되게 한다 (외곽선 포함 9~12픽셀)
 사용: python3 tools/make_minerals.py
 """
 
@@ -17,7 +18,9 @@ from PIL import Image
 import pixelate as px
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
-SIZES = [8, 10, 11, 12]
+## 외곽선 안쪽 긴 변 (외곽선을 두르면 +2)
+SIZES = [8, 8, 9, 10]
+OUTLINE = (0, 0, 0, 255)
 ## 등급별로 쓸 팔레트 색 (어두운 외곽선 + 그 등급 색 계열)
 RAMPS = [
     ["000000", "2b1925", "3c3544", "5c5164", "917487", "a5b29d", "fef8e5"],  # 일반: 회색 돌
@@ -49,6 +52,19 @@ def facet(img: Image.Image) -> Image.Image:
     return img
 
 
+def outline(img: Image.Image) -> Image.Image:
+    """사방 1픽셀 넓히고, 그림 바로 바깥(상하좌우로 닿는 빈칸)을 외곽선 색으로 칠한다."""
+    a = np.pad(np.asarray(img.convert("RGBA")), ((1, 1), (1, 1), (0, 0)))
+    solid = a[..., 3] > 0
+    near = np.zeros_like(solid)
+    near[1:] |= solid[:-1]
+    near[:-1] |= solid[1:]
+    near[:, 1:] |= solid[:, :-1]
+    near[:, :-1] |= solid[:, 1:]
+    a[near & ~solid] = OUTLINE
+    return Image.fromarray(a, "RGBA")
+
+
 def build() -> list[Image.Image]:
     img = px.crop_to_content(key_strict(Image.open(os.path.join(ROOT, "assets/raw/run/minerals.png"))))
     parts = px.split_columns(img)
@@ -61,6 +77,7 @@ def build() -> list[Image.Image]:
         out = px.map_to_palette(px.binarize_alpha(part.resize(size, Image.Resampling.BOX)), ramp)
         if grade == 2:
             out = facet(out)
+        out = outline(out)
         out.save(os.path.join(ROOT, f"assets/sprites/run/mineral_{grade}.png"))
         outs.append(out)
     return outs

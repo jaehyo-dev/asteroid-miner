@@ -51,14 +51,23 @@ func test_별_배경_층은_카메라를_따라_밀림() -> void:
 		if is_equal_approx(layer["parallax"], 1.0):
 			has_world_layer = true
 	assert_true(has_world_layer, "월드 고정 층")
-	# 팩 별 3겹은 서로 다른 속도(느림 → 빠름), 먼 행성은 가장 느림, 모두 어둡게
-	assert_eq(Starfield.PACK_LAYERS.size(), 3, "별 3겹")
+	# 별 3겹 = 팩 별 2겹 + 우주 먼지. 서로 다른 속도(느림 → 빠름), 먼 행성은 가장 느림, 모두 어둡게
+	assert_eq(Starfield.PACK_LAYERS.size() + Starfield.LAYERS.size(), 3, "별 3겹")
 	var prev := float(Starfield.PLANET["parallax"])
 	for layer in Starfield.PACK_LAYERS:
 		assert_true(layer["parallax"] > prev and layer["parallax"] < 1.0, "시차 순서")
 		assert_true(layer["dim"] <= 0.6, "배경은 어둡게")
 		prev = layer["parallax"]
-	assert_true(float(Starfield.PLANET["dim"]) <= 0.6, "행성도 어둡게")
+	var tint: Color = Starfield.PLANET["tint"]
+	assert_true(tint.get_luminance() <= 0.12, "행성은 바닥색에 가깝게 아주 어둡게")
+	assert_true(Starfield.BASE_COLOR.get_luminance() <= 0.06 and Starfield.BASE_COLOR.b > Starfield.BASE_COLOR.r, "바닥은 거의 검정인 남색")
+	# 팩 별 그림은 무채색 (색 있는 무늬는 광물·탄과 헷갈림)
+	for layer in Starfield.PACK_LAYERS:
+		var img := (load(Starfield.BG_DIR + layer["file"]) as Texture2D).get_image()
+		for i in 400:
+			var c := img.get_pixel((i * 7919) % img.get_width(), (i * 104729) % img.get_height())
+			if c.a > 0.0:
+				assert_true(is_equal_approx(c.r, c.g) and is_equal_approx(c.g, c.b), "별은 회색: %s" % c)
 	assert_eq(Starfield.tile_origin(Vector2(650, -10)), Vector2(-10, -350), "타일은 화면 왼쪽 위를 덮음")
 	var area := Vector2(640, 360)
 	var before := Starfield.star_position(Vector2(0.5, 0.5), area, Vector2.ZERO, 1.0)

@@ -27,6 +27,9 @@ const PICKUP_FX_TIME := [0.2, 0.35, 0.45, 0.7]
 const PICKUP_RING_RADIUS := [0.0, 10.0, 14.0, 24.0]
 ## 등급별 빛 색 (광물 그림 색에 맞춤: 회색, 시안, 보라, 금)
 const MINERAL_GLOW := [Color("#a5b29d"), Color("#99e9e6"), Color("#a884f3"), Color("#f6ce50")]
+## 등급별 바닥 빛 반지름과 진하기: 어떤 배경 위에서도 별 조각과 구분되게 4등급 모두 깐다 (바깥 고리는 반지름 +3, 진하기 절반)
+const MINERAL_GLOW_RADIUS := [6.0, 7.0, 8.0, 10.0]
+const MINERAL_GLOW_ALPHA := [0.16, 0.16, 0.18, 0.2]
 ## "+가치" 숫자가 떠오르는 시간과 높이
 const POPUP_TIME := 0.8
 const POPUP_RISE := 14.0
@@ -269,24 +272,22 @@ func _draw_sparkles(center: Vector2, radius: float, count: int, seed_offset: flo
 			draw_rect(Rect2(p.round() + Vector2(0, -1), Vector2(1, 3)), Color(1, 1, 1, 0.6))
 
 
-## 등급별 광물: 희귀는 은은한 빛, 영웅은 반짝임, 전설은 도는 빛줄기
+## 등급별 광물: 모두 등급색의 은은한 빛, 영웅은 반짝임, 전설은 도는 빛줄기
 func _draw_mineral(m: RunSim.Mineral) -> void:
 	var tex := RunSprites.mineral(m.grade)
 	var center := m.pos.round()
 	var color: Color = MINERAL_GLOW[m.grade]
 	var bob := sin(sim.time * 3.0 + m.pos.x * 0.1)  # 둥실거림 (-1~1)
-	match m.grade:
-		1:
-			draw_circle(center, 6.0 + bob, Color(color, 0.12))
-		2:
-			draw_circle(center, 8.0 + bob, Color(color, 0.15))
-		3:
-			# 빛줄기 4개가 천천히 돈다
-			var spin := sim.time * 1.2
-			for i in 4:
-				var dir := Vector2.from_angle(spin + i * TAU / 4.0)
-				draw_line(center + dir * 7.0, center + dir * (14.0 + 2.0 * bob), Color(1.0, 0.9, 0.4, 0.45), 1.0)
-			draw_circle(center, 10.0 + bob, Color(color, 0.18))
+	var r: float = MINERAL_GLOW_RADIUS[m.grade] + bob
+	var a: float = MINERAL_GLOW_ALPHA[m.grade]
+	draw_circle(center, r + 3.0, Color(color, a * 0.5))
+	draw_circle(center, r, Color(color, a))
+	if m.grade == 3:
+		# 빛줄기 4개가 천천히 돈다
+		var spin := sim.time * 1.2
+		for i in 4:
+			var dir := Vector2.from_angle(spin + i * TAU / 4.0)
+			draw_line(center + dir * 7.0, center + dir * (14.0 + 2.0 * bob), Color(1.0, 0.9, 0.4, 0.45), 1.0)
 	draw_texture(tex, center - (tex.get_size() / 2.0).floor() + Vector2(0, roundf(bob * 0.6)))
 	if m.grade >= 2:
 		_draw_sparkles(m.pos, 7.0, 2 if m.grade == 2 else 3, m.pos.x)
