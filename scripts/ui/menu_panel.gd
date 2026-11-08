@@ -10,6 +10,8 @@ const COLOR_BORDER := Color("#4fd1ff")
 const COLOR_TITLE := Color("#ffd34f")
 const COLOR_TEXT := Color("#c8cde0")
 
+var _center: CenterContainer
+var _pop: Tween
 var _box: VBoxContainer
 var _title: Label
 var _body: Label
@@ -31,6 +33,7 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
+	_center = center
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = COLOR_BG
@@ -79,6 +82,7 @@ func show_menu(title: String, body: String, options: PackedStringArray, input_de
 		button.disabled = input_delay > 0.0
 		button.add_theme_font_size_override("font_size", 12)
 		button.pressed.connect(_on_pressed.bind(i))
+		add_press_feel(button)
 		_buttons.add_child(button)
 	show()
 	if input_delay > 0.0:
@@ -89,6 +93,33 @@ func show_menu(title: String, body: String, options: PackedStringArray, input_de
 			b.disabled = false
 	if visible and not buttons().is_empty():
 		buttons()[0].grab_focus()
+
+
+## 메뉴 상자가 아래에서 튀어 오르며(넘쳤다 돌아옴) 나타난다. 위치는 정수 픽셀로만 (정수 배율 규칙)
+func pop_in() -> void:
+	if _pop != null:
+		_pop.kill()
+	_pop = create_tween().set_parallel()
+	_pop.tween_method(func(y: float) -> void: _center.position.y = roundf(y), Juice.CARD_POP_DISTANCE, 0.0, Juice.CARD_POP_TIME) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_pop.tween_property(_center, "modulate:a", 1.0, Juice.CARD_POP_TIME * 0.5).from(0.0)
+
+
+## 버튼 눌림 연출: 누르는 동안 px만큼 아래로 내려가고 밝아진다 (크기는 그대로: 정수 배율 규칙)
+static func add_press_feel(button: BaseButton, px: int = Juice.BUTTON_PRESS_PX) -> void:
+	button.button_down.connect(_set_pressed_look.bind(button, true, px))
+	button.button_up.connect(_set_pressed_look.bind(button, false, px))
+
+
+static func _set_pressed_look(button: BaseButton, down: bool, px: int) -> void:
+	if down == button.has_meta("pressed_px"):
+		return  # 같은 상태가 두 번 오면 위치가 어긋나지 않게 무시
+	button.position.y += px if down else -px
+	button.self_modulate = Juice.BUTTON_PRESS_MODULATE if down else Color.WHITE
+	if down:
+		button.set_meta("pressed_px", true)
+	else:
+		button.remove_meta("pressed_px")
 
 
 ## 메뉴의 버튼 목록 (테스트용)

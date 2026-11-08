@@ -32,6 +32,10 @@ var banked := false
 ## 피격·위험 표시 상태
 var alert := DangerAlert.new()
 var _shake_rng := RandomNumberGenerator.new()
+## 히트스톱 남은 시간 (큰 운석·황금 운석을 부순 순간 시뮬레이션만 멈춤, Engine.time_scale은 안 씀)
+var hitstop := 0.0
+## 레벨업 슬로모션 남은 시간 (끝나면 강화 카드가 뜬다)
+var slowmo := 0.0
 
 
 func _ready() -> void:
@@ -45,6 +49,7 @@ func _ready() -> void:
 	hud.alert = alert
 	danger.alert = alert
 	pause_button.pressed.connect(pause)
+	MenuPanel.add_press_feel(pause_button)
 	menu.chosen.connect(_on_menu_chosen)
 	# 폰을 세로로 들면 일시 정지 (가로로 돌리면 일시 정지 메뉴에서 이어서 한다)
 	App.portrait_changed.connect(_on_portrait_changed)
@@ -54,15 +59,26 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	sim.view_size = get_viewport_rect().size
-	if current_menu == Menu.NONE and not sim.is_over():
+	if current_menu == Menu.NONE and not sim.is_over() and hitstop > 0.0:
+		# 히트스톱: 시뮬레이션·월드 효과는 멈추고 화면 흔들림·HUD만 진행 (입력은 매 프레임 다시 읽으므로 끊기지 않음)
+		hitstop = maxf(hitstop - delta, 0.0)
+		alert.update(delta, false, sim.hp / sim.max_hp)
+		hud.step(delta)
+	elif current_menu == Menu.NONE and not sim.is_over():
 		var keys := MoveInput.keyboard_vector(
 			Input.is_action_pressed("move_left"), Input.is_action_pressed("move_right"),
 			Input.is_action_pressed("move_up"), Input.is_action_pressed("move_down"))
 		var move := MoveInput.combine(keys, joystick.vector)
 		world.moving = move != Vector2.ZERO
-		sim.update(delta, move)
-		world.step(delta)
-		_announce(gate_view.step(delta, sim.events))
+		# 레벨업 슬로모션: 실제 시간 LEVELUP_SLOWMO_TIME 동안 시뮬레이션을 느리게 (그동안은 강화를 고르기 전이어도 진행)
+		var sim_delta := delta * Juice.LEVELUP_SLOWMO_SCALE if slowmo > 0.0 else delta
+		slowmo = maxf(slowmo - delta, 0.0)
+		sim.run_during_levelup = slowmo > 0.0
+		sim.update(sim_delta, move)
+		world.step(sim_delta)
+		_start_juice()
+		world.levelup_light = slowmo / Juice.LEVELUP_SLOWMO_TIME
+		_announce(gate_view.step(sim_delta, sim.events))
 		_play_pickup_sounds()
 		if alert.update(delta, sim.events.has("hit"), sim.hp / sim.max_hp):
 			Sfx.play_warning()
@@ -73,7 +89,7 @@ func _process(delta: float) -> void:
 		danger.time = sim.time
 		if not sim.alive:
 			_show_game_over()
-		elif not sim.choices.is_empty():
+		elif not sim.choices.is_empty() and slowmo <= 0.0:
 			_show_level_up()
 	elif current_menu == Menu.NONE and sim.returned:
 		# 귀환 성공 연출: 우주선이 빨려 들어가고 화면이 하얗게 번쩍인 뒤 결과 화면
@@ -105,6 +121,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif current_menu == Menu.PAUSE:
 			_close_menu()
 		get_viewport().set_input_as_handled()
+
+
+## 이번 프레임 사건으로 손맛 연출을 건다: 큰 운석·황금 운석 히트스톱+약한 흔들림, 레벨업 슬로모션.
+func _start_juice() -> void:
+	for a in sim.destroyed:
+		if a.golden or (a.kind == RunSim.ROCK and a.type == 2):
+			hitstop = maxf(hitstop, Juice.HITSTOP_GOLD if a.golden else Juice.HITSTOP_BIG)
+			alert.kick(Juice.BREAK_SHAKE_TIME, Juice.BREAK_SHAKE_STRENGTH)
+	if sim.events.has("levelup") and slowmo <= 0.0:
+		slowmo = Juice.LEVELUP_SLOWMO_TIME
 
 
 ## 새로운 위협과 습격을 배너·소리로 알린다.
@@ -248,10 +274,13 @@ func _show_level_up() -> void:
 			label += " Lv%d" % next
 		options.append("%d. %s\n%s" % [i + 1, label, Upgrades.describe(id)])
 	_open_menu(Menu.LEVEL_UP, "레벨 업! Lv %d" % (sim.level - sim.pending_levelups + 1), "강화를 하나 고르세요", options, Balance.LEVEL_UP_INPUT_DELAY)
+	menu.pop_in()  # 카드가 아래에서 튀어 오르며 등장 (카드 화면 자체는 5단계에서 새로 만듦)
 
 
 func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray, input_delay: float = 0.0) -> void:
 	current_menu = kind
+	sim.run_during_levelup = false
+	world.levelup_light = 0.0
 	# 메뉴(일시 정지·레벨업·게임 오버)가 떠 있는 동안 붉은 화면 효과가 멈춘 채 남지 않게 끈다
 	alert.clear_effects()
 	Sfx.pause_gate_sounds(true)

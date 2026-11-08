@@ -40,6 +40,7 @@ class Enemy:
 class Mineral:
 	var pos: Vector2
 	var grade: int  ## Balance.MINERAL_GRADES 인덱스 (0 일반 ~ 3 전설)
+	var vel := Vector2.ZERO  ## 운석에서 튕겨 나가는 속도 (점점 줄어 멈춤)
 	var attracted := false  ## 자석에 끌려오는 중인지 (한번 끌리면 끝까지 따라옴)
 
 
@@ -72,6 +73,8 @@ var hp := Balance.SHIP_MAX_HP
 var max_hp := Balance.SHIP_MAX_HP
 ## 남은 무적 시간
 var invuln := 0.0
+## 레벨업 직후 슬로모션 동안 강화 고르기 전이어도 진행할지 (화면 쪽 scripts/run.gd가 정함)
+var run_during_levelup := false
 ## 우주선이 바라보는 방향 (라디안, 0 = 오른쪽, -PI/2 = 위쪽). 멈추면 마지막 방향을 유지한다.
 var facing := -PI / 2.0
 var alive := true
@@ -168,8 +171,8 @@ func update(delta: float, move: Vector2) -> void:
 	destroyed.clear()
 	crashed.clear()
 	picked.clear()
-	if is_over() or not choices.is_empty():
-		return  # 판이 끝났거나 강화를 고르는 중이면 멈춘다
+	if is_over() or (not choices.is_empty() and not run_during_levelup):
+		return  # 판이 끝났거나 강화를 고르는 중이면 멈춘다 (레벨업 슬로모션 동안만 계속)
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
 	time += delta
 	invuln = maxf(invuln - delta, 0.0)
@@ -559,7 +562,7 @@ func _check_bullet_hits() -> void:
 			# 이번 프레임에 지나간 선분으로 판정해, 프레임이 느려도 탄이 운석을 뚫고 지나가지 않게 한다.
 			if a.hp > 0.0 and segment_distance(b.prev_pos, b.pos, a.pos) < a.radius + Balance.BULLET_RADIUS:
 				a.hp -= b.damage
-				a.flash = 0.08
+				a.flash = Juice.ENEMY_FLASH_TIME
 				a.hit_dir = b.vel.normalized()
 				a.hit_time = Balance.HIT_KNOCK_TIME
 				hit = true
@@ -583,7 +586,9 @@ func _on_enemy_destroyed(a: Enemy) -> void:
 	events.append("destroy")
 	for drop in drops_of(a):
 		for i in int(drop["count"]):
-			drop_mineral(a.pos + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.0, Balance.MINERAL_SCATTER), int(drop["grade"]))
+			var m := drop_mineral(a.pos, int(drop["grade"]))
+			# 운석 자리에서 사방으로 튕겨 나가 감속하며 멈춘다 (멈출 때까지 가는 거리 = 속도 / 감속)
+			m.vel = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(Juice.MINERAL_POP_MIN, Juice.MINERAL_POP_MAX) * Juice.MINERAL_POP_DAMP
 
 
 ## 경험치를 얻는다. 필요한 만큼 모이면 레벨업하고 강화 선택지를 연다.
@@ -662,11 +667,17 @@ func _update_minerals(delta: float) -> void:
 		return
 	var kept: Array[Mineral] = []
 	for m in minerals:
+		if not m.attracted and m.vel != Vector2.ZERO:
+			m.pos += m.vel * delta
+			m.vel *= exp(-Juice.MINERAL_POP_DAMP * delta)
+			if m.vel.length() < 1.0:
+				m.vel = Vector2.ZERO
 		var dist := m.pos.distance_to(player_pos)
 		if dist <= magnet_radius:
 			m.attracted = true
 		if m.attracted:
-			m.pos = m.pos.move_toward(player_pos, Balance.MAGNET_SPEED * delta)
+			m.vel = Vector2.ZERO
+			m.pos = m.pos.move_toward(player_pos, magnet_speed(dist, magnet_radius) * delta)
 			dist = m.pos.distance_to(player_pos)
 		if dist <= Balance.PICKUP_RADIUS:
 			picked.append({"pos": m.pos, "grade": m.grade, "gain": collect(m.grade)})
@@ -715,6 +726,12 @@ func _check_player_hits() -> void:
 
 
 # ── 규칙 계산 (자동 테스트 대상) ─────────────────────
+
+## 자석에 끌려오는 속도: 범위 끝(또는 밖)에서 기본 속도 × MAGNET_FAR, 가까울수록 빨라져 바로 옆에서 × MAGNET_NEAR
+static func magnet_speed(dist: float, radius: float) -> float:
+	var near := 1.0 - clampf(dist / maxf(radius, 1.0), 0.0, 1.0)
+	return Balance.MAGNET_SPEED * lerpf(Juice.MAGNET_FAR, Juice.MAGNET_NEAR, near)
+
 
 ## 운석을 탄으로 부쉈을 때 떨어지는 광물 목록 [{grade, count}]
 static func drops_of(a: Enemy) -> Array:

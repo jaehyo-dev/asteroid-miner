@@ -1,4 +1,4 @@
-"""tools/build_run_sprites.py 테스트: 운석 금·깨짐 프레임 생성, 색 바꾸기, 흰 실루엣."""
+"""tools/build_run_sprites.py 테스트: 운석 금·깨짐 프레임 생성, 색 바꾸기."""
 
 import unittest
 
@@ -54,13 +54,6 @@ class BuildRunSpritesTest(unittest.TestCase):
         out = brs.recolor(img, brs.GOLD_MAP)
         self.assertEqual(out.getpixel((0, 0)), (0, 0, 0, 255), "외곽선은 그대로")
         self.assertEqual(out.getpixel((1, 0)), brs.GOLD_MAP[(98, 85, 101)] + (255,))
-
-    def test_흰_실루엣은_같은_모양(self):
-        rock = _rock()
-        white = brs.whiten(rock)
-        self.assertEqual(white.getchannel("A").tobytes(), rock.getchannel("A").tobytes())
-        self.assertTrue(all(p[:3] == (255, 255, 255) for p in white.getdata() if p[3]))
-
 
 if __name__ == "__main__":
     unittest.main()

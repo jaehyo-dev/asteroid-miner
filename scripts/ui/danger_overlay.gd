@@ -1,11 +1,11 @@
 class_name DangerOverlay
 extends Control
-## 피격·위험 표시 화면: 맞았을 때 붉은 번쩍임, 체력 낮음일 때 붉은 테두리 맥박.
+## 피격·위험 표시 화면: 맞았을 때 붉은 번쩍임과 짧은 가장자리 테두리, 체력 낮음일 때 붉은 테두리 맥박.
 ## 언제 보일지는 DangerAlert가 정하고, 여기서는 그리기만 한다.
 
 const COLOR_RED := Color(1.0, 0.15, 0.15)
 ## 번쩍임 최대 진하기, 테두리 두께와 최대 진하기
-const FLASH_ALPHA := 0.28
+const FLASH_ALPHA := 0.16
 const BORDER_WIDTH := 28.0
 const BORDER_ALPHA := 0.55
 ## 테두리를 몇 겹으로 그려 안쪽으로 갈수록 옅어지게 할지
@@ -27,7 +27,8 @@ func _draw() -> void:
 	var flash := alert.flash_strength()
 	if flash > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(COLOR_RED, FLASH_ALPHA * flash))
-	var border := alert.border_strength(time)
+	# 맞은 순간에도 가장자리가 짧게 붉어진다 (체력 낮음 맥박과 더 센 쪽)
+	var border := maxf(alert.border_strength(time), flash)
 	if border > 0.0:
 		var step := BORDER_WIDTH / BORDER_STEPS
 		for i in BORDER_STEPS:

@@ -59,6 +59,10 @@ var bonus := RiskBonus.new()
 var tip_time := 0.0
 ## 광물 보너스 글자 왼쪽 위치 (말풍선 꼬리가 가리킴)
 var _bonus_pos := Vector2.ZERO
+## 화면에 보이는 숫자 (실제 값까지 빠르게 카운트업): 파괴 수, 화물 가치, 등급별 광물 수
+var shown_kills := 0.0
+var shown_value := 0.0
+var shown_counts: Array[float] = [0.0, 0.0, 0.0, 0.0]
 
 
 func _ready() -> void:
@@ -79,7 +83,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(MARGIN, MARGIN + 10), "HP", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	_draw_bar(Vector2(MARGIN + 18, MARGIN + 4), sim.hp / sim.max_hp, hp_bar_color(alert, sim.time))
 	# 부순 적 수(운석·생명체)
-	draw_string(font, Vector2(MARGIN, MARGIN + 26), "파괴 %d" % sim.kills, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
+	draw_string(font, Vector2(MARGIN, MARGIN + 26), "파괴 %d" % roundi(shown_kills), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	# 주운 광물: 등급별 아이콘과 개수, 총 가치
 	var x := MARGIN
 	var cargo := sim.cargo
@@ -87,10 +91,10 @@ func _draw() -> void:
 		var icon := RunSprites.mineral(grade)
 		# 아이콘 크기가 등급마다 달라서 세로 가운데를 맞춘다
 		draw_texture(icon, Vector2(x, MARGIN + 38 - floorf(icon.get_height() / 2.0)))
-		var text := str(cargo.counts[grade])
+		var text := str(roundi(shown_counts[grade]))
 		draw_string(font, Vector2(x + icon.get_width() + 2, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 		x += icon.get_width() + 2 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
-	var cargo_line := cargo_text(cargo)
+	var cargo_line := cargo_text(cargo, roundi(shown_value))
 	draw_string(font, Vector2(MARGIN, MARGIN + 58), cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, cargo_color(cargo))
 	_draw_bonus(font, Vector2(MARGIN + font.get_string_size(cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE).x + 8, MARGIN + 58))
 	_draw_gate_info(font)
@@ -134,10 +138,16 @@ static func cargo_color(cargo: Cargo) -> Color:
 	return COLOR_VALUE.lerp(COLOR_FULL, Cargo.heaviness(cargo.fill_ratio()))
 
 
-## 화물칸 글자: "화물 12/80 · 가치 120" (꽉 차면 "화물 가득")
-static func cargo_text(cargo: Cargo) -> String:
+## 화물칸 글자: "화물 12/80 · 가치 120" (꽉 차면 "화물 가득"). value를 주면 그 값(카운트업 중인 보이는 값)을 쓴다
+static func cargo_text(cargo: Cargo, value: int = -1) -> String:
 	var label := "가득 " if cargo.is_full() else ""
-	return "화물 %s%d/%d · 가치 %d" % [label, cargo.size(), cargo.capacity, cargo.value()]
+	return "화물 %s%d/%d · 가치 %d" % [label, cargo.size(), cargo.capacity, cargo.value() if value < 0 else value]
+
+
+## 카운트업: 보이는 값을 목표 값으로 빠르게 옮긴다 (남은 차이의 COUNT_UP_RATE배/초, 최소 COUNT_UP_MIN/초). 줄어들 때도 같은 방식
+static func count_toward(shown: float, target: float, delta: float) -> float:
+	var speed := maxf(absf(target - shown) * Juice.COUNT_UP_RATE, Juice.COUNT_UP_MIN)
+	return move_toward(shown, target, speed * delta)
 
 
 ## 화물칸 가치 옆에 작게: [광물 아이콘 + 위쪽 화살표] "광물 보너스 +40%".
@@ -261,6 +271,11 @@ func show_banner(text: String, color: Color) -> void:
 
 ## 배너 시간 진행 (게임이 진행될 때만 부름)
 func step(delta: float) -> void:
+	if sim != null:
+		shown_kills = count_toward(shown_kills, sim.kills, delta)
+		shown_value = count_toward(shown_value, sim.cargo.value(), delta)
+		for g in shown_counts.size():
+			shown_counts[g] = count_toward(shown_counts[g], sim.cargo.counts[g], delta)
 	banner_time = maxf(banner_time - delta, 0.0)
 	tip_time = maxf(tip_time - delta, 0.0)
 

@@ -166,6 +166,7 @@ func _rebuild() -> void:
 	close_button.text = "닫기"
 	close_button.add_theme_font_size_override("font_size", FONT)
 	close_button.custom_minimum_size = Vector2(P * 40, P * 18)
+	MenuPanel.add_press_feel(close_button, P)
 	close_button.pressed.connect(func() -> void:
 		Sfx.play_click()
 		close())
@@ -218,6 +219,7 @@ func _research_card(id: String) -> PanelContainer:
 	var button := Button.new()
 	button.add_theme_font_size_override("font_size", FONT)
 	button.custom_minimum_size = Vector2(0, P * 16)
+	MenuPanel.add_press_feel(button, P)
 	if top:
 		button.text = "MAX"
 		button.disabled = true

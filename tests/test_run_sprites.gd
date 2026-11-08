@@ -61,9 +61,15 @@ func test_모든_시트가_있고_돌아가는_시트는_8방향() -> void:
 		assert_eq(RunSprites.frames("rock_%d_boom" % i), 8, "운석 깨짐 8프레임")
 
 
-func test_맞으면_보일_흰_실루엣은_원래_시트와_크기가_같음() -> void:
-	for name in ["rock_0", "rock_1", "rock_2", "rock_gold", "jelly", "bug", "guard"]:
-		assert_eq(RunSprites.tex(name, true).get_size(), RunSprites.tex(name).get_size(), name)
+func test_맞으면_흰색_섞는_셰이더로_번쩍임() -> void:
+	var sim := RunSim.new(3)
+	var view := WorldView.new()
+	view.sim = sim
+	add_child(view)
+	var flash: Node2D = view.get_node("Flash")
+	assert_true(flash.material is ShaderMaterial and (flash.material as ShaderMaterial).shader == WorldView.FLASH_SHADER, "흰색 섞는 셰이더")
+	assert_eq(Juice.ENEMY_FLASH_TIME, 0.05, "약 50ms")
+	view.queue_free()
 
 
 func test_칸_영역은_프레임과_방향으로_정해짐() -> void:
@@ -143,3 +149,30 @@ func test_부서지면_파괴_애니메이션과_파편이_생기고_끝나면_�
 		view.step(1.0 / 60.0)
 	assert_eq(view._booms.size(), 0, "애니메이션이 끝나면 사라짐")
 	view.queue_free()
+
+
+func test_HUD_숫자는_목표까지_빠르게_카운트업() -> void:
+	var v := 0.0
+	var frames := 0
+	while v < 100.0 and frames < 600:
+		v = Hud.count_toward(v, 100.0, 1.0 / 60.0)
+		frames += 1
+	assert_eq(v, 100.0, "목표에 정확히 붙음")
+	assert_true(frames > 3 and frames < 60, "1초 안에 빠르게 (%d프레임)" % frames)
+	assert_true(Hud.count_toward(0.0, 1.0, 1.0 / 60.0) > 0.0, "작은 차이도 움직임")
+	assert_true(Hud.count_toward(50.0, 40.0, 1.0 / 60.0) < 50.0, "줄어들 때도 따라감")
+
+
+func test_쏘면_뒤로_밀렸다_돌아옴() -> void:
+	var back := WorldView.recoil_offset(0.0, -PI / 2.0)  # 위를 볼 때 쏘면 아래로
+	assert_true(back.y > 0.0 and back.length() <= Juice.RECOIL_PX + 0.01, "뒤로 %s" % back)
+	assert_eq(WorldView.recoil_offset(Juice.RECOIL_TIME, 0.0), Vector2.ZERO, "%.2f초 뒤 제자리" % Juice.RECOIL_TIME)
+
+
+func test_클수록_깨지는_애니메이션이_느림() -> void:
+	var e := RunSim.Enemy.new()
+	var fps: Array[float] = []
+	for t in 3:
+		e.type = t
+		fps.append(WorldView.boom_fps(e))
+	assert_true(fps[0] > fps[1] and fps[1] > fps[2], "작음 > 중간 > 큼: %s" % [fps])

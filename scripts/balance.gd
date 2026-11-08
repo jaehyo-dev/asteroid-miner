@@ -226,8 +226,7 @@ const MINERAL_GRADES := [
 ]
 ## 광물 가치 1당 경험치. 등급별 경험치 = 가치 × 이 값 (반올림, 최소 1)
 const MINERAL_XP_PER_VALUE := 1.0
-## 광물이 떨어질 때 운석 자리에서 흩어지는 최대 거리
-const MINERAL_SCATTER := 8.0
+## (광물이 운석에서 튕겨 나가는 거리·감속은 scripts/juice.gd)
 ## 자석 범위: 이 안에 들어온 광물은 우주선으로 끌려온다.
 const MAGNET_RADIUS := 48.0
 ## 끌려오는 속도 (우주선보다 빨라야 따라잡는다)
@@ -268,10 +267,7 @@ const UP_RANGE_ADD := 0.2  ## 사거리 +20% (기본값 기준)
 const REPAIR_AMOUNT := 30.0
 
 # ── 피격·위험 표시 (조작감) ─────────────────────────
-## 맞았을 때 화면 흔들림 시간과 세기(픽셀), 붉은 번쩍임 시간
-const HIT_SHAKE_TIME := 0.25
-const HIT_SHAKE_STRENGTH := 3.0
-const HIT_FLASH_TIME := 0.2
+## (맞았을 때 화면 흔들림·붉은 번쩍임 수치는 scripts/juice.gd)
 ## 적이 탄에 맞으면 탄이 날아온 쪽으로 잠깐 튕기는 모션 시간 (그림만 밀림, 실제 위치는 그대로)
 const HIT_KNOCK_TIME := 0.12
 ## 이 비율 이하이면 체력 낮음 경고 상태

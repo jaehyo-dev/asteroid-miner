@@ -50,9 +50,12 @@ func _ready() -> void:
 	# 이전 버전 링크는 웹(GitHub Pages)에서만 의미가 있으므로 웹에서만 보여 준다.
 	old_versions_button.visible = OS.has_feature("web")
 	old_versions_button.pressed.connect(_on_old_versions_pressed)
+	# 버튼 눌림: 기지 화면 그림 1픽셀(= 3배) 내려감 + 밝아짐
+	MenuPanel.add_press_feel(old_versions_button, BasePanel.P)
 	# 전체 화면 버튼도 웹에서 브라우저가 허용할 때만 보인다 (전체 화면에 들어가면 App이 가로 고정을 시도)
 	fullscreen_button.visible = OS.has_feature("web") and bool(JavaScriptBridge.eval("!!document.fullscreenEnabled"))
 	fullscreen_button.pressed.connect(_on_fullscreen_pressed)
+	MenuPanel.add_press_feel(fullscreen_button, BasePanel.P)
 	save = SaveData.load_file()
 	panel.save = save
 	panel.closed.connect(_on_panel_closed)

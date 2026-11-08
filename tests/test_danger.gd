@@ -17,11 +17,21 @@ func test_맞으면_흔들림과_붉은_번쩍임이_잠깐_생김() -> void:
 	var alert := DangerAlert.new()
 	alert.update(STEP, true, 0.9)
 	assert_true(alert.shake > 0.0 and alert.flash > 0.0)
-	assert_true(alert.shake_offset(RandomNumberGenerator.new()).length() <= Balance.HIT_SHAKE_STRENGTH * 1.5)
-	_run(alert, maxf(Balance.HIT_SHAKE_TIME, Balance.HIT_FLASH_TIME) + 0.1, 0.9)
+	assert_true(alert.shake_offset(RandomNumberGenerator.new()).length() <= Juice.HIT_SHAKE_STRENGTH * 1.5)
+	_run(alert, maxf(Juice.HIT_SHAKE_TIME, Juice.HIT_FLASH_TIME) + 0.1, 0.9)
 	assert_eq(alert.shake, 0.0, "흔들림 끝")
 	assert_eq(alert.flash_strength(), 0.0, "번쩍임 끝")
 	assert_eq(alert.shake_offset(RandomNumberGenerator.new()), Vector2.ZERO)
+
+
+func test_약한_흔들림은_센_흔들림을_덮지_않음() -> void:
+	var alert := DangerAlert.new()
+	alert.update(STEP, true, 0.9)  # 피격: 중간 흔들림
+	alert.kick(Juice.BREAK_SHAKE_TIME, Juice.BREAK_SHAKE_STRENGTH)
+	assert_eq(alert.shake_strength, Juice.HIT_SHAKE_STRENGTH, "피격 흔들림 유지")
+	var calm := DangerAlert.new()
+	calm.kick(Juice.BREAK_SHAKE_TIME, Juice.BREAK_SHAKE_STRENGTH)
+	assert_true(calm.shake_offset(RandomNumberGenerator.new()).length() <= Juice.BREAK_SHAKE_STRENGTH * 1.5, "약한 흔들림")
 
 
 func test_체력이_충분하면_경고_없음() -> void:

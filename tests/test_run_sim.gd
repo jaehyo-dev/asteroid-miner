@@ -483,7 +483,46 @@ func test_부순_운석은_크기별_개수만큼_광물을_떨어뜨림() -> vo
 		_kill(sim, a)
 		assert_eq(sim.minerals.size(), int(Balance.ASTEROID_TYPES[type]["minerals"]), "%d번 크기" % type)
 		for m in sim.minerals:
-			assert_true(m.pos.distance_to(a.pos) <= Balance.MINERAL_SCATTER + 0.01, "운석 자리 근처")
+			assert_true(m.pos.is_equal_approx(a.pos), "운석 자리에서 나옴")
+			assert_true(m.vel.length() > 0.0, "튕겨 나가는 속도")
+
+
+func test_광물은_튕겨_나가며_감속해_멈춤() -> void:
+	var sim := _quiet_sim()
+	sim.player_pos = Vector2(1000, 1000)  # 자석 범위 밖
+	var a := _add_asteroid(sim, Vector2(0, 0), Vector2.ZERO, 2)
+	_kill(sim, a)
+	var m: RunSim.Mineral = sim.minerals[0]
+	var steps: Array[float] = []
+	var last := m.pos
+	for i in 60:
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		steps.append(m.pos.distance_to(last))
+		last = m.pos
+	assert_true(steps[0] > steps[5] and steps[5] > steps[20], "점점 느려짐 (ease-out): %s" % [steps.slice(0, 6)])
+	assert_eq(m.vel, Vector2.ZERO, "결국 멈춤")
+	var d := m.pos.length()
+	assert_true(d >= Juice.MINERAL_POP_MIN * 0.8 and d <= Juice.MINERAL_POP_MAX + 0.01, "튕긴 거리 %f" % d)
+
+
+func test_자석은_가까울수록_빠름() -> void:
+	var r := Balance.MAGNET_RADIUS
+	assert_true(is_equal_approx(RunSim.magnet_speed(r, r), Balance.MAGNET_SPEED * Juice.MAGNET_FAR), "범위 끝")
+	assert_true(is_equal_approx(RunSim.magnet_speed(r * 3.0, r), Balance.MAGNET_SPEED * Juice.MAGNET_FAR), "범위 밖도 기본")
+	assert_true(RunSim.magnet_speed(r * 0.2, r) > RunSim.magnet_speed(r * 0.6, r), "가까울수록 빠름")
+	assert_true(is_equal_approx(RunSim.magnet_speed(0.0, r), Balance.MAGNET_SPEED * Juice.MAGNET_NEAR), "바로 옆")
+
+
+func test_레벨업_슬로모션_동안만_고르기_전에도_진행() -> void:
+	var sim := _quiet_sim()
+	sim.gain_xp(Upgrades.xp_to_next(1))
+	assert_false(sim.choices.is_empty())
+	var t := sim.time
+	sim.update(0.1, Vector2.ZERO)
+	assert_eq(sim.time, t, "고르는 중엔 멈춤")
+	sim.run_during_levelup = true
+	sim.update(0.1, Vector2.ZERO)
+	assert_true(sim.time > t, "슬로모션 동안은 진행")
 
 
 func test_탄으로_부수면_실제로_광물이_나옴() -> void:

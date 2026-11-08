@@ -5,7 +5,7 @@
 - 운석 시트: 열 0 = 멀쩡함, 1·2 = 금 간 단계. 깨지는 애니메이션은 따로 (*_boom.png, 돌리지 않음).
   중간 운석은 팩 Asteroid 01 그대로, 작은·큰 운석은 Codex 그림(assets/sprites/run/rock_*_base.png)에서
   금과 깨지는 프레임을 팩 운석과 같은 색·순서로 만든다 (금 → 용암빛 → 조각이 흩어지며 사라짐).
-- 탄에 맞은 순간 보여 줄 흰 실루엣(*_white.png)도 만든다.
+- 탄에 맞은 순간 흰 번쩍임은 게임의 셰이더(scripts/flash_white.gdshader)가 그려서 따로 그림을 만들지 않는다.
 - 황금 운석은 팩 운석의 바위 색만 팔레트의 금색으로 바꾼다. 고대 경비선 탄은 내 탄(주황)과 구분되게 빨간색으로 바꾼다.
 
 다시 만들기: python3 tools/build_run_sprites.py   (같은 입력이면 항상 같은 결과: 무작위는 시드 고정)
@@ -56,13 +56,6 @@ def recolor(img: Image.Image, mapping: dict) -> Image.Image:
             if a and (r, g, b) in mapping:
                 px[x, y] = mapping[(r, g, b)] + (a,)
     return img
-
-
-def whiten(img: Image.Image) -> Image.Image:
-    """맞았을 때 잠깐 보여 주는 흰 실루엣 (같은 모양, 불투명한 곳만 흰색)."""
-    out = Image.new("RGBA", img.size, (255, 255, 255, 0))
-    out.putalpha(img.getchannel("A"))
-    return out
 
 
 def center_in(img: Image.Image, cell: int) -> Image.Image:
@@ -128,24 +121,26 @@ def crack_frames(base: Image.Image, seed: int) -> list[Image.Image]:
             img.putpixel((x, y), LAVA[0] + (255,) if level == 1 else LAVA[1] + (255,))
         if level == 2:
             # 금 둘레가 달아오른다 (금 바로 옆 바위 픽셀을 진한 주황, 가끔 빨강으로)
+            # 팩 Explode 2번처럼 굵게: 금 둘레 8칸 대부분이 진한 주황·빨강으로 (용암 칸)
             for x, y in pts:
-                for dx, dy in ((1, 0), (0, 1)):
+                for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, -1)):
                     q = (x + dx, y + dy)
-                    if q in solid and q not in pts and rng.random() < 0.5:
-                        img.putpixel(q, (LAVA[2] if rng.random() < 0.7 else LAVA[3]) + (255,))
+                    if q in solid and q not in pts and rng.random() < 0.7:
+                        img.putpixel(q, (LAVA[2] if rng.random() < 0.6 else LAVA[3]) + (255,))
         out.append(img)
     return out
 
 
 def explode_frames(base: Image.Image, cell: int, seed: int, count: int = 8) -> list[Image.Image]:
-    """깨지는 애니메이션 count장 (cell 칸 가운데 기준).
-    0 멀쩡함 → 1·2 금 → 3~ 조각(보로노이)으로 나뉘어 바깥으로 흩어진다.
-    팩 운석처럼 조각마다 바위 머리 뒤로 주황 꼬리가 달리고, 머리는 작아지고 꼬리만 남았다가 사라진다."""
+    """깨지는 애니메이션 count장 (cell 칸 가운데 기준). 팩 운석 Explode처럼 굵게:
+    0 멀쩡함 → 1·2 금(2는 굵은 용암 금) → 3~ 운석 그림을 굵은 바위 덩어리(보로노이)로 잘라 바깥으로 흩는다.
+    덩어리마다 뒤로 넓은 원뿔 불꽃(머리 쪽 진한 주황 → 끝 노랑)이 달리고, 덩어리가 작아져 사라지면 머리 자리는 빨강.
+    덩어리 수·크기·불꽃은 운석 크기에 비례해서 큰 운석이 가장 묵직하게 깨진다."""
     rng = random.Random(seed)
     cracked = crack_frames(base, seed)
     frames = [center_in(base, cell), center_in(cracked[0], cell), center_in(cracked[1], cell)]
     w, h = base.size
-    pieces_n = max(5, min(12, (w * h) // 220))
+    pieces_n = max(5, min(16, (w * h) // 220))
     seeds = [(rng.uniform(0, w), rng.uniform(0, h)) for _ in range(pieces_n)]
     pieces: dict[int, list[tuple[int, int, tuple]]] = {i: [] for i in range(pieces_n)}
     src = cracked[1]
@@ -157,9 +152,21 @@ def explode_frames(base: Image.Image, cell: int, seed: int, count: int = 8) -> l
                 pieces[i].append((x, y, c))
     flying = count - 3
     off = ((cell - w) // 2, (cell - h) // 2)
+    # 프레임별(0 → 끝) 덩어리 크기, 불꽃 폭, 불꽃 길이 비율
+    head_k = [1.0, 0.7, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0][:flying]
+    width_k = [1.0, 0.85, 0.55, 0.3, 0.15, 0.1, 0.1, 0.1][:flying]
+    length_k = [1.0, 1.25, 1.1, 0.75, 0.4, 0.3, 0.3, 0.3][:flying]
     for f in range(flying):
         t = (f + 1) / flying  # 0 → 1
+        ease = 1.0 - (1.0 - t) ** 2  # 처음에 빨리 튀어 나가고 느려진다
         img = Image.new("RGBA", (cell, cell), (0, 0, 0, 0))
+
+        def put(x: float, y: float, color: tuple) -> None:
+            q = (int(round(x)) + off[0], int(round(y)) + off[1])
+            if 0 <= q[0] < cell and 0 <= q[1] < cell:
+                img.putpixel(q, color + (255,))
+
+        heads = []
         for i, pts in pieces.items():
             if not pts:
                 continue
@@ -167,27 +174,30 @@ def explode_frames(base: Image.Image, cell: int, seed: int, count: int = 8) -> l
             py = sum(p[1] for p in pts) / len(pts)
             d = (px - w / 2.0, py - h / 2.0)
             n = math.hypot(*d) or 1.0
-            push = (cell / 2.0 - max(w, h) / 2.0) * t * (0.7 + 0.3 * ((i * 7919) % 10) / 10.0)
-            dx, dy = d[0] / n * push, d[1] / n * push
             ux, uy = d[0] / n, d[1] / n
-            head = (px + dx, py + dy)
-
-            def put(x: float, y: float, color: tuple) -> None:
-                q = (int(round(x)) + off[0], int(round(y)) + off[1])
-                if 0 <= q[0] < cell and 0 <= q[1] < cell:
-                    img.putpixel(q, color + (255,))
-
-            # 꼬리: 머리에서 가운데 쪽으로 뻗는 주황 줄 (두께 2 → 1, 끝은 노랑). 처음엔 길고 점점 짧아진다
-            tail = max(2.0, math.sqrt(len(pts)) * (1.4 - t))
-            for s in range(int(tail)):
-                k = s / tail
-                x, y = head[0] - ux * s, head[1] - uy * s
-                color = LAVA[0] if k > 0.7 else (LAVA[1] if k > 0.3 else LAVA[2])
-                put(x, y, color)
-                if k < 0.5 and t < 0.7:
-                    put(x - uy, y + ux, LAVA[2])
-            # 머리: 바위 조각이 작아지다 사라진다 (마지막 두 프레임은 꼬리만)
-            radius = math.sqrt(len(pts)) * 0.6 * (1.0 - t * 1.4)
+            push = (cell / 2.0 - max(w, h) / 2.0) * ease * (0.75 + 0.25 * ((i * 7919) % 10) / 10.0)
+            dx, dy = ux * push, uy * push
+            hx, hy = px + dx, py + dy
+            size = math.sqrt(len(pts))
+            # 원뿔 불꽃: 머리에서 가운데 쪽으로 뻗고, 머리 쪽이 넓고 끝으로 갈수록 좁아진다
+            length = max(2.0, size * 1.4 * length_k[f])
+            width = max(1.0, size * 0.6 * width_k[f])
+            steps = int(length * 2)
+            for s_i in range(steps):
+                s_ = s_i / 2.0
+                k = s_ / length
+                half = width * (1.0 - k) / 2.0
+                color = LAVA[2] if k < 0.25 else (LAVA[1] if k < 0.7 else LAVA[0])
+                if head_k[f] == 0.0 and s_ < 1.5:
+                    color = LAVA[3]  # 덩어리가 사라진 자리는 빨갛게 달아오른 끝
+                cx_, cy_ = hx - ux * s_, hy - uy * s_
+                o = -half
+                while o <= half:
+                    put(cx_ - uy * o, cy_ + ux * o, color)
+                    o += 0.5
+            heads.append((pts, px, py, dx, dy, size * 0.75 * head_k[f]))
+        # 바위 덩어리는 불꽃 위에 (운석 그림 그대로, 가운데에서 멀수록 깎여 작아짐)
+        for pts, px, py, dx, dy, radius in heads:
             for x, y, c in pts:
                 if math.hypot(x - px, y - py) <= radius:
                     put(x + dx, y + dy, c[:3])
@@ -278,9 +288,6 @@ def build() -> None:
     gold.save(f"{OUT}/rock_gold_boom.png")
     rock_sheets("rock_0", Image.open(f"{OUT}/rock_small_base.png").convert("RGBA"), 64, 11)
     rock_sheets("rock_2", Image.open(f"{OUT}/rock_large_base.png").convert("RGBA"), 144, 23)
-    # 탄에 맞으면 흰색으로 번쩍이는 것들
-    for name in ["rock_0", "rock_1", "rock_2", "rock_gold", "jelly", "bug", "guard"]:
-        whiten(Image.open(f"{OUT}/{name}.png")).save(f"{OUT}/{name}_white.png")
 
 
 if __name__ == "__main__":

@@ -19,12 +19,11 @@ const CELL := {
 static var _tex := {}
 
 
-## 시트 텍스처 (white면 흰 실루엣 *_white.png)
-static func tex(name: String, white := false) -> Texture2D:
-	var key := name + ("_white" if white else "")
-	if not _tex.has(key):
-		_tex[key] = load(DIR + key + ".png")
-	return _tex[key]
+## 시트 텍스처
+static func tex(name: String) -> Texture2D:
+	if not _tex.has(name):
+		_tex[name] = load(DIR + name + ".png")
+	return _tex[name]
 
 
 ## 시트의 프레임 수 (열 수)
@@ -40,10 +39,10 @@ static func region(name: String, frame: int, dir := 0) -> Rect2:
 
 
 ## center(정수 픽셀)에 한 칸을 그린다.
-static func draw(ci: CanvasItem, name: String, frame: int, dir: int, center: Vector2, white := false, modulate := Color.WHITE) -> void:
+static func draw(ci: CanvasItem, name: String, frame: int, dir: int, center: Vector2, modulate := Color.WHITE) -> void:
 	var c: int = CELL[name]
 	var top_left := center.round() - Vector2(c / 2, c / 2)
-	ci.draw_texture_rect_region(tex(name, white), Rect2(top_left, Vector2(c, c)), region(name, frame, dir), modulate)
+	ci.draw_texture_rect_region(tex(name), Rect2(top_left, Vector2(c, c)), region(name, frame, dir), modulate)
 
 
 ## 운석 시트 이름 (크기 번호, 황금 운석)

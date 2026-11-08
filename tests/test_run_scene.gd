@@ -181,3 +181,56 @@ func test_새로운_경비선과_습격_황금_운석_배너() -> void:
 	run._announce(PackedStringArray(["raid_golden"]))
 	assert_true(run.hud.banner_text.contains("황금 운석"), run.hud.banner_text)
 	run.queue_free()
+
+
+func test_레벨업하면_슬로모션과_빛_뒤에_강화_메뉴() -> void:
+	var run: Node = await _start()
+	run.sim.invuln = 1.0e9
+	run.sim.xp = Upgrades.xp_to_next(run.sim.level) - 1
+	run.sim.drop_mineral(run.sim.player_pos, 0)  # 다음 프레임에 주워 레벨업
+	await wait_frames(2)
+	assert_true(run.slowmo > 0.0, "슬로모션 시작")
+	assert_false(run.menu.visible, "슬로모션 동안은 메뉴가 아직 안 뜸")
+	assert_true(run.world.levelup_light > 0.0, "빛")
+	var t: float = run.sim.time
+	await wait_frames(3)
+	assert_true(run.sim.time > t, "느리게라도 진행")
+	await get_tree().create_timer(Juice.LEVELUP_SLOWMO_TIME + 0.1).timeout
+	assert_true(run.menu.visible and run.menu.title_text().begins_with("레벨 업"), "슬로모션 뒤 메뉴")
+	assert_false(run.sim.run_during_levelup, "고르는 동안은 멈춤")
+	run.queue_free()
+
+
+func test_큰_운석과_황금_운석만_히트스톱() -> void:
+	var run: Node = await _start()
+	var small := RunSim.Enemy.new()
+	small.type = 0
+	run.sim.destroyed.append(small)
+	run._start_juice()
+	assert_eq(run.hitstop, 0.0, "작은 운석은 없음")
+	var big := RunSim.Enemy.new()
+	big.type = 2
+	run.sim.destroyed.append(big)
+	run._start_juice()
+	assert_eq(run.hitstop, Juice.HITSTOP_BIG)
+	assert_true(run.alert.shake > 0.0 and run.alert.shake_strength == Juice.BREAK_SHAKE_STRENGTH, "약한 흔들림")
+	var t: float = run.sim.time
+	await wait_frames(1)
+	assert_eq(run.sim.time, t, "히트스톱 동안 시뮬레이션 멈춤")
+	await get_tree().create_timer(Juice.HITSTOP_GOLD + 0.05).timeout
+	assert_true(run.sim.time > t, "다시 진행")
+	run.queue_free()
+
+
+func test_버튼은_눌리면_1픽셀_내려가고_밝아졌다_돌아옴() -> void:
+	var run: Node = await _start()
+	var b: Button = run.pause_button
+	var y := b.position.y
+	b.button_down.emit()
+	assert_eq(b.position.y, y + Juice.BUTTON_PRESS_PX)
+	assert_eq(b.self_modulate, Juice.BUTTON_PRESS_MODULATE)
+	assert_eq(b.size, b.get_combined_minimum_size().max(b.size), "크기는 그대로")
+	b.button_up.emit()
+	assert_eq(b.position.y, y)
+	assert_eq(b.self_modulate, Color.WHITE)
+	run.queue_free()

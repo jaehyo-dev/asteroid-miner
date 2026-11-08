@@ -8,8 +8,10 @@ extends RefCounted
 ## - 낮은 체력에서 또 맞으면 테두리가 짧게 다시 붉어지고, 경고음은 LOW_HP_SOUND_COOLDOWN에 한 번만
 ## - 체력이 LOW_HP_RATIO 위로 회복되면 경고 상태 초기화
 
-## 남은 화면 흔들림 시간
+## 남은 화면 흔들림 시간, 이번 흔들림의 전체 시간과 세기(픽셀)
 var shake := 0.0
+var shake_total := 0.0
+var shake_strength := 0.0
 ## 남은 붉은 번쩍임 시간
 var flash := 0.0
 ## 남은 테두리 맥박 시간과, 이번 맥박의 전체 길이 (그리기에서 서서히 사라지게)
@@ -29,8 +31,8 @@ func update(delta: float, hit: bool, hp_ratio: float) -> bool:
 	border = maxf(border - delta, 0.0)
 	_sound_cooldown = maxf(_sound_cooldown - delta, 0.0)
 	if hit:
-		shake = Balance.HIT_SHAKE_TIME
-		flash = Balance.HIT_FLASH_TIME
+		kick(Juice.HIT_SHAKE_TIME, Juice.HIT_SHAKE_STRENGTH)
+		flash = Juice.HIT_FLASH_TIME
 	if hp_ratio > Balance.LOW_HP_RATIO:
 		# 회복되면 경고 상태 초기화 (다음에 떨어지면 다시 "처음"으로 친다)
 		low = false
@@ -61,17 +63,26 @@ func clear_effects() -> void:
 	border_total = 0.0
 
 
+## 화면 흔들림을 건다 (피격 = 중간, 큰 운석 깨짐 = 약함). 지금 흔들림이 더 세면 그대로 둔다.
+func kick(duration: float, strength: float) -> void:
+	if shake > 0.0 and shake_strength * shake / shake_total >= strength:
+		return
+	shake = duration
+	shake_total = duration
+	shake_strength = strength
+
+
 ## 화면 흔들림 위치: 남은 시간에 비례해 약해진다.
 func shake_offset(random: RandomNumberGenerator) -> Vector2:
 	if shake <= 0.0:
 		return Vector2.ZERO
-	var strength := Balance.HIT_SHAKE_STRENGTH * shake / Balance.HIT_SHAKE_TIME
+	var strength := shake_strength * shake / shake_total
 	return Vector2(random.randf_range(-1.0, 1.0), random.randf_range(-1.0, 1.0)).round() * ceilf(strength)
 
 
 ## 붉은 번쩍임 세기 (0~1)
 func flash_strength() -> float:
-	return flash / Balance.HIT_FLASH_TIME
+	return flash / Juice.HIT_FLASH_TIME
 
 
 ## 테두리 맥박 세기 (0~1): 빠르게 맥박치며 끝으로 갈수록 사라진다.
