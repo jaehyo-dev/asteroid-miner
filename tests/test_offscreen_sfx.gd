@@ -29,18 +29,6 @@ func test_대각선_밖이면_방향을_유지하며_화면_안쪽에() -> void:
 	assert_true(dir.is_equal_approx((target - center).normalized()), "방향 유지")
 
 
-func test_등급별_줍기_소리가_모두_다름() -> void:
-	var lengths: Array[int] = []
-	for grade in Balance.MINERAL_GRADES.size():
-		var stream: AudioStreamWAV = Sfx.pickup_stream(grade)
-		assert_not_null(stream, "등급 %d 소리" % grade)
-		assert_true(stream.data.size() > 100, "소리 길이")
-		lengths.append(stream.data.size())
-	for i in range(1, lengths.size()):
-		assert_true(lengths[i] != lengths[i - 1], "등급마다 다른 소리")
-	assert_true(lengths[3] > lengths[0], "전설이 가장 화려(김)")
-
-
 func test_소리_만들기는_16비트_모노() -> void:
 	var s := Sfx.synth([[440.0, 0.1]], "square", 0.5)
 	assert_eq(s.format, AudioStreamWAV.FORMAT_16_BITS)

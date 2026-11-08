@@ -78,3 +78,8 @@ const COUNT_UP_MIN := 20.0
 ## 버튼 눌림: 1픽셀 내려가고 밝기가 바뀜 (크기 변화 금지: 정수 배율 규칙)
 const BUTTON_PRESS_PX := 1
 const BUTTON_PRESS_MODULATE := Color(1.35, 1.35, 1.35)
+
+# ── 소리 ─────────────────────
+## 광물 연속 줍기: 앞 줍기에서 이 시간(초) 안에 또 주우면 음이 1반음씩 올라감, 최대 반음 수
+const PICKUP_COMBO_WINDOW := 1.0
+const PICKUP_COMBO_MAX_SEMITONES := 12

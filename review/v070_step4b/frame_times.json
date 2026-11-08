@@ -1,0 +1,38 @@
+[
+  {
+    "size": "pc_1280x720",
+    "cpu": "1x",
+    "frames": 396,
+    "avg_ms": "25.3",
+    "p95_ms": "33.4",
+    "max_ms": "50.0",
+    "fps": "39.5",
+    "over33": 43,
+    "last_stress": "STRESS menu=0 enemies=120 bullets=101 minerals=300 debris=155 fps=37 process_ms=28.4 draw_calls=1193",
+    "errors": 0
+  },
+  {
+    "size": "pc_1280x720",
+    "cpu": "4x",
+    "frames": 155,
+    "avg_ms": "64.8",
+    "p95_ms": "83.4",
+    "max_ms": "116.7",
+    "fps": "15.4",
+    "over33": 143,
+    "last_stress": "STRESS menu=0 enemies=120 bullets=63 minerals=300 debris=51 fps=16 process_ms=65.5 draw_calls=1181",
+    "errors": 0
+  },
+  {
+    "size": "phone_844x390",
+    "cpu": "4x",
+    "frames": 146,
+    "avg_ms": "69.1",
+    "p95_ms": "83.4",
+    "max_ms": "116.7",
+    "fps": "14.5",
+    "over33": 145,
+    "last_stress": "STRESS menu=0 enemies=120 bullets=70 minerals=300 debris=62 fps=15 process_ms=74.0 draw_calls=1163",
+    "errors": 0
+  }
+]

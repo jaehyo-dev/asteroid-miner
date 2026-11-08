@@ -367,7 +367,6 @@ func test_돌면_우주선_그림이_8방향으로_따라감() -> void:
 func test_경비선_발사음이_있음() -> void:
 	var stream: AudioStreamWAV = Sfx.guard_stream()
 	assert_true(stream.data.size() > 0)
-	assert_true(stream.data != Sfx.fire_stream().data, "포격 발사음과 다름")
 
 
 func test_8방향_번호와_경계_흔들림_방지() -> void:

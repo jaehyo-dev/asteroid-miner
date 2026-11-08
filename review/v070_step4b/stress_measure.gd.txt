@@ -1,0 +1,43 @@
+extends Node
+## 성능 측정용 (임시 복사본에만 넣음, 게임 저장소에는 없음): 출격 화면에 적·운석을 가득 채우고 계속 부수게 한다.
+var run: Node
+var t := 0.0
+var frames := 0
+var log_t := 0.0
+
+func _ready() -> void:
+	await get_tree().create_timer(2.0).timeout
+	get_tree().change_scene_to_file("res://scenes/run.tscn")
+	await get_tree().create_timer(1.0).timeout
+	run = get_tree().current_scene
+	run.sim.bullet_count = 5
+	run.sim.fire_interval = 0.05
+	run.sim.fire_range = 400.0
+
+func _process(delta: float) -> void:
+	if run == null or not is_instance_valid(run):
+		return
+	var sim = run.sim
+	if run.current_menu != 0:
+		run.menu.choose(0)  # 레벨업 카드가 뜨면 바로 골라 계속 진행 (측정 중 멈추지 않게)
+	sim.invuln = 99.0
+	sim.bullet_count = 5  # 강화를 고르면 능력치가 다시 계산되므로 매 프레임 다시 넣음
+	sim.fire_interval = 0.05
+	sim.fire_range = 400.0
+	sim.hp = sim.max_hp
+	t += delta
+	# 적·운석을 화면 안팎에 120개 정도로 유지 (운석 3크기 + 해파리·날벌레)
+	while sim.enemies.size() < 120:
+		var a: RunSim.Enemy
+		var r := randi() % 6
+		if r < 4:
+			a = sim.spawn_asteroid()
+		else:
+			a = sim.spawn_creature("jelly" if r == 4 else "bug")
+		a.pos = sim.player_pos + Vector2.from_angle(randf() * TAU) * randf_range(60.0, 320.0)
+	log_t += delta
+	frames += 1
+	if log_t >= 1.0:
+		print("STRESS menu=%d " % run.current_menu + "enemies=%d bullets=%d minerals=%d debris=%d fps=%d process_ms=%.1f draw_calls=%d" % [sim.enemies.size(), sim.bullets.size(), sim.minerals.size(), run.world._debris.size(), frames, Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
+		log_t = 0.0
+		frames = 0

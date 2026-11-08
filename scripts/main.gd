@@ -127,10 +127,10 @@ func press(id: String) -> void:
 		"ship":
 			launch()
 		"drone":
-			Sfx.play_click()
+			Sfx.play("click")
 			show_toast(DRONE_NOTICE)
 		_:
-			Sfx.play_open()
+			Sfx.play("open")
 			panel.open(id)
 
 

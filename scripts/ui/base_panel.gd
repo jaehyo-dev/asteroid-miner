@@ -145,7 +145,7 @@ func close() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if visible and event.is_action_pressed("pause"):
-		Sfx.play_click()
+		Sfx.play("click")
 		close()
 		get_viewport().set_input_as_handled()
 
@@ -168,7 +168,7 @@ func _rebuild() -> void:
 	close_button.custom_minimum_size = Vector2(P * 40, P * 18)
 	MenuPanel.add_press_feel(close_button, P)
 	close_button.pressed.connect(func() -> void:
-		Sfx.play_click()
+		Sfx.play("click")
 		close())
 	header.add_child(close_button)
 	_content.add_child(header)
@@ -240,7 +240,7 @@ func _buy(id: String) -> void:
 	if not BaseUpgrades.buy(save, id):
 		return
 	save.save_file()
-	Sfx.play_pickup(2)
+	Sfx.play("pickup_2")
 	bought.emit(id)
 	_rebuild()
 	# 산 카드에 포커스를 남긴다 (막혔으면 닫기 버튼으로)

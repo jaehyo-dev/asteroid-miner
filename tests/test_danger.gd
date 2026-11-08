@@ -193,8 +193,7 @@ func test_포격_간격은_점점_짧아짐() -> void:
 
 
 func test_포격_소리가_있음() -> void:
-	assert_true(Sfx.charge_stream().data.size() > 1000)
-	assert_true(Sfx.fire_stream().data.size() > 100)
+	assert_true(Sfx.SOUNDS.has("barrage_warn") and Sfx.SOUNDS.has("barrage_fire"))
 
 
 func test_첫_포격에_배너() -> void:

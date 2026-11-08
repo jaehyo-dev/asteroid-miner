@@ -95,7 +95,7 @@ var picked: Array[Dictionary] = []
 ## "new_jelly"·"new_bug"·"new_guard"(처음 등장), "guard_charge"·"guard_fire"(고대 경비선),
 ## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석),
 ## "gate_open"·"gate_close"(워프 게이트), "warp_charge"·"warp_cancel"·"warp_done"(워프 충전),
-## "cargo_heavy"(화물이 무거워 처음 느려짐)
+## "cargo_heavy"(화물이 무거워 처음 느려짐), "hit_rock"·"hit_enemy"(탄이 운석·적에 맞음, 맞은 수만큼)
 var events: PackedStringArray = []
 ## 탄으로 부순 적 수 (운석·황금 운석·생명체)
 var kills := 0
@@ -565,6 +565,7 @@ func _check_bullet_hits() -> void:
 				a.flash = Juice.ENEMY_FLASH_TIME
 				a.hit_dir = b.vel.normalized()
 				a.hit_time = Balance.HIT_KNOCK_TIME
+				events.append("hit_rock" if a.kind == ROCK else "hit_enemy")
 				hit = true
 				break
 		if not hit:

@@ -39,6 +39,8 @@ var _shake_rng := RandomNumberGenerator.new()
 var hitstop := 0.0
 ## 레벨업 슬로모션 남은 시간 (끝나면 강화 카드가 뜬다)
 var slowmo := 0.0
+## 광물 연속 줍기 음 높이
+var _combo := PickupCombo.new()
 
 
 func _ready() -> void:
@@ -51,7 +53,9 @@ func _ready() -> void:
 	hud.sim = sim
 	hud.alert = alert
 	danger.alert = alert
-	pause_button.pressed.connect(pause)
+	pause_button.pressed.connect(func() -> void:
+		Sfx.play("click")
+		pause())
 	MenuPanel.add_press_feel(pause_button)
 	menu.chosen.connect(_on_menu_chosen)
 	# 폰을 세로로 들면 일시 정지 (가로로 돌리면 일시 정지 메뉴에서 이어서 한다)
@@ -82,7 +86,7 @@ func _process(delta: float) -> void:
 		_start_juice()
 		world.levelup_light = slowmo / Juice.LEVELUP_SLOWMO_TIME
 		_announce(gate_view.step(sim_delta, sim.events))
-		_play_pickup_sounds()
+		_play_sounds()
 		if alert.update(delta, sim.events.has("hit"), sim.hp / sim.max_hp):
 			Sfx.play_warning()
 		hud.step(delta)
@@ -143,10 +147,11 @@ func _announce(events: PackedStringArray) -> void:
 			hud.show_banner("??? 의 포격", BARRAGE_BANNER_COLOR)
 		elif e == "cargo_heavy":
 			hud.show_banner("화물이 무거워 느려져요", Hud.COLOR_FULL)
-		elif e == "barrage_charge":
-			Sfx.play_charge()
+			Sfx.play("cargo_heavy")
+		elif e == "barrage_warning":
+			Sfx.play("barrage_warn")
 		elif e == "barrage_fire":
-			Sfx.play_fire()
+			Sfx.play("barrage_fire")
 		elif e == "guard_fire":
 			Sfx.play_guard()
 		elif e == "gate_open":
@@ -199,13 +204,36 @@ func _discover() -> void:
 		save.save_file()
 
 
-## 이번 프레임에 주운 광물의 효과음. 같은 등급은 한 프레임에 한 번만 낸다 (한꺼번에 주워도 시끄럽지 않게).
-func _play_pickup_sounds() -> void:
+## 이번 프레임 사건의 효과음: 발사, 맞음, 깨짐(크기별)·적 파괴, 피격, 레벨업, 광물 줍기.
+## 같은 소리가 많이 겹치는 것은 Sfx.play가 동시 재생 수로 막는다.
+func _play_sounds() -> void:
+	for e in sim.events:
+		if e == "shoot" or e == "hit_rock" or e == "hit_enemy":
+			Sfx.play(e)
+		elif e == "hit":
+			Sfx.play("player_hit")
+		elif e == "levelup":
+			Sfx.play("levelup")
+	for a in sim.destroyed + sim.crashed:
+		Sfx.play(break_sound(a))
+	# 줍기: 같은 등급은 한 프레임에 한 번만, 1초 안에 연속으로 주우면 음이 올라감
+	if sim.picked.is_empty():
+		return
+	var pitch := PickupCombo.pitch_of(_combo.pick(sim.time))
 	var played := {}
 	for p in sim.picked:
 		if not played.has(p["grade"]):
 			played[p["grade"]] = true
-			Sfx.play_pickup(p["grade"])
+			Sfx.play("pickup_%d" % p["grade"], 0.0, pitch)
+
+
+## 부서진 적의 소리 이름: 운석은 크기별(황금 운석은 큰 것과 같음), 생명체·경비선은 적 파괴
+static func break_sound(a: RunSim.Enemy) -> String:
+	if a.kind != RunSim.ROCK:
+		return "enemy_destroy"
+	if a.golden:
+		return "break_big"
+	return ["break_small", "break_mid", "break_big"][clampi(a.type, 0, 2)]
 
 
 ## 숫자키(윗줄 1~9, 키패드 1~9) → 0부터 시작하는 번호. 숫자키가 아니면 -1.
@@ -253,7 +281,7 @@ func _change_setting(index: int) -> void:
 		App.settings.cycle_sfx()
 		App.apply_settings()
 	App.settings.save_file()
-	Sfx.play_click()  # 바뀐 효과음 크기를 바로 들려준다
+	Sfx.play("click")  # 바뀐 효과음 크기를 바로 들려준다
 	menu.show_menu("일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", _pause_options())
 	menu.buttons()[index].grab_focus()
 
@@ -295,6 +323,7 @@ func _show_level_up() -> void:
 			label += " Lv%d" % next
 		options.append("%d. %s\n%s" % [i + 1, label, Upgrades.describe(id)])
 	_open_menu(Menu.LEVEL_UP, "레벨 업! Lv %d" % (sim.level - sim.pending_levelups + 1), "강화를 하나 고르세요", options, Balance.LEVEL_UP_INPUT_DELAY)
+	Sfx.play("card_show")
 	menu.pop_in()  # 카드가 아래에서 튀어 오르며 등장 (카드 화면 자체는 5단계에서 새로 만듦)
 
 
@@ -322,6 +351,10 @@ func _close_menu() -> void:
 
 
 func _on_menu_chosen(index: int) -> void:
+	if current_menu == Menu.LEVEL_UP:
+		Sfx.play("card_pick")
+	elif not (current_menu == Menu.PAUSE and (index == PAUSE_SHAKE or index == PAUSE_SFX)):
+		Sfx.play("click")  # 설정 버튼은 바뀐 크기로 _change_setting에서 딸깍
 	match current_menu:
 		Menu.PAUSE:
 			if index == 0:

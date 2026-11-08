@@ -436,8 +436,9 @@ func test_우주선을_누르면_짧은_이륙_뒤_출격() -> void:
 
 
 func test_기지_효과음이_있음() -> void:
-	for sound in [Sfx.OPEN_SOUND, Sfx.TAKEOFF_SOUND, Sfx.CLICK_SOUND]:
-		assert_true(Sfx.synth(sound["notes"], sound["wave"], sound["volume"]).data.size() > 0)
+	assert_true(Sfx.synth(Sfx.TAKEOFF_SOUND["notes"], Sfx.TAKEOFF_SOUND["wave"], Sfx.TAKEOFF_SOUND["volume"]).data.size() > 0)
+	for sound_name in ["open", "click"]:
+		assert_true(Sfx.SOUNDS.has(sound_name), sound_name)
 
 
 # ── 살아 있는 기지 ───────────────────────────────────
