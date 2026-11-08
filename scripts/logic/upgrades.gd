@@ -33,7 +33,7 @@ static func describe(id: String) -> String:
 		"magnet":
 			return "광물 끄는 범위 +%d%%" % roundi(Balance.UP_MAGNET_ADD * 100.0)
 		"speed":
-			return "이동 속도 +%d%%" % roundi(Balance.UP_SPEED_ADD * 100.0)
+			return "이동 속도 +%d%% (화물이 무거워도 빠르게)" % roundi(Balance.UP_SPEED_ADD * 100.0)
 		"max_hp":
 			return "최대 체력 +%s, 그만큼 회복" % _num(Balance.UP_MAX_HP_ADD)
 		"range":

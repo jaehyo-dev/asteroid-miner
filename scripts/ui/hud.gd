@@ -91,7 +91,7 @@ func _draw() -> void:
 		draw_string(font, Vector2(x + icon.get_width() + 2, MARGIN + 42), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 		x += icon.get_width() + 2 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 6
 	var cargo_line := cargo_text(cargo)
-	draw_string(font, Vector2(MARGIN, MARGIN + 58), cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, COLOR_FULL if cargo.is_full() else COLOR_VALUE)
+	draw_string(font, Vector2(MARGIN, MARGIN + 58), cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE, cargo_color(cargo))
 	_draw_bonus(font, Vector2(MARGIN + font.get_string_size(cargo_line, HORIZONTAL_ALIGNMENT_LEFT, -1, CARGO_FONT_SIZE).x + 8, MARGIN + 58))
 	_draw_gate_info(font)
 	# 레벨과 경험치 막대 (화면 맨 아래 전체 너비)
@@ -127,6 +127,11 @@ func _draw_golden_markers() -> void:
 		# (금괴는 깜빡이지 않고 항상 선명하게: 어두워지면 갈색 운석처럼 보인다)
 		var gold := RunSprites.mineral(3)
 		draw_texture(gold, (marker - dir * (MARKER_BACK + 8.0)).round() - (gold.get_size() / 2.0).floor())
+
+
+## 화물칸 글자 색: 가벼우면 노랑, 무거워질수록(느려지기 시작한 뒤) 주황으로, 가득 차면 주황
+static func cargo_color(cargo: Cargo) -> Color:
+	return COLOR_VALUE.lerp(COLOR_FULL, Cargo.heaviness(cargo.fill_ratio()))
 
 
 ## 화물칸 글자: "화물 12/80 · 가치 120" (꽉 차면 "화물 가득")

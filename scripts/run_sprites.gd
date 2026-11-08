@@ -11,7 +11,7 @@ const CELL := {
 	"jelly": 64, "jelly_engine": 64, "jelly_boom": 64,
 	"bug": 64, "bug_engine": 64, "bug_boom": 64,
 	"guard": 64, "guard_engine": 64, "guard_boom": 64,
-	"guard_shot": 16, "barrage_shot": 9,
+	"guard_shot": 16, "barrage_shot": 20,
 	"rock_0": 64, "rock_0_boom": 64, "rock_1": 96, "rock_1_boom": 96, "rock_2": 144, "rock_2_boom": 144,
 	"rock_gold": 96, "rock_gold_boom": 96,
 }

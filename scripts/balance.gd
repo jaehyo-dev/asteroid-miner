@@ -78,8 +78,8 @@ const BARRAGE_SHOTS := 3
 const BARRAGE_SHOT_GAP := 0.15
 const BARRAGE_SHOT_SPEED := 160.0
 const BARRAGE_SHOT_DAMAGE := 10.0
-## 에너지탄 맞는 범위(반지름)
-const BARRAGE_SHOT_RADIUS := 4.0
+## 에너지탄 맞는 범위(반지름). v0.7.0 에너지 구체 그림(몸통 약 14px)에 맞춰 4 → 6 (그림보다 조금 작게)
+const BARRAGE_SHOT_RADIUS := 6.0
 ## 예고가 시작되면 조준선이 쏘는 곳에서부터 이 비율(예고 시간 중)만큼의 시간 동안 쭉 그어진다
 const BARRAGE_DRAW_RATIO := 0.4
 ## 다 쏜 뒤에도 마지막 탄이 우주선 쪽을 지나갈 때까지 화면 가장자리 "!" 표시를 남기는 여유 시간 (초)
@@ -302,6 +302,10 @@ const RISK_MAX := 2.0
 const RISK_RAMP_TIME := 300.0
 ## 화물칸 칸수 (광물 1개 = 1칸). 꽉 차면 더 좋은 광물만 가장 싼 광물과 바꿔 싣는다.
 const CARGO_CAPACITY := 80
+## 화물 무게: 화물칸이 CARGO_HEAVY_START 비율까지는 그대로, 그 뒤 직선으로 느려져 가득 차면 이동 속도 × (1 - CARGO_HEAVY_SLOW).
+## 이동 속도 강화(레벨업·기지)로 오른 속도에 곱한다.
+const CARGO_HEAVY_START := 0.25
+const CARGO_HEAVY_SLOW := 0.3
 ## 죽으면 화물칸 광물 개수의 이 비율만(내림) 비싼 것부터 남긴다. 비상 보험 단계마다 늘고 최대 DEATH_KEEP_MAX.
 const DEATH_KEEP_BASE := 0.5
 const DEATH_KEEP_PER_LEVEL := 0.05

@@ -24,6 +24,21 @@ func is_full() -> bool:
 	return size() >= capacity
 
 
+## 화물칸이 찬 비율 0~1
+func fill_ratio() -> float:
+	return clampf(float(size()) / maxf(capacity, 1), 0.0, 1.0)
+
+
+## 화물 무게로 인한 이동 속도 배율: CARGO_HEAVY_START까지 1, 그 뒤 직선으로 줄어 가득 차면 1 - CARGO_HEAVY_SLOW
+static func speed_mult(ratio: float) -> float:
+	return 1.0 - Balance.CARGO_HEAVY_SLOW * heaviness(ratio)
+
+
+## 무거운 정도 0~1 (느려지기 시작하면 0, 가득 차면 1): HUD 색과 엔진 불꽃 연출용
+static func heaviness(ratio: float) -> float:
+	return clampf(inverse_lerp(Balance.CARGO_HEAVY_START, 1.0, ratio), 0.0, 1.0)
+
+
 func value() -> int:
 	return RunSim.value_of(counts)
 

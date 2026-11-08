@@ -17,6 +17,20 @@ const ROCK_BOOM_START := 2
 ## 엔진 불꽃: 최고 속도의 이 비율보다 빠르면 출력(Powering), 아니면 대기(Idle). 불꽃·적 엔진 프레임 속도
 const ENGINE_POWER_RATIO := 0.5
 const ENGINE_FPS := 12.0
+## 화물이 무거울 때 엔진이 힘겨워 보이는 연출: 불꽃이 느리게 깜빡이고(프레임 속도 최대 -50%),
+## 1초에 SPUTTER_RATE번 잠깐 꺼지듯 대기 불꽃으로 떨어지며(가득 차면 한 번의 SPUTTER_MAX 비율 동안), 뒤로 회색 연기가 샌다.
+const SPUTTER_RATE := 2.5
+const SPUTTER_MAX := 0.35
+const SMOKE_COLOR := Color("#917487")
+## 연기가 나오는 곳: 두 엔진(몸 가운데에서 옆으로 SMOKE_SIDE, 뒤로 SMOKE_TAIL)
+const SMOKE_TAIL := 11.0
+const SMOKE_SIDE := 7.0
+## 심연의 포격 에너지 구체: 맥동 프레임 속도, 바깥 빛 반지름(맥동 폭), 꼬리 점 수와 간격(초 단위: 그만큼 전 위치)
+const ORB_FPS := 10.0
+const ORB_GLOW_RADIUS := 11.0
+const ORB_GLOW_PULSE := 2.0
+const ORB_TRAIL_COUNT := 4
+const ORB_TRAIL_STEP := 0.025
 ## 자동 포: 쏠 때 1번부터 끝까지 재생 (0번은 쉬는 모습)
 const CANNON_FPS := 28.0
 ## 내 탄 프레임 속도
@@ -191,11 +205,23 @@ func _draw_barrages() -> void:
 		draw_line(start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
 	var frame := int(_time * ENGINE_FPS)
 	for s in sim.shots:
-		# 경비선 탄은 빨간 Kla'ed 탄, 심연의 포격은 분홍 Nairan 볼트. 둘레 빛은 내 탄(주황)과 구분되는 색
-		var glow := GUARD_SHOT_GLOW if s.guard else SHOT_GLOW
-		var dir := PixelArt.dir8(s.vel.angle() + PI / 2.0)
-		draw_circle(s.pos.round(), s.radius + 3.0, Color(glow, 0.3))
-		RunSprites.draw(self, "guard_shot" if s.guard else "barrage_shot", frame, dir, s.pos)
+		if s.guard:
+			# 경비선 탄: 빨간 Kla'ed 탄. 둘레 빛은 내 탄(주황)과 구분되는 색
+			draw_circle(s.pos.round(), s.radius + 3.0, Color(GUARD_SHOT_GLOW, 0.3))
+			RunSprites.draw(self, "guard_shot", frame, PixelArt.dir8(s.vel.angle() + PI / 2.0), s.pos)
+		else:
+			_draw_orb(s)
+
+
+## 심연의 포격 에너지 구체: 짧은 꼬리(지나온 자리에 작아지는 빛 점) → 맥동하는 바깥 빛 → 맥동 프레임 그림
+func _draw_orb(s: RunSim.Shot) -> void:
+	var pulse := 0.5 + 0.5 * sin(_time * TAU * ORB_FPS / 4.0)
+	for i in range(ORB_TRAIL_COUNT, 0, -1):
+		var k := float(i) / ORB_TRAIL_COUNT
+		draw_circle((s.pos - s.vel * ORB_TRAIL_STEP * i).round(), 6.0 * (1.0 - k * 0.6), Color(SHOT_GLOW, 0.45 * (1.0 - k)))
+	draw_circle(s.pos.round(), ORB_GLOW_RADIUS + ORB_GLOW_PULSE * pulse, Color(SHOT_GLOW, 0.18 + 0.1 * pulse))
+	draw_circle(s.pos.round(), ORB_GLOW_RADIUS * 0.7, Color(SHOT_GLOW, 0.22))
+	RunSprites.draw(self, "barrage_shot", int(_time * ORB_FPS), 0, s.pos)
 
 
 ## 운석: 8방향 그림으로 천천히 돌고, 맞으면 흰색으로 번쩍이며 튕기고, 체력이 줄면 금 간 프레임으로 바뀐다.
@@ -357,13 +383,29 @@ func _draw_ship() -> void:
 		return
 	var dir := maxi(_ship_dir, 0)
 	var center := sim.player_pos.round()
-	var frame := int(_time * ENGINE_FPS)
-	# 멈춰 있거나 느리면 작은 대기 불꽃, 빠르면 큰 출력 불꽃
-	var power := moving and sim.player_vel.length() > sim.move_speed * ENGINE_POWER_RATIO
+	# 화물이 무거우면 불꽃이 느리게 깜빡이고 가끔 꺼지듯 줄며 연기가 샌다 (Cargo.heaviness 0~1)
+	var heavy := Cargo.heaviness(sim.cargo.fill_ratio())
+	var frame := int(_time * ENGINE_FPS * (1.0 - 0.5 * heavy))
+	# 멈춰 있거나 느리면 작은 대기 불꽃, 빠르면 큰 출력 불꽃 (무게로 느려진 속도 기준)
+	var power := moving and sim.player_vel.length() > sim.current_speed() * ENGINE_POWER_RATIO
+	if power and fmod(_time * SPUTTER_RATE, 1.0) < SPUTTER_MAX * heavy:
+		power = false
+	if moving and heavy > 0.0:
+		_draw_smoke(center, heavy)
 	RunSprites.draw(self, "ship_flame_power" if power else "ship_flame_idle", frame, dir, center)
 	RunSprites.draw(self, "ship_engine", 0, dir, center)
 	RunSprites.draw(self, "ship_cannon", cannon_frame(_cannon_t), dir, center)
 	RunSprites.draw(self, "ship", damage_stage(sim.hp, sim.max_hp), dir, center)
+
+
+## 무거운 엔진 연기: 두 엔진 뒤로 회색 점이 커지며 흐려진다 (위치는 시간으로만 정해 따로 상태가 없음)
+func _draw_smoke(center: Vector2, heavy: float) -> void:
+	var back := -Vector2.from_angle(sim.facing)
+	for side: float in [-1.0, 1.0]:
+		var origin := center + back * SMOKE_TAIL + back.orthogonal() * SMOKE_SIDE * side
+		for i in 3:
+			var t := fmod(_time * 1.6 + i / 3.0 + side * 0.17, 1.0)
+			draw_circle((origin + back * t * 12.0).round(), 1.0 + t * 2.0, Color(SMOKE_COLOR, (1.0 - t) * 0.7 * heavy))
 
 
 ## 자동 포 프레임: 쏜 직후 1번부터 끝까지 빠르게, 그 뒤엔 0번(쉼)

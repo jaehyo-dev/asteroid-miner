@@ -91,7 +91,8 @@ var picked: Array[Dictionary] = []
 ## "barrage_warning"·"barrage_charge"·"barrage_fire"(심연의 포격), "new_barrage"(첫 포격),
 ## "new_jelly"·"new_bug"·"new_guard"(처음 등장), "guard_charge"·"guard_fire"(고대 경비선),
 ## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석),
-## "gate_open"·"gate_close"(워프 게이트), "warp_charge"·"warp_cancel"·"warp_done"(워프 충전)
+## "gate_open"·"gate_close"(워프 게이트), "warp_charge"·"warp_cancel"·"warp_done"(워프 충전),
+## "cargo_heavy"(화물이 무거워 처음 느려짐)
 var events: PackedStringArray = []
 ## 탄으로 부순 적 수 (운석·황금 운석·생명체)
 var kills := 0
@@ -172,7 +173,10 @@ func update(delta: float, move: Vector2) -> void:
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
 	time += delta
 	invuln = maxf(invuln - delta, 0.0)
-	player_vel = move.limit_length(1.0) * move_speed
+	player_vel = move.limit_length(1.0) * current_speed()
+	if move != Vector2.ZERO and cargo.fill_ratio() > Balance.CARGO_HEAVY_START and not introduced.has("heavy"):
+		introduced["heavy"] = true
+		events.append("cargo_heavy")  # 처음 느려질 때 한 번 안내
 	player_pos += player_vel * delta
 	if move != Vector2.ZERO:
 		facing = turn_toward(facing, move.angle(), Balance.SHIP_TURN_SPEED * delta)
@@ -610,6 +614,11 @@ func choose(index: int) -> void:
 	choices = []
 	if pending_levelups > 0:
 		choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT)
+
+
+## 지금 이동 속도 = 강화로 오른 속도(move_speed) × 화물 무게 배율
+func current_speed() -> float:
+	return move_speed * Cargo.speed_mult(cargo.fill_ratio())
 
 
 ## 출격 전에 기지 공용 업그레이드를 적용한다: 능력치를 다시 계산하고 체력을 가득 채운다.

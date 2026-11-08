@@ -45,6 +45,8 @@ func test_모든_시트가_있고_돌아가는_시트는_8방향() -> void:
 		var rows := tex.get_height() / cell
 		if name.begins_with("rock_") and name.ends_with("_boom"):
 			assert_eq(rows, 1, name + " 깨지는 운석은 돌리지 않음")
+		elif name == "barrage_shot":
+			assert_eq(rows, 1, name + " 둥근 에너지 구체는 돌리지 않음")
 		else:
 			assert_eq(rows, 8, name + " 8방향")
 	assert_eq(RunSprites.frames("ship"), 4, "피해 4단계")

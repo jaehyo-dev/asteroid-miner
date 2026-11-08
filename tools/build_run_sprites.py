@@ -71,6 +71,23 @@ def center_in(img: Image.Image, cell: int) -> Image.Image:
     return out
 
 
+def orb_frames(strip: Image.Image, count: int, cell: int) -> list[Image.Image]:
+    """가로로 늘어놓은 맥동 프레임을 같은 폭으로 나누고, 구체 몸통(3픽셀 이상 찬 줄) 가운데를 칸 가운데에 맞춘다.
+    (튀는 불꽃은 프레임마다 위치가 달라 전체 bbox로 맞추면 구체가 흔들려 보임)"""
+    w = strip.width // count
+    out = []
+    for i in range(count):
+        f = strip.crop((i * w, 0, i * w + w, strip.height))
+        a = f.getchannel("A").point(lambda v: 1 if v else 0)
+        cols = [x for x in range(f.width) if sum(a.getpixel((x, y)) for y in range(f.height)) >= 3]
+        rows = [y for y in range(f.height) if sum(a.getpixel((x, y)) for x in range(f.width)) >= 3]
+        cx, cy = (cols[0] + cols[-1] + 1) // 2, (rows[0] + rows[-1] + 1) // 2
+        c = Image.new("RGBA", (cell, cell), (0, 0, 0, 0))
+        c.paste(f, (cell // 2 - cx, cell // 2 - cy), f)
+        out.append(c)
+    return out
+
+
 def row(frames: list[Image.Image]) -> Image.Image:
     w, h = frames[0].size
     out = Image.new("RGBA", (w * len(frames), h), (0, 0, 0, 0))
@@ -214,11 +231,11 @@ def build() -> None:
         d8(vendor(body), 64, 64, turn180=True).save(f"{OUT}/{name}.png")
         d8(vendor(engine), 64, 64, turn180=True).save(f"{OUT}/{name}_engine.png")
         d8(vendor(boom), 64, 64, turn180=True).save(f"{OUT}/{name}_boom.png")
-    # 적 탄: 경비선 = Kla'ed 큰 탄(빨간색으로), 심연의 포격 = Nairan 볼트(분홍)
+    # 적 탄: 경비선 = Kla'ed 큰 탄(빨간색으로), 심연의 포격 = Codex 에너지 구체(맥동 4프레임, 둥글어서 돌리지 않음: 행 1개)
     # (탄은 팩에서 머리가 위쪽이라 뒤집지 않음. Kla'ed 큰 탄은 8x16 프레임 4장 → 16x16 칸 가운데에 놓음)
     big = recolor(vendor(f"{KLAED}/Projectiles/PNGs/Kla'ed - Big Bullet.png"), RED_MAP)
     d8(row([center_in(big.crop((f * 8, 0, f * 8 + 8, 16)), 16) for f in range(4)]), 16, 16).save(f"{OUT}/guard_shot.png")
-    d8(vendor(f"{NAIR}/Weapon Effects - Projectiles/PNGs/Nairan - Bolt.png"), 9, 9).save(f"{OUT}/barrage_shot.png")
+    row(orb_frames(Image.open(f"{OUT}/barrage_orb_base.png").convert("RGBA"), 4, 20)).save(f"{OUT}/barrage_shot.png")
 
     # 운석 3크기 + 황금 운석. 중간은 팩 그림 그대로 (Explode 8프레임)
     explode = vendor(f"{ROCK}/Asteroid 01 - Explode.png")

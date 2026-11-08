@@ -112,6 +112,8 @@ func _announce(events: PackedStringArray) -> void:
 	for e in events:
 		if e == "new_barrage":
 			hud.show_banner("??? 의 포격", BARRAGE_BANNER_COLOR)
+		elif e == "cargo_heavy":
+			hud.show_banner("화물이 무거워 느려져요", Hud.COLOR_FULL)
 		elif e == "barrage_charge":
 			Sfx.play_charge()
 		elif e == "barrage_fire":

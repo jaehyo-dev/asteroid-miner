@@ -45,7 +45,7 @@ static func describe(id: String) -> String:
 		"max_hp":
 			return "최대 체력 +%d" % roundi(Balance.BASE_MAX_HP_ADD)
 		"speed":
-			return "이동 속도 +%d%%" % roundi(Balance.BASE_SPEED_ADD * 100.0)
+			return "이동 속도 +%d%% (화물이 무거워도 빠르게)" % roundi(Balance.BASE_SPEED_ADD * 100.0)
 		"cargo":
 			return "화물칸 +%d칸" % Balance.BASE_CARGO_ADD
 		"insurance":
@@ -53,6 +53,11 @@ static func describe(id: String) -> String:
 		"magnet":
 			return "자석 범위 +%d%%" % roundi(Balance.BASE_MAGNET_ADD * 100.0)
 	return ""
+
+
+## 연구소 카드에 덧붙이는 짧은 도움말 (없으면 빈 문자열)
+static func note(id: String) -> String:
+	return "무거운 화물에도 효과" if id == "speed" else ""
 
 
 ## 기지 업그레이드 level 단계일 때의 능력치 값 (출격 규칙 RunSim.apply_base로 계산해서 실제와 같다)

@@ -213,6 +213,8 @@ func _research_card(id: String) -> PanelContainer:
 	head.add_child(pips)
 	box.add_child(head)
 	box.add_child(_label(BaseUpgrades.change_text(id, lv), COLOR_DIM))
+	if not BaseUpgrades.note(id).is_empty():
+		box.add_child(_label(BaseUpgrades.note(id), COLOR_DIM))
 	var button := Button.new()
 	button.add_theme_font_size_override("font_size", FONT)
 	button.custom_minimum_size = Vector2(0, P * 16)

@@ -64,3 +64,20 @@ class BuildRunSpritesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OrbFramesTest(unittest.TestCase):
+    def test_구체_몸통이_칸_가운데에_오고_튀는_불꽃은_무시(self):
+        strip = Image.new("RGBA", (40, 10), (0, 0, 0, 0))
+        for i, (ox, oy) in enumerate([(1, 1), (4, 3)]):  # 프레임마다 구체 위치가 다름
+            for y in range(oy, oy + 5):
+                for x in range(i * 20 + ox, i * 20 + ox + 5):
+                    strip.putpixel((x, y), (255, 37, 103, 255))
+            strip.putpixel((i * 20 + 18, 0), (254, 248, 229, 255))  # 혼자 튄 불꽃 1픽셀
+        frames = brs.orb_frames(strip, 2, 16)
+        for f in frames:
+            self.assertEqual(f.size, (16, 16))
+            body = f.crop((0, 0, 16, 16))
+            xs = [x for x in range(16) if body.getpixel((x, 8))[3]]
+            self.assertEqual((xs[0] + xs[-1] + 1) // 2, 8)
+
