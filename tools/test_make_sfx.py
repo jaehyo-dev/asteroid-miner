@@ -103,6 +103,7 @@ class MakeSfxTest(unittest.TestCase):
 
 
 class GateSoundTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg가 없는 환경(CI)은 건너뜀")
     def test_게이트_소리는_길이가_맞고_끝이_부드러움(self):
         sounds = ms.gate_sounds()
         self.assertEqual(set(sounds), {"gate_assemble", "gate_lock", "gate_hum", "gate_alarm", "gate_collapse", "warp_charge", "warp_done", "takeoff", "warp_launch", "warp_arrive", "landing"})
