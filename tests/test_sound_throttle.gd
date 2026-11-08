@@ -76,3 +76,32 @@ func test_큰_운석은_몰려도_제_크기로_남() -> void:
 	assert_true(player.playing, "소리가 남")
 	assert_eq(player.volume_db, float(Sfx.SOUNDS["break_big"]["db"]), "작아지지 않음")
 	run.queue_free()
+
+
+func test_적_소리도_몰리면_작게_적게_나고_종류는_따로_셈() -> void:
+	var run: Node = load("res://scenes/run.tscn").instantiate()
+	add_child(run)
+	await wait_frames(2)
+	for name in ["destroy_bug", "destroy_jelly"]:
+		for p: AudioStreamPlayer in Sfx.pool(name):
+			p.stop()
+	var dbs: Array[float] = []
+	for i in Juice.BREAK_SOUND_MAX + 1:
+		dbs.append(run._enemy_sound_db("destroy_bug", Juice.ENEMY_DESTROY_SOUND_WINDOW))
+	assert_true(is_equal_approx(dbs[0], 0.0) and is_equal_approx(dbs[1], Juice.BREAK_SOUND_STEP_DB), "뒤로 갈수록 작게 %s" % [dbs])
+	assert_eq(dbs[Juice.BREAK_SOUND_MAX], -INF, "넘치면 안 남")
+	# 이미 날벌레가 다 찬 상태에서 사건으로 부서져도 소리가 안 나고, 해파리는 따로 남
+	run.sim.events.clear()
+	run.sim.picked.clear()
+	run.sim.crashed.clear()
+	run.sim.destroyed.clear()
+	var bug := RunSim.Enemy.new()
+	bug.kind = "bug"
+	var jelly := RunSim.Enemy.new()
+	jelly.kind = "jelly"
+	run.sim.destroyed.append(bug)
+	run.sim.destroyed.append(jelly)
+	run._play_sounds()
+	assert_false((Sfx.pool("destroy_bug")[0] as AudioStreamPlayer).playing, "날벌레는 안 남")
+	assert_true((Sfx.pool("destroy_jelly")[0] as AudioStreamPlayer).playing, "해파리는 남")
+	run.queue_free()

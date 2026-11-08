@@ -10,6 +10,21 @@ func _stop_all() -> void:
 			p.stop()
 
 
+## 실제로 들리는 평균 크기(dB) = 파일 평균 크기 + 표의 음량
+func _level_db(sound_name: String) -> float:
+	var sound: Dictionary = Sfx.SOUNDS[sound_name]
+	# 가져온 소리는 압축되어 있어 원본 wav의 data 덩어리를 직접 읽는다
+	var wav := FileAccess.get_file_as_bytes(Sfx.SFX_DIR + sound["files"][0] + ".wav")
+	var pos := 12
+	while wav.slice(pos, pos + 4).get_string_from_ascii() != "data":
+		pos += 8 + wav.decode_u32(pos + 4)
+	var size := wav.decode_u32(pos + 4)
+	var total := 0.0
+	for i in range(pos + 8, pos + 8 + size, 2):
+		total += pow(wav.decode_s16(i) / 32768.0, 2.0)
+	return linear_to_db(sqrt(total / (size / 2.0))) + float(sound["db"])
+
+
 func test_모든_소리_파일과_라이선스가_있음() -> void:
 	for pack in PACKS:
 		assert_true(FileAccess.file_exists("res://assets/sfx/" + pack + "/LICENSE.txt"), pack + " 라이선스")
@@ -64,9 +79,15 @@ func test_부서진_적의_소리_이름() -> void:
 		assert_eq(Run.break_sound(a), ["break_small", "break_mid", "break_big"][type])
 	a.golden = true
 	assert_eq(Run.break_sound(a), "break_big", "황금 운석은 묵직하게")
-	var bug := RunSim.Enemy.new()
-	bug.kind = "bug"
-	assert_eq(Run.break_sound(bug), "enemy_destroy")
+	var e := RunSim.Enemy.new()
+	for kind in ["bug", "jelly", RunSim.GUARD]:
+		e.kind = kind
+		assert_true(Sfx.SOUNDS.has("destroy_" + kind), kind + " 파괴음")
+		assert_true(Sfx.SOUNDS.has("hit_" + kind), kind + " 맞음 소리")
+		assert_eq(Run.break_sound(e), "destroy_" + kind)
+	for part in ["hit_", "destroy_"]:
+		var bug_db := _level_db(part + "bug")
+		assert_true(bug_db < _level_db(part + "jelly") and bug_db < _level_db(part + "guard"), part + " 날벌레가 가장 작게")
 	for sound_name in ["pickup_0", "pickup_1", "pickup_2", "pickup_3"]:
 		assert_true(Sfx.SOUNDS.has(sound_name))
 	assert_true(Sfx.SOUNDS["pickup_0"]["files"] != Sfx.SOUNDS["pickup_3"]["files"], "등급마다 다른 음색")
@@ -101,3 +122,30 @@ func test_탄이_맞으면_맞음_사건() -> void:
 			found = true
 			break
 	assert_true(found, "운석에 맞으면 hit_rock")
+
+
+func test_적_소리는_종류별_맞음_사건이고_짧음() -> void:
+	var sim := RunSim.new(1234)
+	sim.set("_spawn_timer", 1.0e9)
+	var a := RunSim.Enemy.new()
+	a.kind = "bug"
+	a.radius = 40.0
+	a.max_hp = 999.0
+	a.hp = a.max_hp
+	a.pos = Vector2(0, -30)
+	sim.enemies.append(a)
+	var found := false
+	for i in 60:
+		sim.update(0.01, Vector2.ZERO)
+		if sim.events.has("hit_bug"):
+			found = true
+			break
+	assert_true(found, "날벌레가 맞으면 hit_bug")
+	# 실제 길이 = 파일 길이 / 음 높이
+	for sound_name in ["hit_guard", "hit_jelly", "hit_bug", "destroy_jelly", "destroy_bug"]:
+		var sound: Dictionary = Sfx.SOUNDS[sound_name]
+		for f in sound["files"]:
+			assert_true(load(Sfx.SFX_DIR + f + ".wav").get_length() / float(sound["pitch"]) <= 0.33, f + " 약 0.3초")
+	assert_true(absf(load(Sfx.SFX_DIR + "destroy_guard.wav").get_length() / float(Sfx.SOUNDS["destroy_guard"]["pitch"]) - 0.5) < 0.06, "경비선 파괴 약 0.5초")
+	var bug_len: float = load(Sfx.SFX_DIR + "destroy_bug.wav").get_length()
+	assert_true(bug_len < load(Sfx.SFX_DIR + "destroy_jelly.wav").get_length(), "날벌레가 가장 짧음")

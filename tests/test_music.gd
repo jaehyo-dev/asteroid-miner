@@ -10,17 +10,28 @@ func test_필터는_시간이_지날수록_열리고_끝에서_멈춤() -> void:
 	assert_eq(MusicMix.run_cutoff(999.0), MusicMix.run_cutoff(Juice.MUSIC_CUTOFF_RAMP), "더 안 열림")
 
 
-func test_리듬_층은_2분_뒤에_들어옴() -> void:
+func test_출격은_처음부터_또렷함() -> void:
+	assert_true(MusicMix.run_cutoff(0.0) >= 3500.0, "시작 필터 약 4kHz")
+
+
+func test_리듬_층은_30초_뒤에_들어옴() -> void:
 	assert_true(MusicMix.run_layer_db(0.0) <= -60.0 + Juice.MUSIC_LAYER_DB, "처음엔 안 들림")
-	assert_true(MusicMix.run_layer_db(119.0) <= -60.0 + Juice.MUSIC_LAYER_DB, "2분 전에도")
-	assert_true(MusicMix.run_layer_db(125.0) > MusicMix.run_layer_db(120.0), "커지는 중")
+	assert_true(MusicMix.run_layer_db(29.0) <= -60.0 + Juice.MUSIC_LAYER_DB, "30초 전에도")
+	assert_true(MusicMix.run_layer_db(35.0) > MusicMix.run_layer_db(30.0), "커지는 중")
 	assert_true(absf(MusicMix.run_layer_db(Juice.MUSIC_LAYER_TIME + Juice.MUSIC_LAYER_FADE) - Juice.MUSIC_LAYER_DB) < 0.01, "다 커짐")
+
+
+func test_두_번째_층은_2분_뒤에_더해짐() -> void:
+	assert_true(MusicMix.run_layer2_db(119.0) <= -60.0 + Juice.MUSIC_LAYER2_DB, "2분 전엔 안 들림")
+	assert_true(MusicMix.run_layer2_db(125.0) > MusicMix.run_layer2_db(120.0), "커지는 중")
+	assert_true(absf(MusicMix.run_layer2_db(Juice.MUSIC_LAYER2_TIME + Juice.MUSIC_LAYER2_FADE) - Juice.MUSIC_LAYER2_DB) < 0.01, "다 커짐")
 
 
 func test_곡과_리듬_층은_길이가_같고_음악_버스로_반복() -> void:
 	var list := Music.players()
-	assert_eq(list.size(), 2)
-	assert_true(absf(list[0].stream.get_length() - list[1].stream.get_length()) < 0.01, "함께 돌아도 박이 안 어긋남")
+	assert_eq(list.size(), 3)
+	for p in list:
+		assert_true(absf(list[0].stream.get_length() - p.stream.get_length()) < 0.01, "함께 돌아도 박이 안 어긋남")
 	for p in list:
 		assert_eq(p.bus, &"Music")
 		assert_true(p.stream.loop, "반복")
@@ -45,6 +56,10 @@ func test_기지는_출격보다_작고_먹먹함() -> void:
 	Music.set_base()
 	assert_true(Music.target_cutoff < run_cut, "더 먹먹")
 	assert_true(Music.target_main_db < run_db, "더 작음")
+	assert_eq(Music.target_layer2_db, MusicMix.run_layer2_db(0.0), "기지에선 층이 꺼짐")
+	Music.set_run_time(125.0)
+	assert_true(Music.target_layer2_db > MusicMix.run_layer2_db(0.0), "2분 뒤 출격 중엔 두 번째 층")
+	Music.set_base()
 
 
 func test_배경음_크기_설정은_버스에_적용되고_저장됨() -> void:

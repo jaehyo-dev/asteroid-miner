@@ -1,3 +1,52 @@
+# 4c 2차 후보 (사용자 의견 반영)
+
+모두 `review/v070_step4c/listen/`에 있어요. **게임에는 ★ 후보가 들어가 있어요.** 저는 귀로 듣지 못해서 길이·높이·크기 같은 숫자와 합성 방식으로 골랐어요. 다른 것을 고르면 `tools/make_sfx.py`의 `CHOICE`만 바꾸면 돼요 (배경음은 `scripts/music.gd`의 `MAIN`과 리듬 층).
+
+## 적 소리 (맞음 → 0.2초 쉼 → 파괴를 두 번)
+
+| 파일 | 맞음 | 파괴 | 길이 (맞음/파괴) |
+|---|---|---|---|
+| ★ `enemy_jelly_a.ogg` | 190→85Hz 둔한 탄력음 "퉁" | 물방울이 올라가는 "뽁" 2번 | 0.15 / 0.16초 |
+| `enemy_jelly_b.ogg` | Kenney impactSoft + 낮은 "퉁" | 젤리가 터지는 "퍽" + 작은 방울 2개 | 0.18 / 0.21초 |
+| `enemy_bug_a.ogg` | 2.6kHz 짧은 "틱" | 음이 떨어지는 "찍" | 0.04 / 0.10초 |
+| ★ `enemy_bug_b.ogg` | 1.8kHz 더 낮은 "틱" | 바삭한 "지직" | 0.03 / 0.14초 |
+
+날벌레는 많이 잡으니 음이 또렷한 "찍"보다 덜 귀에 남을 "지직"을 골랐어요(내 판단, 귀로는 확인 못 함). 경비선은 지금 금속 소리 그대로이고 맞음을 0.3초, 파괴를 약 0.5초(1.55초에서)로 잘랐어요.
+몰림: 종류마다 따로 세어 앞서 난 소리 하나마다 5dB 작게, 4개째부터 안 냄 (파괴 0.5초 창, 맞음 0.25초 창). 평균 크기(파일 + 게임 음량): 해파리 맞음 -26 / 파괴 -25dB, 날벌레 -32 / -32dB, 경비선 -28 / -23dB.
+
+## 레벨업 (같은 소리를 두 번)
+
+공통: 길이 0.395초, 4kHz 위를 깎음(4kHz 위 에너지 0.01% 미만), 마지막 음은 앞 음 최고점의 약 0.4~0.6배, 짧고 끝이 코사인 곡선으로 0까지 줄어듦.
+
+| 파일 | 음 | 음색 | 마지막 음 |
+|---|---|---|---|
+| ★ `levelup2_a.ogg` | C5-E5-G5-C5 (도미솔도) | 마림바 | 첫 음으로 돌아옴 |
+| `levelup2_b.ogg` | C5-E5-G5-E5 (도미솔미) | 부드러운 신스 플럭 | 첫 음보다 장3도 위, 가장 높은 음 아래 |
+| `levelup2_c.ogg` | G4-C5-E5-C5 (솔도미도) | 둥근 삼각파 | 첫 음보다 완전4도 위, 가장 높은 음 아래 |
+
+게임 평균 크기는 지금 소리보다 -3dB (-17.6 → -20.6dB).
+
+## 배경음 (게임에서 섞는 그대로)
+
+`_start` = 출격 시작부터 45초 (0초에 기지의 먹먹한 소리에서 열리고, 30~40초에 리듬 층이 들어옴). `_1min` = 게임 1분부터 80초 (2분~2분 10초에 두 번째 층이 들어옴).
+
+| 파일 | 곡 | 만든 사람 | 라이선스 | 설명 |
+|---|---|---|---|---|
+| ★ `bgm2_urgent_start.ogg`, `bgm2_urgent_1min.ogg` | Urgent | SRG774 | CC0 1.0 | 지금 곡, 135 BPM, 57초 반복 |
+| `bgm2_spacebattle_start.ogg`, `bgm2_spacebattle_1min.ogg` | [Space Battle](https://opengameart.org/content/space-battle) (bgm_c) | MintoDog | CC0 | 130 BPM, 88.6초 반복 |
+| `bgm2_fastfight_start.ogg`, `bgm2_fastfight_1min.ogg` | [Fast fight / battle music (looped)](https://opengameart.org/content/fast-fight-battle-music-looped) | Ville Nousiainen (반복 편집 XCVG) | CC0 | 155 BPM, 치프튠 느낌의 빠른 전투곡. 24.8초로 짧아 금방 되풀이됨 |
+| `bgm2_orbital_start.ogg`, `bgm2_orbital_1min.ogg` | [Orbital Colossus](https://opengameart.org/content/space-boss-battle-theme) | Matthew Pablo | CC-BY 3.0 (저작자 표시 필요) | 164 BPM, 우주 슈팅 보스용 전자음악. 2분 31초. 만든 사람이 "그대로는 반복이 안 된다"고 적어 둠: 고르면 반복 편집이 필요함 |
+
+라이선스는 2026-11-08에 OpenGameArt 공식 페이지의 License 칸에서 직접 확인했어요.
+비교를 위해 네 곡의 평균 크기를 Urgent에 맞췄어요 (원래 Fast fight는 Urgent보다 약 12dB 큼). 이 비교 파일에는 효과음이 없어요.
+
+게임의 섞기: 출격 -11.5dB(+3.5dB), 필터 4kHz에서 3분 동안 12kHz까지 열림, 30초부터 10초 동안 낮은 "둥" 층, 2분부터 10초 동안 반 박마다 높은 "칫" + 엇박 "둥" 층. 기지는 그대로(450Hz, -24dB).
+파일은 Godot와 같은 필터 식과 값을 코드로 옮겨 만든 것이라 실제 게임과 아주 조금 다를 수 있어요. 박 맞춤은 숫자로 찾았고 귀로는 확인하지 못했어요 (Orbital은 반복 곡이 아니어서 곡이 끝날 때까지 최대 0.05초쯤 어긋날 수 있음).
+
+참고: 이전 리듬 층은 Urgent를 약 108 BPM으로 잘못 재서 곡과 박이 어긋났어요. 56.895초 = 135 BPM의 128박으로 딱 맞아, 135 BPM으로 고쳤어요.
+
+---
+
 # 4c 들어 볼 후보
 
 모두 `review/v070_step4c/listen/`에 있어요. 고른 것을 알려 주면 `tools/make_sfx.py`의 `CHOICE`(배경음은 `scripts/music.gd`의 `MAIN`)만 바꾸면 돼요.

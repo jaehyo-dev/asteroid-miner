@@ -47,6 +47,8 @@ var slowmo := 0.0
 var _combo := PickupCombo.new()
 ## 운석 깨짐 소리가 몰리면 작게·적게
 var _break_sounds := SoundThrottle.new(Juice.BREAK_SOUND_WINDOW, Juice.BREAK_SOUND_MAX, Juice.BREAK_SOUND_STEP_DB)
+## 적 소리 이름 → 몰림 줄이기 (처음 날 때 만든다)
+var _enemy_sounds := {}
 ## 다음 히트스톱을 걸 수 있는 시뮬레이션 시각
 var _hitstop_ready_at := 0.0
 ## 일시 정지 제목을 누른 시각 (FPS 표시)
@@ -223,14 +225,18 @@ func _discover() -> void:
 ## 같은 소리가 많이 겹치는 것은 Sfx.play가 동시 재생 수로 막는다.
 func _play_sounds() -> void:
 	for e in sim.events:
-		if e == "shoot" or e == "hit_rock" or e == "hit_enemy":
+		if e == "shoot" or e == "hit_rock":
 			Sfx.play(e)
+		elif e.begins_with("hit_"):
+			var db := _enemy_sound_db(e, Juice.ENEMY_HIT_SOUND_WINDOW)
+			if db > -INF:
+				Sfx.play(e, -1.0, 1.0, db)
 		elif e == "hit":
 			Sfx.play("player_hit")
 		elif e == "levelup":
 			Sfx.play("levelup")
 	for a in sim.destroyed + sim.crashed:
-		var db := _break_sounds.next_db(sim.time) if a.kind == RunSim.ROCK else 0.0
+		var db := _break_sounds.next_db(sim.time) if a.kind == RunSim.ROCK else _enemy_sound_db(break_sound(a), Juice.ENEMY_DESTROY_SOUND_WINDOW)
 		if a.golden or (a.kind == RunSim.ROCK and a.type == 2):
 			db = 0.0  # 큰·황금 운석은 멈칫하는 순간이므로 몰려도 소리를 그대로 낸다 (수에는 들어감)
 		if db > -INF:
@@ -246,10 +252,17 @@ func _play_sounds() -> void:
 			Sfx.play("pickup_%d" % p["grade"], 0.0, pitch)
 
 
-## 부서진 적의 소리 이름: 운석은 크기별(황금 운석은 큰 것과 같음), 생명체·경비선은 적 파괴
+## 적 소리의 몰림 보정(dB). 내지 말아야 하면 -INF
+func _enemy_sound_db(sound_name: String, window: float) -> float:
+	if not _enemy_sounds.has(sound_name):
+		_enemy_sounds[sound_name] = SoundThrottle.new(window, Juice.BREAK_SOUND_MAX, Juice.BREAK_SOUND_STEP_DB)
+	return _enemy_sounds[sound_name].next_db(sim.time)
+
+
+## 부서진 적의 소리 이름: 운석은 크기별(황금 운석은 큰 것과 같음), 생명체·경비선은 종류별
 static func break_sound(a: RunSim.Enemy) -> String:
 	if a.kind != RunSim.ROCK:
-		return "enemy_destroy"
+		return "destroy_" + a.kind
 	if a.golden:
 		return "break_big"
 	return ["break_small", "break_mid", "break_big"][clampi(a.type, 0, 2)]

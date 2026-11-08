@@ -34,7 +34,8 @@
 
 - 프로젝트 아이콘 `icon.svg`, 별 배경: 이 프로젝트에서 직접 만듦
 - 우주선·운석·황금 운석·우주 해파리·날벌레·고대 경비선(선체·충전 빛·에너지탄)·탄·파편·광물·심연의 포격(조준선·에너지탄) 픽셀 아트와 모션(운석 회전·튕김·금 감, 우주선 기울기) (`scripts/pixel_art.gd`, `scripts/world_view.gd`에서 코드로 그림): 이 프로젝트에서 직접 만듦
-- 레벨업 "띠리링", 광물 줍기 "띠링" 4등급(`assets/sfx/game/`), 배경음 리듬 층(`assets/music/pulse_layer.ogg`): v0.7.0 4c, `tools/make_sfx.py`에서 numpy로 직접 합성
+- 레벨업 마림바 도-미-솔-도, 광물 줍기 "띠링" 4등급, 우주 해파리·날벌레 맞음과 파괴음(`assets/sfx/game/`), 배경음 리듬 층 2개(`assets/music/pulse_layer.ogg`, `pulse_layer2.ogg`): v0.7.0 4c, `tools/make_sfx.py`에서 numpy로 직접 합성
+- 들어 보기 후보 `review/v070_step4c/listen/bgm2_*.ogg` (게임 빌드·사이트에 안 들어감, 사용자 선택용): Urgent(위 표), Space Battle(MintoDog, CC0, https://opengameart.org/content/space-battle), Fast fight / battle music (looped)(원곡 Ville Nousiainen, 반복 편집 XCVG, CC0, https://opengameart.org/content/fast-fight-battle-music-looped), Orbital Colossus(Matthew Pablo, https://matthewpablo.com, CC-BY 3.0, https://opengameart.org/content/space-boss-battle-theme). 모두 2026-11-08 공식 페이지에서 라이선스 확인. 일부 구간을 잘라 크기를 맞추고 필터와 직접 만든 리듬 층을 섞음 (수정함). 라이선스: 같은 폴더의 `LICENSE.txt`, `LICENSE_CC-BY-3.0.txt`, `LICENSE_CC0.txt`. Orbital Colossus를 게임에 넣게 되면 위 표로 옮기고 화면·문서에 저작자를 표시한다
 - 출격 화면 아틀라스의 원판·고리·흰색 칸(`assets/sprites/run_atlas/`, `tools/build_run_atlas.py`): 직접 만듦. 아틀라스의 나머지는 위 표의 Foozle 팩과 Codex 그림을 묶은 것
 - 체력 낮음 경고음, 습격 경고음, 고대 경비선 발사음 (`scripts/sfx.gd`에서 코드로 합성한 8비트 소리): 이 프로젝트에서 직접 만듦. 광물 줍기·포격 충전·발사음은 v0.7.0 4b부터 Kenney 효과음으로 바뀜
 - 워프 게이트 기계식 고리·표시등 픽셀 아트(`scripts/pixel_art.gd`), 소용돌이 셰이더(`scripts/gate_vortex.gdshader`), 게이트 연출(`scripts/gate_view.gd`), 게이트 맞물림·웅웅거림·경보·붕괴·귀환 효과음(`scripts/sfx.gd`): 이 프로젝트에서 직접 만듦

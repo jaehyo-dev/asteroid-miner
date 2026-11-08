@@ -4,13 +4,15 @@
 - 다듬기는 ffmpeg 필터(음 높이 = 재생 속도, 높은 음 깎기 lowpass, 고음 살리기 treble, 꼬리 자르기 + 짧게 줄이기)로 한다.
 - 합성 소리(종소리 "띠링", 올라가는 "띠리링", 낮은 에너지 소리)는 numpy로 만든다. 같은 입력이면 항상 같은 결과다.
 - --listen: 사용자가 들어 보고 고를 후보를 review/v070_step4c/listen/*.ogg로 만든다.
+- --listen2 <곡 폴더>: 2차 후보(적 소리, 레벨업, 게임처럼 섞은 배경음)를 만든다. 곡 폴더의 파일 이름은 BGM2 표에 있다 (Urgent만 저장소에 있음).
 
-다시 만들기: python3 tools/make_sfx.py   (후보: python3 tools/make_sfx.py --listen)
+다시 만들기: python3 tools/make_sfx.py   (후보: python3 tools/make_sfx.py --listen, --listen2 <곡 폴더>)
 """
 
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 
@@ -23,11 +25,17 @@ LISTEN = os.path.join(ROOT, "review/v070_step4c/listen")
 SR = 44100
 
 
+def decode(path: str, channels: int = 1) -> np.ndarray:
+    """소리 파일 → -1~1 배열 (스테레오는 (샘플 수, 2))"""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", str(channels), "-ar", str(SR), "-f", "s16le", "-"],
+                         capture_output=True, check=True).stdout
+    a = np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
+    return a if channels == 1 else a.reshape(-1, channels)
+
+
 def load(name: str) -> np.ndarray:
     """assets/sfx/<name>.ogg → -1~1 모노"""
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", f"{SRC}/{name}.ogg", "-ac", "1", "-ar", str(SR), "-f", "s16le", "-"],
-                         capture_output=True, check=True).stdout
-    return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
+    return decode(f"{SRC}/{name}.ogg")
 
 
 def ffx(a: np.ndarray, filters: str) -> np.ndarray:
@@ -43,8 +51,10 @@ def to16(a: np.ndarray) -> bytes:
 
 def save(a: np.ndarray, path: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    args = ["-c:a", "libvorbis", "-q:a", "5"] if path.endswith(".ogg") else ["-c:a", "pcm_s16le"]
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "1", "-i", "-", *args, path],
+    stereo = a.ndim == 2
+    # 스테레오 후보는 길어서 저장소가 커지지 않게 품질을 조금 낮춘다
+    args = ["-c:a", "libvorbis", "-q:a", "3" if stereo else "5"] if path.endswith(".ogg") else ["-c:a", "pcm_s16le"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "2" if stereo else "1", "-i", "-", *args, path],
                    input=to16(a), check=True)
 
 
@@ -118,7 +128,7 @@ def energy_whomp(dur: float = 0.4) -> np.ndarray:
     return ((np.sin(ph) + 0.5 * noise * np.exp(-12.0 * t)) * env).astype(np.float32)
 
 
-def beat_grid(a: np.ndarray, guess: float = 0.557) -> tuple[float, float]:
+def beat_grid(a: np.ndarray, guess: float) -> tuple[float, float]:
     """곡의 (박 길이, 첫 박 위치)를 찾는다: 곡 길이를 나누어떨어지는 박 수로 맞추고(반복해도 어긋나지 않게), 소리가 커지는 순간이 가장 많이 겹치는 위치"""
     length_s = len(a) / SR
     period = length_s / round(length_s / guess)
@@ -133,7 +143,7 @@ def beat_grid(a: np.ndarray, guess: float = 0.557) -> tuple[float, float]:
 
 
 def pulse_layer(samples: int, period: float, offset: float) -> np.ndarray:
-    """2분 뒤 들어오는 리듬 층: 곡과 길이가 같고 박에 맞춘 낮은 "둥" (80 → 45Hz)"""
+    """30초 뒤 들어오는 리듬 층: 곡과 길이가 같고 박에 맞춘 낮은 "둥" (80 → 45Hz)"""
     out = np.zeros(samples, np.float32)
     n = int(SR * 0.28)
     t = np.arange(n) / SR
@@ -146,6 +156,27 @@ def pulse_layer(samples: int, period: float, offset: float) -> np.ndarray:
         # 강박(4박마다 첫 박)은 크게
         out[s:s + len(part)] += part * (1.0 if beat % 4 == 0 else 0.55)
         beat += 1
+    return peak(out)
+
+
+def fast_pulse_layer(samples: int, period: float, offset: float) -> np.ndarray:
+    """2분 뒤 더해지는 층: 반 박마다 높은 "칫"(2~6kHz 잡음), 엇박마다 중간 "둥" (110 → 70Hz)"""
+    t = np.arange(int(SR * 0.09)) / SR
+    tick = ffx(np.random.default_rng(11).uniform(-1, 1, len(t)).astype(np.float32), "highpass=f=2000,lowpass=f=6000")[: len(t)] * np.exp(-55.0 * t)
+    t2 = np.arange(int(SR * 0.14)) / SR
+    ph = 2 * np.pi * np.cumsum(70.0 + 40.0 * np.exp(-30.0 * t2)) / SR
+    mid = (np.sin(ph) * np.minimum(t2 / 0.003, 1.0) * np.exp(-20.0 * t2)).astype(np.float32)
+    out = np.zeros(samples, np.float32)
+    half = 0
+    while offset + half * period / 2 < samples / SR:
+        s = int(SR * (offset + half * period / 2))
+        off_beat = half % 2 == 1
+        hit = tick[: samples - s] * (1.0 if off_beat else 0.6)
+        out[s:s + len(hit)] += hit
+        if off_beat:
+            part = mid[: samples - s]
+            out[s:s + len(part)] += part * 0.8
+        half += 1
     return peak(out)
 
 
@@ -188,6 +219,210 @@ def levelup_b() -> np.ndarray:
 def levelup_c() -> np.ndarray:
     """부드러운 8비트 삼각파 솔-시-레-솔 (45ms 간격)"""
     return peak(ffx(arp([G5, B5, D6, G6], 0.045, lambda f, d: tri(f, d, 10.0), 0.32), "lowpass=f=5000"), -3.0)
+
+
+## 레벨업 2차 후보: 낮고 부드럽게. 마지막 음은 가장 높지 않고 첫 음과 한 옥타브 안, 더 작고 짧게, 끝은 부드럽게 줄어듦
+G4, C5, E5 = 392.0, 523.25, 659.25
+LEVELUP2_STEP = 0.085
+LEVELUP2_LAST_DUR = 0.14
+LEVELUP2_LAST_GAIN = 0.5
+
+
+def tail_fade(a: np.ndarray, seconds: float) -> np.ndarray:
+    """끝 seconds초를 코사인 곡선으로 0까지 줄인다 (갑자기 끊기지 않게)"""
+    a = a.copy()
+    n = min(int(SR * seconds), len(a))
+    a[len(a) - n:] *= (0.5 + 0.5 * np.cos(np.linspace(0.0, np.pi, n))).astype(np.float32)
+    return a
+
+
+def marimba(freq: float, dur: float) -> np.ndarray:
+    """마림바: 사인 + 금방 사라지는 4배 음 (막대를 치는 느낌)"""
+    t = np.arange(int(SR * dur)) / SR
+    tone = np.sin(2 * np.pi * freq * t) + 0.25 * np.sin(2 * np.pi * freq * 3.93 * t) * np.exp(-45.0 * t)
+    return (tone * np.minimum(t / 0.003, 1.0) * np.exp(-11.0 * t)).astype(np.float32)
+
+
+def soft_pluck(freq: float, dur: float) -> np.ndarray:
+    """부드러운 신스 플럭: 배음이 작고(1/n²) 높은 배음일수록 빨리 사라짐"""
+    t = np.arange(int(SR * dur)) / SR
+    tone = sum(np.sin(2 * np.pi * freq * n * t) * np.exp(-(9.0 + 7.0 * n) * t) / n ** 2 for n in range(1, 6))
+    return (tone * np.minimum(t / 0.006, 1.0)).astype(np.float32)
+
+
+def round_tri(freq: float, dur: float) -> np.ndarray:
+    """둥근 삼각파: 천천히 시작하고 천천히 줄어듦"""
+    t = np.arange(int(SR * dur)) / SR
+    tone = 2.0 * np.abs(2.0 * ((freq * t) % 1.0) - 1.0) - 1.0
+    return (tone * np.minimum(t / 0.012, 1.0) * np.exp(-8.0 * t)).astype(np.float32)
+
+
+## 후보 → (음표, 음색)
+LEVELUP2 = {
+    "a": ([C5, E5, G5, C5], marimba),  # 도-미-솔-도: 첫 음으로 돌아옴
+    "b": ([C5, E5, G5, E5], soft_pluck),  # 도-미-솔-미: 살짝 내려앉음
+    "c": ([G4, C5, E5, C5], round_tri),  # 낮은 솔-도-미-도: 가장 낮고 둥긂
+}
+
+
+def levelup2(key: str) -> np.ndarray:
+    notes, voice = LEVELUP2[key]
+    out = np.zeros(int(SR * (LEVELUP2_STEP * (len(notes) - 1) + LEVELUP2_LAST_DUR)), np.float32)
+    for i, f in enumerate(notes[:-1]):
+        # 앞 음은 마지막 음이 시작할 때쯤 사라진다 (잔향이 겹치면 마지막 음이 오히려 가장 커짐)
+        n = tail_fade(voice(f, min(0.26, LEVELUP2_STEP * (len(notes) - 1 - i) + 0.015)), 0.06)
+        s = int(SR * LEVELUP2_STEP * i)
+        out[s:s + len(n)] += n
+    last = tail_fade(voice(notes[-1], LEVELUP2_LAST_DUR), LEVELUP2_LAST_DUR * 0.7) * LEVELUP2_LAST_GAIN
+    out[len(out) - len(last):] += last
+    # 4kHz 위를 깎고 끝을 다시 0으로
+    return tail_fade(peak(ffx(out, "lowpass=f=4000,lowpass=f=4000"), -3.0), 0.04)
+
+
+## 적 소리 합성 재료
+def sweep(f0: float, f1: float, dur: float, decay: float, attack: float = 0.002) -> np.ndarray:
+    """f0에서 f1로 음이 미끄러지는 사인"""
+    t = np.arange(int(SR * dur)) / SR
+    ph = 2 * np.pi * np.cumsum(f0 * (f1 / f0) ** (t / dur)) / SR
+    return (np.sin(ph) * np.minimum(t / attack, 1.0) * np.exp(-decay * t)).astype(np.float32)
+
+
+def noise_burst(dur: float, decay: float, filters: str, seed: int) -> np.ndarray:
+    t = np.arange(int(SR * dur)) / SR
+    n = np.random.default_rng(seed).uniform(-1, 1, len(t)).astype(np.float32)
+    return (ffx(n, filters)[: len(t)] * np.exp(-decay * t)).astype(np.float32)
+
+
+def layered(parts: list[tuple[float, np.ndarray]]) -> np.ndarray:
+    """(시작 초, 소리)들을 겹치고 끝을 부드럽게"""
+    out = np.zeros(max(int(SR * s) + len(a) for s, a in parts), np.float32)
+    for s, a in parts:
+        out[int(SR * s):int(SR * s) + len(a)] += a
+    return tail_fade(peak(out), 0.015)
+
+
+def jelly_a() -> tuple[np.ndarray, np.ndarray]:
+    """맞음: 둔한 탄력음 "퉁"(190→85Hz) / 파괴: 물방울이 올라가는 "뽁" 두 번"""
+    hit = sweep(190, 85, 0.15, 20.0) + 0.25 * sweep(380, 170, 0.15, 35.0)
+    return tail_fade(peak(hit), 0.02), layered([(0.0, sweep(260, 950, 0.1, 18.0)), (0.075, 0.45 * sweep(380, 1300, 0.08, 28.0))])
+
+
+def jelly_b() -> tuple[np.ndarray, np.ndarray]:
+    """맞음: Kenney 부드러운 충격 + 낮은 "퉁" / 파괴: 젤리가 터지는 "퍽" + 작은 방울들"""
+    soft = ffx(trim(pitch(load("kenney_impact/impactSoft_heavy_000"), 1.5), 0.18, 0.06), "lowpass=f=1200")
+    hit = layered([(0.0, soft), (0.0, 0.8 * sweep(150, 90, 0.16, 22.0))])
+    burst = layered([(0.0, noise_burst(0.1, 40.0, "lowpass=f=900", 3)), (0.0, sweep(480, 140, 0.14, 22.0)),
+                     (0.09, 0.3 * sweep(500, 1100, 0.07, 30.0)), (0.15, 0.2 * sweep(620, 1400, 0.06, 35.0))])
+    return hit, burst
+
+
+def bug_a() -> tuple[np.ndarray, np.ndarray]:
+    """맞음: 아주 짧은 "틱"(40ms) / 파괴: 음이 떨어지는 "찍"(0.1초)"""
+    hit = layered([(0.0, sweep(2600, 2000, 0.04, 90.0, 0.001)), (0.0, 0.6 * noise_burst(0.03, 150.0, "highpass=f=3000", 5))])
+    t = np.arange(int(SR * 0.1)) / SR
+    chirp = sweep(3200, 1300, 0.1, 22.0, 0.001) * (0.65 + 0.35 * np.sign(np.sin(2 * np.pi * 70 * t)))
+    return hit, tail_fade(peak(chirp.astype(np.float32)), 0.015)
+
+
+def crackle(dur: float, seed: int) -> np.ndarray:
+    """바삭한 지직거림: 짧은 잡음 조각이 불규칙하게 튀고 뒤로 갈수록 작아짐"""
+    rng = np.random.default_rng(seed)
+    out = np.zeros(int(SR * dur), np.float32)
+    pos = 0
+    while pos < len(out):
+        grain = rng.uniform(-1, 1, int(SR * rng.uniform(0.002, 0.005))).astype(np.float32)
+        part = grain[: len(out) - pos]
+        out[pos:pos + len(part)] += part * np.exp(-14.0 * pos / SR)
+        pos += int(SR * rng.uniform(0.006, 0.016))
+    return ffx(out, "highpass=f=1200,lowpass=f=5000")[: len(out)]
+
+
+def bug_b() -> tuple[np.ndarray, np.ndarray]:
+    """맞음: 더 낮고 짧은 "틱"(30ms) / 파괴: 바삭한 "지직"(0.14초)"""
+    hit = layered([(0.0, sweep(1800, 1300, 0.03, 110.0, 0.001)), (0.0, 0.5 * noise_burst(0.02, 200.0, "highpass=f=2500", 6))])
+    return hit, tail_fade(peak(crackle(0.14, 8)), 0.02)
+
+
+def enemy_demo(hit: np.ndarray, burst: np.ndarray) -> np.ndarray:
+    """맞음 → 파괴를 두 번"""
+    return np.concatenate([hit, silence(0.2), burst, silence(0.6), hit, silence(0.2), burst])
+
+
+## 배경음 2차 후보: 게임에서 섞는 그대로 파일로 만든다 (수치는 scripts/juice.gd를 읽음)
+## 파일 이름 → (곡 폴더 안의 파일, 리듬 층의 분당 박 수). 155·164 BPM 곡은 반 빠르기로 "둥"을 깐다.
+BGM2 = {
+    "urgent": ("urgent.ogg", 135.0),
+    "spacebattle": ("space_battle.ogg", 130.0),
+    "fastfight": ("fight_looped.ogg", 77.5),
+    "orbital": ("orbital_colossus.mp3", 82.0),
+}
+URGENT_BPM = 135.0  # 56.895초 = 128박(32마디)으로 딱 나누어떨어짐
+
+
+def juice_const(name: str) -> float:
+    with open(os.path.join(ROOT, "scripts/juice.gd"), encoding="utf-8") as f:
+        return float(re.search(rf"^const {name} := ([-\d.]+)", f.read(), re.M).group(1))
+
+
+def _fade_db(time: float, start: float, fade: float, db: float) -> float:
+    """scripts/logic/music_mix.gd의 층 음량 계산과 같음"""
+    return 20.0 * np.log10(max(float(np.clip((time - start) / fade, 0.0, 1.0)), 0.001)) + db
+
+
+def run_mix(song: np.ndarray, layer: np.ndarray, fast: np.ndarray, start: float, dur: float) -> np.ndarray:
+    """게임 시간 start초부터 dur초를 scripts/music.gd처럼 섞는다: 음량 3개를 부드럽게 따라가고, 같은 2차 저역 필터(Q 0.5)를 건다.
+    start가 0이면 기지 상태(작고 먹먹함)에서 시작한다. song은 스테레오, 층은 모노."""
+    from scipy.signal import lfilter  # 후보를 만들 때만 필요 (CI에는 없어도 됨)
+
+    j = juice_const
+    block = 1024
+    pos = int(SR * start)
+    k = 1.0 - np.exp(-j("MUSIC_SMOOTH") * block / SR)
+    run_targets = lambda t: (j("MUSIC_CUTOFF_START") * (j("MUSIC_CUTOFF_END") / j("MUSIC_CUTOFF_START")) ** min(t / j("MUSIC_CUTOFF_RAMP"), 1.0), j("MUSIC_RUN_DB"),
+                             _fade_db(t, j("MUSIC_LAYER_TIME"), j("MUSIC_LAYER_FADE"), j("MUSIC_LAYER_DB")),
+                             _fade_db(t, j("MUSIC_LAYER2_TIME"), j("MUSIC_LAYER2_FADE"), j("MUSIC_LAYER2_DB")))
+    state = np.array(run_targets(start)) if start > 0 else np.array([j("MUSIC_BASE_CUTOFF"), j("MUSIC_BASE_DB"), run_targets(0)[2], run_targets(0)[3]])
+    zi = np.zeros((2, 2))
+    out = []
+    for i in range(0, int(SR * dur), block):
+        t = start + i / SR
+        state += (np.array(run_targets(t)) - state) * k
+        idx = (pos + i + np.arange(block)) % len(song)
+        g = 10 ** (state[1:] / 20.0)
+        x = song[idx] * g[0] + (layer[idx] * g[1] + fast[idx] * g[2])[:, None]
+        # 2차 저역 필터 (Godot AudioFilterSW LOWPASS와 같은 식, 공명 0.5)
+        w = 2 * np.pi * min(state[0], SR / 2 - 1) / SR
+        alpha = np.sin(w) / (2 * 0.5)
+        a0 = 1 + alpha
+        b = np.array([(1 - np.cos(w)) / 2, 1 - np.cos(w), (1 - np.cos(w)) / 2]) / a0
+        a = np.array([1.0, -2 * np.cos(w) / a0, (1 - alpha) / a0])
+        y, zi = lfilter(b, a, x, axis=0, zi=zi)
+        out.append(y)
+    return np.concatenate(out).astype(np.float32)
+
+
+def rms(a: np.ndarray) -> float:
+    return float(np.sqrt(np.mean(a ** 2)))
+
+
+def listen2(song_dir: str) -> None:
+    for key, fn in {"a": jelly_a, "b": jelly_b}.items():
+        save(enemy_demo(*fn()), f"{LISTEN}/enemy_jelly_{key}.ogg")
+    for key, fn in {"a": bug_a, "b": bug_b}.items():
+        save(enemy_demo(*fn()), f"{LISTEN}/enemy_bug_{key}.ogg")
+    for key in LEVELUP2:
+        save(np.concatenate([levelup2(key), silence(0.6), levelup2(key)]), f"{LISTEN}/levelup2_{key}.ogg")
+    urgent_rms = rms(decode(f"{ROOT}/assets/music/srg774_dark_scifi/urgent.ogg", 2))
+    for name, (file, bpm) in BGM2.items():
+        path = f"{ROOT}/assets/music/srg774_dark_scifi/urgent.ogg" if name == "urgent" else f"{song_dir}/{file}"
+        song = decode(path, 2)
+        song = song * (urgent_rms / rms(song))  # 곡마다 크기가 달라 Urgent의 평균 크기에 맞춰 비교
+        mono = song.mean(axis=1)
+        grid = beat_grid(mono, 60.0 / bpm)
+        layer, fast = pulse_layer(len(song), *grid), fast_pulse_layer(len(song), *grid)
+        save(run_mix(song, layer, fast, 0.0, 45.0), f"{LISTEN}/bgm2_{name}_start.ogg")
+        save(run_mix(song, layer, fast, 60.0, 80.0), f"{LISTEN}/bgm2_{name}_1min.ogg")
+        print(name, "박 %.4f초 (%.1f BPM), 첫 박 %.3f초" % (grid[0], 60 / grid[0], grid[1]))
 
 
 ## 광물 줍기 후보: 등급 0~3 소리 (게임에서 연속 줍기는 재생 속도로 최대 +12반음 올림)
@@ -242,13 +477,12 @@ BREAKS = {
     "break_big": lambda: trim(load("kenney_sci-fi/lowFrequency_explosion_001"), 0.45, 0.15),
 }
 ## 고른 후보 (사용자가 다른 것을 고르면 여기만 바꾸고 다시 실행)
-CHOICE = {"barrage": barrage_a, "levelup": levelup_b, "pickup": pickup_c}
+CHOICE = {"barrage": barrage_a, "levelup": lambda: levelup2("a"), "pickup": pickup_c, "jelly": jelly_a, "bug": bug_b}
 ## 그대로 wav로 바꾸는 Kenney 소리: 게임 이름 → 원본
 COPY = {
     "shoot_0": "kenney_sci-fi/laserSmall_000", "shoot_1": "kenney_sci-fi/laserSmall_002",
     "hit_rock_0": "kenney_impact/impactMining_000", "hit_rock_1": "kenney_impact/impactMining_001",
-    "hit_enemy_0": "kenney_sci-fi/impactMetal_000", "hit_enemy_1": "kenney_sci-fi/impactMetal_002",
-    "enemy_destroy": "kenney_sci-fi/explosionCrunch_003", "player_hit": "kenney_impact/impactMetal_heavy_000",
+    "player_hit": "kenney_impact/impactMetal_heavy_000",
     "shield_block": "kenney_sci-fi/forceField_000", "card_show": "kenney_interface/open_002",
     "card_pick": "kenney_interface/select_002", "click": "kenney_interface/click_002",
     "cargo_heavy": "kenney_impact/impactSoft_heavy_000",
@@ -260,6 +494,12 @@ def game_sounds() -> dict[str, np.ndarray]:
     out.update({name: fn() for name, fn in BREAKS.items()})
     out["barrage_warn"], out["barrage_fire"] = CHOICE["barrage"]()
     out["levelup"] = CHOICE["levelup"]()
+    # 경비선은 지금 금속 소리를 짧게 (파괴음 1.55초 → 게임의 0.9배 음 높이까지 반영해 0.5초)
+    out["hit_guard_0"] = trim(load("kenney_sci-fi/impactMetal_000"), 0.3, 0.1)
+    out["hit_guard_1"] = trim(load("kenney_sci-fi/impactMetal_002"), 0.3, 0.1)
+    out["destroy_guard"] = trim(load("kenney_sci-fi/explosionCrunch_003"), 0.45, 0.15)
+    out["hit_jelly"], out["destroy_jelly"] = CHOICE["jelly"]()
+    out["hit_bug"], out["destroy_bug"] = CHOICE["bug"]()
     for grade, s in enumerate(CHOICE["pickup"]()):
         out[f"pickup_{grade}"] = s
     return out
@@ -269,13 +509,18 @@ def build() -> None:
     for name, a in game_sounds().items():
         save(a, f"{OUT}/{name}.wav")
     urgent = load("../music/srg774_dark_scifi/urgent")
-    save(pulse_layer(len(urgent), *beat_grid(urgent)), f"{ROOT}/assets/music/pulse_layer.ogg")
+    grid = beat_grid(urgent, 60.0 / URGENT_BPM)
+    save(pulse_layer(len(urgent), *grid), f"{ROOT}/assets/music/pulse_layer.ogg")
+    save(fast_pulse_layer(len(urgent), *grid), f"{ROOT}/assets/music/pulse_layer2.ogg")
 
 
 if __name__ == "__main__":
     if "--listen" in sys.argv:
         listen()
         print("후보 → review/v070_step4c/listen/")
+    elif "--listen2" in sys.argv:
+        listen2(sys.argv[sys.argv.index("--listen2") + 1])
+        print("2차 후보 → review/v070_step4c/listen/")
     else:
         build()
-        print("게임 효과음 → assets/sfx/game/, 리듬 층 → assets/music/pulse_layer.ogg")
+        print("게임 효과음 → assets/sfx/game/, 리듬 층 → assets/music/pulse_layer*.ogg")

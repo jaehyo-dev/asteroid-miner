@@ -15,12 +15,18 @@ const SFX_DIR := "res://assets/sfx/game/"
 const SOUNDS := {
 	"shoot": {"files": ["shoot_0", "shoot_1"], "db": -14.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
 	"hit_rock": {"files": ["hit_rock_0", "hit_rock_1"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
-	"hit_enemy": {"files": ["hit_enemy_0", "hit_enemy_1"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
+	# 적이 맞음: 경비선은 금속, 해파리는 둔한 "퉁", 날벌레는 가장 짧고 작은 "틱". 몰리면 run.gd가 작게·적게 낸다
+	"hit_guard": {"files": ["hit_guard_0", "hit_guard_1"], "db": -9.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
+	"hit_jelly": {"files": ["hit_jelly"], "db": -14.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
+	"hit_bug": {"files": ["hit_bug"], "db": -18.0, "pitch": 1.0, "jitter": 0.08, "max": 2},
 	# 운석 깨짐: 클수록 낮고 묵직하게 (작음 → 중간 → 큼). 꼬리를 잘라 약 0.3초(큰 것 약 0.5초), 몰리면 run.gd가 작게·적게 낸다
 	"break_small": {"files": ["break_small"], "db": -15.0, "pitch": 1.3, "jitter": 0.05, "max": 2},
 	"break_mid": {"files": ["break_mid"], "db": -10.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	"break_big": {"files": ["break_big"], "db": -4.0, "pitch": 0.85, "jitter": 0.03, "max": 2},
-	"enemy_destroy": {"files": ["enemy_destroy"], "db": -10.0, "pitch": 0.9, "jitter": 0.05, "max": 3},
+	# 적 파괴: 경비선은 묵직한 금속 0.5초, 해파리는 물방울 "뽁", 날벌레는 바삭한 "지직". 몰리면 run.gd가 작게·적게 낸다
+	"destroy_guard": {"files": ["destroy_guard"], "db": -10.0, "pitch": 0.9, "jitter": 0.05, "max": 2},
+	"destroy_jelly": {"files": ["destroy_jelly"], "db": -14.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
+	"destroy_bug": {"files": ["destroy_bug"], "db": -12.0, "pitch": 1.0, "jitter": 0.08, "max": 2},
 	# 광물 줍기: 등급마다 음이 다른 종소리 "띠링", 연속으로 주우면 음이 올라가므로 랜덤은 없음
 	"pickup_0": {"files": ["pickup_0"], "db": -16.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
 	"pickup_1": {"files": ["pickup_1"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
@@ -29,8 +35,8 @@ const SOUNDS := {
 	"player_hit": {"files": ["player_hit"], "db": 0.0, "pitch": 1.0, "jitter": 0.05, "max": 1},
 	# 실드가 막음 (5단계 편향 실드용, 지금은 부르는 곳 없음)
 	"shield_block": {"files": ["shield_block"], "db": -12.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
-	# 레벨업: 종소리 아르페지오 "띠리링"
-	"levelup": {"files": ["levelup"], "db": -7.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	# 레벨업: 마림바 도-미-솔-도, 마지막 음은 첫 음으로 돌아와 작게 줄어듦
+	"levelup": {"files": ["levelup"], "db": -9.5, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"card_show": {"files": ["card_show"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"card_pick": {"files": ["card_pick"], "db": -6.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},

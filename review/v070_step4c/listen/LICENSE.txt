@@ -1,0 +1,8 @@
+bgm2_*.ogg 후보에 쓴 곡 (게임 빌드에는 들어가지 않음). 모두 일부 구간을 잘라 크기와 필터를 바꾸고 직접 만든 리듬 층을 섞음.
+
+- "Urgent" by SRG774, CC0 1.0: https://opengameart.org/content/dark-sci-fi-audio-pack
+- "Space Battle" by MintoDog, CC0: https://opengameart.org/content/space-battle
+- "Fast fight / battle music (looped)" by Ville Nousiainen, loop edit by XCVG, CC0: https://opengameart.org/content/fast-fight-battle-music-looped
+- "Orbital Colossus" by Matthew Pablo (https://matthewpablo.com), CC-BY 3.0: https://opengameart.org/content/space-boss-battle-theme
+
+License texts: LICENSE_CC0.txt, LICENSE_CC-BY-3.0.txt
