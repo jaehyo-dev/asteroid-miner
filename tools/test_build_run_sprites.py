@@ -81,3 +81,13 @@ class OrbFramesTest(unittest.TestCase):
             xs = [x for x in range(16) if body.getpixel((x, 8))[3]]
             self.assertEqual((xs[0] + xs[-1] + 1) // 2, 8)
 
+
+    def test_내_탄은_6x10이고_좌우_대칭으로_칸_가운데(self):
+        sheet = brs.bullet_sheet()
+        self.assertEqual(sheet.size, (32 * len(brs.BULLET_FRAMES), 32 * 8))
+        for f in range(len(brs.BULLET_FRAMES)):
+            up = sheet.crop((f * 32, 0, f * 32 + 32, 32))  # 0행 = 위쪽
+            x0, y0, x1, y1 = up.getbbox()
+            self.assertEqual((x1 - x0, y1 - y0), (6, 10))
+            self.assertEqual((x0 + x1) / 2, 16)
+            self.assertEqual(up.getchannel("A").tobytes(), up.transpose(Image.FLIP_LEFT_RIGHT).getchannel("A").tobytes())

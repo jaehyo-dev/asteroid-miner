@@ -215,13 +215,37 @@ def ship_strips() -> dict[str, Image.Image]:
     }
 
 
+## 내 탄 60% (팩 10x17 → 6x10, PLAN 16번). 블록 축소(shrink_ship)는 이 크기에서 검은 고리·꼬리가 사라져서
+## 팩 탄의 구조(흰 테 → 검은 고리 → 노랑·주황 속 → 꼬리 점 두 줄)와 색을 그대로 써서 손으로 다시 찍었다.
+## 글자 = 팩 색: 0 흰, 1 검정, 2 연노랑, 4 주황, 5 노랑, 7 진한 갈색, 8 진주황. 꼬리 점은 두 프레임이 번갈아 깜빡인다.
+BULLET_COLORS = {"0": (255, 255, 255), "1": (0, 0, 0), "2": (251, 185, 84), "4": (247, 150, 23),
+                 "5": (249, 194, 43), "7": (158, 69, 57), "8": (251, 107, 29)}
+BULLET_FRAMES = [
+    ["..00..", ".0110.", "012210", "412214", "418814", "517715", ".5115.", "......", "5....5", "5....5"],
+    ["..00..", ".0110.", "012210", "412214", "418814", "517715", ".5115.", "5....5", "......", "5....5"],
+]
+
+
+def bullet_sheet() -> Image.Image:
+    """BULLET_FRAMES를 32 칸 가운데에 찍은 8방향 시트 (칸 크기는 예전 그대로 32라 RunSprites.CELL은 그대로)"""
+    frames = []
+    for rows in BULLET_FRAMES:
+        img = Image.new("RGBA", (len(rows[0]), len(rows)), (0, 0, 0, 0))
+        for y, line in enumerate(rows):
+            for x, ch in enumerate(line):
+                if ch != ".":
+                    img.putpixel((x, y), BULLET_COLORS[ch] + (255,))
+        frames.append(center_in(img, 32))
+    return rotsprite.dir8_sheet(row(frames), 32, 32)
+
+
 def build() -> None:
     os.makedirs(OUT, exist_ok=True)
     d8 = rotsprite.dir8_sheet
     # 내 우주선: 팩 원본을 60%로 다시 그려 저장 (tools/shrink_ship.py, PLAN 15번). 큰 원본 시트는 게임에 두지 않는다
     for name, strip in ship_strips().items():
         shrink_ship.shrink_sheet(strip, name).save(f"{OUT}/{name}.png")
-    d8(vendor("main_ship/Main ship weapons/PNGs/Main ship weapon - Projectile - Auto cannon bullet.png"), 32, 32).save(f"{OUT}/bullet.png")
+    bullet_sheet().save(f"{OUT}/bullet.png")  # 팩 Auto cannon bullet을 60%로 다시 찍음
 
     # 적 3종 (팩은 아래를 봄 → 뒤집음): 몸, 엔진, 파괴
     enemies = {

@@ -208,8 +208,9 @@ const BULLET_RADIUS := 2.0
 const BULLET_COUNT := 1
 ## 부채꼴로 퍼지는 탄 사이의 각도
 const MULTI_SHOT_SPREAD_DEG := 12.0
-## 나란히 나가는 두 발 사이의 간격 (픽셀). 작은 운석(반지름 8)도 두 발 다 맞을 만큼 좁게.
-const PARALLEL_SHOT_GAP := 6.0
+## 나란히 나가는 두 발 사이의 간격 (픽셀). 60% 우주선 자동 포의 두 총구 간격(약 10)에 맞춤.
+## 작은 운석(반지름 8 + 탄 2)도 가운데를 노리면 두 발(±5) 다 맞는다.
+const PARALLEL_SHOT_GAP := 10.0
 ## 탄은 사거리보다 이 비율만큼 더 날아가고 사라진다.
 const BULLET_LIFETIME_FACTOR := 1.15
 
