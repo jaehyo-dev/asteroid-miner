@@ -1,0 +1,15 @@
+extends SceneTree
+## 봇 4종 × 시드 100개의 레벨업 시각을 JSON으로 저장 (make_tables.py가 읽어 등급 수를 추정)
+## 실행: 이 파일을 임시로 .gd로 복사한 뒤  godot --headless --path . -s <경로>.gd -- <저장 경로>
+func _init() -> void:
+	var out := {}
+	for style in ["collector", "flee", "wander", "returner"]:
+		var runs := []
+		for s in range(1, 101):
+			var r := BalanceBot.play(style, s, 600.0)
+			runs.append({"time": r["time"], "returned": r["returned"], "alive": r["alive"], "levelups": r["levelup_times"]})
+		out[style] = runs
+	var f := FileAccess.open(OS.get_cmdline_user_args()[0], FileAccess.WRITE)
+	f.store_string(JSON.stringify(out))
+	f.close()
+	quit()

@@ -37,10 +37,10 @@ const SOUNDS := {
 	"shield_block": {"files": ["shield_block"], "db": -12.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	# 레벨업: 마림바 도-미-솔-도, 마지막 음은 첫 음으로 돌아와 작게 줄어듦
 	"levelup": {"files": ["levelup"], "db": -9.5, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"card_show": {"files": ["card_show"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"card_show": {"files": ["card_show"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"card_pick": {"files": ["card_pick"], "db": -6.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
-	"open": {"files": ["card_show"], "db": -8.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
+	"open": {"files": ["card_show"], "db": -14.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
 	"cargo_heavy": {"files": ["cargo_heavy"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},
 	# 심연의 포격: 예고(붉은 조준선이 보일 때, 낮게 웅웅) → 에너지 구체 발사. 높은 소리를 깎아 낮고 둔탁하게, 예전보다 작게
 	"barrage_warn": {"files": ["barrage_warn"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 2},

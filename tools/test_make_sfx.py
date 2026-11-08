@@ -77,6 +77,16 @@ class MakeSfxTest(unittest.TestCase):
         self.assertLess(len(ms.bug_b()[1]), len(ms.jelly_a()[1]))
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg가 없는 환경(CI)은 건너뜀")
+    def test_창_소리_후보는_짧고_낮고_마림바보다_작음(self):
+        for fn in (ms.card_a, ms.card_b, ms.card_c):
+            a = fn()
+            self.assertLessEqual(len(a) / ms.SR, 0.35, fn.__name__)
+            s = np.abs(np.fft.rfft(a)) ** 2
+            self.assertLess(s[np.fft.rfftfreq(len(a), 1 / ms.SR) > 3000].sum() / s.sum(), 0.02, fn.__name__)
+            self.assertLess(abs(float(a[-1])), 0.01, f"{fn.__name__} 끝이 부드러움")
+            self.assertLess(np.max(np.abs(a)) * 10 ** (ms.CARD_DB / 20), np.max(np.abs(ms.levelup2("a"))) * 10 ** (ms.LEVELUP_DB / 20), fn.__name__)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg가 없는 환경(CI)은 건너뜀")
     def test_빠른_층은_반_박마다_소리(self):
         layer = ms.fast_pulse_layer(ms.SR * 4, 1.0, 0.25)
         self.assertEqual(len(layer), ms.SR * 4)

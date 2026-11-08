@@ -5,6 +5,7 @@
 - 합성 소리(종소리 "띠링", 올라가는 "띠리링", 낮은 에너지 소리)는 numpy로 만든다. 같은 입력이면 항상 같은 결과다.
 - --listen: 사용자가 들어 보고 고를 후보를 review/v070_step4c/listen/*.ogg로 만든다.
 - --listen2: 2차 후보(적 소리, 레벨업)를 만든다. 배경음은 tools/make_music.py가 만든다.
+- --listen3: 업그레이드 창 소리 후보를 만든다.
 
 다시 만들기: python3 tools/make_sfx.py   (후보: python3 tools/make_sfx.py --listen, --listen2)
 """
@@ -362,6 +363,43 @@ def listen2() -> None:
         save(np.concatenate([levelup2(key), silence(0.6), levelup2(key)]), f"{LISTEN}/levelup2_{key}.ogg")
 
 
+## 업그레이드 창 소리 후보: 지금 소리(open_002)는 주된 음이 6.9kHz로 높고 마림바보다 크다. 낮고 부드럽게, 0.3초 안에
+def card_a() -> np.ndarray:
+    """공기가 열리는 "슈욱": 낮게 깎은 잡음이 살짝 커졌다 사라짐 (음이 없어 마림바와 부딪치지 않음)"""
+    t = np.arange(int(SR * 0.28)) / SR
+    env = np.minimum(t / 0.1, 1.0) ** 2 * np.exp(-9.0 * np.maximum(t - 0.1, 0.0))
+    n = noise_burst(0.28, 0.0, "highpass=f=250,lowpass=f=1400,lowpass=f=1400", 21)
+    # 잡음은 순간 최고치만 커서 평균이 작다: 부드럽게 눌러 들리는 크기를 키움
+    return tail_fade(peak(np.tanh(3.0 * peak(n * env, 0.0)).astype(np.float32)), 0.06)
+
+
+def card_b() -> np.ndarray:
+    """낮은 마림바 "통": 마림바가 끝난 C5의 한 옥타브 아래 C4와 G4를 함께, 레벨업 소리와 이어지는 음"""
+    return tail_fade(peak(ffx(marimba(C5 / 2, 0.25) + 0.45 * marimba(G5 / 2, 0.25), "lowpass=f=2500")), 0.08)
+
+
+def card_c() -> np.ndarray:
+    """지금 소리의 성격을 남김: Kenney open_002를 한 옥타브 낮추고 높은 음을 깎은 뒤 0.3초로 자름"""
+    return peak(trim(ffx(pitch(load("kenney_interface/open_002"), 0.5), "lowpass=f=1800,lowpass=f=1800"), 0.3, 0.1))
+
+
+CARD_DB = -14.0  # 게임 음량(scripts/sfx.gd의 card_show와 같게): 최고 크기가 마림바(-12.5dB)보다 작게
+LEVELUP_DB = -9.5
+LEVELUP_TO_CARD = 0.3  # 레벨업 소리에서 창이 뜰 때까지 (슬로모션 길이)
+
+
+def listen3() -> None:
+    """게임처럼 마림바 → 창 소리를 두 번, 쉬고 창 소리만 두 번 (게임 음량)"""
+    g = lambda db: 10 ** (db / 20.0)
+    for key, fn in {"a": card_a, "b": card_b, "c": card_c}.items():
+        card = fn() * g(CARD_DB)
+        up = levelup2("a") * g(LEVELUP_DB)
+        scene = np.zeros(max(int(SR * LEVELUP_TO_CARD) + len(card), len(up)), np.float32)
+        scene[: len(up)] += up
+        scene[int(SR * LEVELUP_TO_CARD):int(SR * LEVELUP_TO_CARD) + len(card)] += card
+        save(np.concatenate([scene, silence(0.8), scene, silence(1.0), card, silence(0.6), card]), f"{LISTEN}/card2_{key}.ogg")
+
+
 ## 광물 줍기 후보: 등급 0~3 소리 (게임에서 연속 줍기는 재생 속도로 최대 +12반음 올림)
 def pickup_a() -> list[np.ndarray]:
     """지금 Kenney 소리를 +2반음, 고음 +5dB"""
@@ -420,7 +458,7 @@ COPY = {
     "shoot_0": "kenney_sci-fi/laserSmall_000", "shoot_1": "kenney_sci-fi/laserSmall_002",
     "hit_rock_0": "kenney_impact/impactMining_000", "hit_rock_1": "kenney_impact/impactMining_001",
     "player_hit": "kenney_impact/impactMetal_heavy_000",
-    "shield_block": "kenney_sci-fi/forceField_000", "card_show": "kenney_interface/open_002",
+    "shield_block": "kenney_sci-fi/forceField_000",
     "card_pick": "kenney_interface/select_002", "click": "kenney_interface/click_002",
     "cargo_heavy": "kenney_impact/impactSoft_heavy_000",
 }
@@ -431,6 +469,7 @@ def game_sounds() -> dict[str, np.ndarray]:
     out.update({name: fn() for name, fn in BREAKS.items()})
     out["barrage_warn"], out["barrage_fire"] = CHOICE["barrage"]()
     out["levelup"] = CHOICE["levelup"]()
+    out["card_show"] = card_c()  # 사용자 선택 (계획서 22번)
     # 경비선은 지금 금속 소리를 짧게 (파괴음 1.55초 → 게임의 0.9배 음 높이까지 반영해 0.5초)
     out["hit_guard_0"] = trim(load("kenney_sci-fi/impactMetal_000"), 0.3, 0.1)
     out["hit_guard_1"] = trim(load("kenney_sci-fi/impactMetal_002"), 0.3, 0.1)
@@ -451,6 +490,9 @@ if __name__ == "__main__":
     if "--listen" in sys.argv:
         listen()
         print("후보 → review/v070_step4c/listen/")
+    elif "--listen3" in sys.argv:
+        listen3()
+        print("창 소리 후보 → review/v070_step4c/listen/card2_*.ogg")
     elif "--listen2" in sys.argv:
         listen2()
         print("2차 후보 → review/v070_step4c/listen/")

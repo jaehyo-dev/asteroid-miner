@@ -28,8 +28,10 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 	rng.seed = seed_value * 31 + 7
 	var move := Vector2.ZERO
 	var turn := 0.0
+	var levelup_times: Array[float] = []  # 레벨업 강화를 고른 시각 (등급 확률 추정용)
 	while not sim.is_over() and sim.time < max_time:  # 귀환해도 판이 끝난다
 		if not sim.choices.is_empty():
+			levelup_times.append(sim.time)
 			sim.choose(rng.randi_range(0, sim.choices.size() - 1))
 			continue
 		match style:
@@ -67,7 +69,7 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 			_:
 				move = Vector2.ZERO
 		sim.update(STEP, move)
-	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value()}
+	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times}
 
 
 ## 정해진 시각마다의 평균 레벨 (레벨업 속도 확인용).
