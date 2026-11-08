@@ -1,6 +1,5 @@
 """tools/make_sfx.py 테스트: 합성 소리와 꼬리 자르기, 리듬 층 박자, 포격 후보의 높은 소리."""
 
-import importlib.util
 import shutil
 import unittest
 
@@ -39,6 +38,11 @@ class MakeSfxTest(unittest.TestCase):
             s = int(ms.SR * (0.25 + beat))
             self.assertGreater(np.max(np.abs(layer[s:s + 4000])), 0.2, f"{beat}번 박")
             self.assertLess(np.max(np.abs(layer[s + int(ms.SR * 0.5):s + int(ms.SR * 0.7)])), 0.01, "박 사이는 조용함")
+
+    def test_층의_소리는_끝을_넘으면_처음으로_이어짐(self):
+        out = np.zeros(10, np.float32)
+        ms.stamp(out, np.ones(4, np.float32), 8)
+        self.assertEqual(out.tolist(), [1, 1, 0, 0, 0, 0, 0, 0, 1, 1])
 
     def test_박_찾기(self):
         layer = ms.pulse_layer(ms.SR * 8, 0.5, 0.125)
@@ -80,24 +84,6 @@ class MakeSfxTest(unittest.TestCase):
             s = int(ms.SR * (0.25 + half * 0.5))
             self.assertGreater(np.max(np.abs(layer[s:s + 2000])), 0.1, f"{half}번째")
             self.assertLess(np.max(np.abs(layer[s + int(ms.SR * 0.3):s + int(ms.SR * 0.45)])), 0.01, "사이는 조용함")
-
-    @unittest.skipUnless(importlib.util.find_spec("scipy"), "scipy가 없는 환경(CI)은 건너뜀")
-    def test_섞기는_게임_시간에_맞춰_층이_들어오고_필터가_높은_소리를_깎음(self):
-        n = ms.SR * 200
-        zero_song = np.zeros((n, 2), np.float32)
-        tone = np.ones(n, np.float32)
-        # 낮은 값(직류)은 필터를 통과하므로 층 음량을 바로 잴 수 있다
-        before = ms.rms(ms.run_mix(zero_song, tone, np.zeros(n, np.float32), 10.0, 1.0))
-        after = ms.rms(ms.run_mix(zero_song, tone, np.zeros(n, np.float32), 45.0, 1.0))
-        self.assertLess(before, 0.002, "30초 전에는 안 들림")
-        self.assertGreater(after, 0.15, "40초 뒤에는 들림")
-        self.assertLess(ms.rms(ms.run_mix(zero_song, np.zeros(n, np.float32), tone, 100.0, 1.0)), 0.002, "2분 전 두 번째 층")
-        self.assertGreater(ms.rms(ms.run_mix(zero_song, np.zeros(n, np.float32), tone, 135.0, 1.0)), 0.1, "2분 뒤 두 번째 층")
-        # 시작할 때 기지 상태(450Hz)에서 약 4kHz로 곧 열림: 10kHz 사인이 처음보다 2초 뒤에 커짐
-        t = np.arange(n) / ms.SR
-        high = np.stack([np.sin(2 * np.pi * 10000 * t)] * 2, axis=1).astype(np.float32)
-        out = ms.run_mix(high, np.zeros(n, np.float32), np.zeros(n, np.float32), 0.0, 4.0)
-        self.assertLess(ms.rms(out[:ms.SR // 10]), ms.rms(out[3 * ms.SR:]))
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg가 없는 환경(CI)은 건너뜀")
     def test_포격_후보는_높은_소리가_거의_없음(self):

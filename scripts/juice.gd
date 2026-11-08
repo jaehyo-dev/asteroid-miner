@@ -92,17 +92,12 @@ const HITSTOP_COOLDOWN := 0.4
 ## 적 소리 몰림 줄이기 (적 종류·맞음/파괴마다 따로 셈, 작아지는 크기와 개수는 운석과 같음). 맞음은 총알이 빠르게 이어지므로 창이 짧음
 const ENEMY_HIT_SOUND_WINDOW := 0.25
 const ENEMY_DESTROY_SOUND_WINDOW := 0.5
-## 배경음: 기지(작고 먹먹하게), 출격(필터가 START → END Hz로 RAMP초 동안 열림), 리듬 층(LAYER_TIME초부터 LAYER_FADE초 동안 커짐), 두 번째 층(LAYER2_TIME초부터), 값이 바뀔 때 따라가는 빠르기
-const MUSIC_BASE_CUTOFF := 450.0
+## 배경음: 기지(미리 먹먹하게 만든 층, BASE_DB), 출격(곡 RUN_DB), 값이 바뀔 때 따라가는 빠르기
 const MUSIC_BASE_DB := -24.0
 const MUSIC_RUN_DB := -11.5
-const MUSIC_CUTOFF_START := 4000.0
-const MUSIC_CUTOFF_END := 12000.0
-const MUSIC_CUTOFF_RAMP := 180.0
-const MUSIC_LAYER_TIME := 30.0
-const MUSIC_LAYER_FADE := 10.0
-const MUSIC_LAYER_DB := -12.5
-const MUSIC_LAYER2_TIME := 120.0
-const MUSIC_LAYER2_FADE := 10.0
-const MUSIC_LAYER2_DB := -17.0
+const MUSIC_SILENT_DB := -60.0
+## 곡에 섞어 넣는 베이스 선율의 크기 (출격 직후부터 곡과 함께 들림. 바꾸면 tools/make_music.py를 다시 실행)
+const MUSIC_BASS_DB := -15.0
+## 출격 시간에 따라 쌓이는 층 [시작 초, 커지는 초, 음량 dB]: 리듬, 화음·아르페지오, 빠른 리듬 + 멜로디 (tools/make_music.py도 이 줄을 읽음)
+const MUSIC_STEMS := [[30.0, 10.0, -12.5], [60.0, 10.0, -15.0], [120.0, 10.0, -15.0]]
 const MUSIC_SMOOTH := 1.5

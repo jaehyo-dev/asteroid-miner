@@ -2,42 +2,26 @@ extends TestCase
 ## 배경음 (Music, MusicMix), 일시 정지 화면, 숨은 FPS 표시
 
 
-func test_필터는_시간이_지날수록_열리고_끝에서_멈춤() -> void:
-	assert_eq(MusicMix.run_cutoff(0.0), Juice.MUSIC_CUTOFF_START)
-	assert_true(MusicMix.run_cutoff(60.0) > MusicMix.run_cutoff(0.0), "1분이면 더 열림")
-	assert_true(MusicMix.run_cutoff(120.0) > MusicMix.run_cutoff(60.0), "2분이면 더 열림")
-	assert_true(absf(MusicMix.run_cutoff(Juice.MUSIC_CUTOFF_RAMP) - Juice.MUSIC_CUTOFF_END) < 0.01, "끝")
-	assert_eq(MusicMix.run_cutoff(999.0), MusicMix.run_cutoff(Juice.MUSIC_CUTOFF_RAMP), "더 안 열림")
+func test_층은_출격_시간에_맞춰_차례로_쌓임() -> void:
+	var enter := [30.0, 60.0, 120.0]  # 리듬, 화음, 빠른 리듬 + 멜로디 (베이스는 곡에 섞여 출격 직후부터)
+	for i in enter.size():
+		var stem: Array = Juice.MUSIC_STEMS[i]
+		assert_true(is_equal_approx(float(stem[0]), enter[i]), "%d번 시작" % i)
+		assert_true(MusicMix.run_stem_db(i, enter[i] - 0.5) <= -60.0 + float(stem[2]), "%d번은 그 전엔 안 들림" % i)
+		assert_true(MusicMix.run_stem_db(i, enter[i] + float(stem[1]) * 0.5) > MusicMix.run_stem_db(i, enter[i]), "커지는 중")
+		assert_true(absf(MusicMix.run_stem_db(i, enter[i] + float(stem[1])) - float(stem[2])) < 0.01, "다 커짐")
 
 
-func test_출격은_처음부터_또렷함() -> void:
-	assert_true(MusicMix.run_cutoff(0.0) >= 3500.0, "시작 필터 약 4kHz")
-
-
-func test_리듬_층은_30초_뒤에_들어옴() -> void:
-	assert_true(MusicMix.run_layer_db(0.0) <= -60.0 + Juice.MUSIC_LAYER_DB, "처음엔 안 들림")
-	assert_true(MusicMix.run_layer_db(29.0) <= -60.0 + Juice.MUSIC_LAYER_DB, "30초 전에도")
-	assert_true(MusicMix.run_layer_db(35.0) > MusicMix.run_layer_db(30.0), "커지는 중")
-	assert_true(absf(MusicMix.run_layer_db(Juice.MUSIC_LAYER_TIME + Juice.MUSIC_LAYER_FADE) - Juice.MUSIC_LAYER_DB) < 0.01, "다 커짐")
-
-
-func test_두_번째_층은_2분_뒤에_더해짐() -> void:
-	assert_true(MusicMix.run_layer2_db(119.0) <= -60.0 + Juice.MUSIC_LAYER2_DB, "2분 전엔 안 들림")
-	assert_true(MusicMix.run_layer2_db(125.0) > MusicMix.run_layer2_db(120.0), "커지는 중")
-	assert_true(absf(MusicMix.run_layer2_db(Juice.MUSIC_LAYER2_TIME + Juice.MUSIC_LAYER2_FADE) - Juice.MUSIC_LAYER2_DB) < 0.01, "다 커짐")
-
-
-func test_곡과_리듬_층은_길이가_같고_음악_버스로_반복() -> void:
+func test_곡과_층은_길이가_같고_음악_버스로_반복() -> void:
 	var list := Music.players()
-	assert_eq(list.size(), 3)
+	assert_eq(list.size(), 2 + Juice.MUSIC_STEMS.size())
 	for p in list:
-		assert_true(absf(list[0].stream.get_length() - p.stream.get_length()) < 0.01, "함께 돌아도 박이 안 어긋남")
-	for p in list:
+		assert_true(absf(list[0].stream.get_length() - 128.0 * 60.0 / 135.0) < 0.001, "곡은 128박")
+		var bars: float = p.stream.get_length() / (4.0 * 60.0 / 135.0)
+		assert_true(absf(bars - round(bars)) < 0.001, "마디의 정수배라 함께 돌아도 박이 안 어긋남: %f" % bars)
 		assert_eq(p.bus, &"Music")
 		assert_true(p.stream.loop, "반복")
 		assert_true(p.playing, "재생 중")
-	var bus := AudioServer.get_bus_index("Music")
-	assert_true(AudioServer.get_bus_effect(bus, 0) is AudioEffectLowPassFilter, "높은 음 깎는 필터")
 
 
 func test_다른_앱으로_가면_멈추고_돌아오면_이어서_남() -> void:
@@ -49,16 +33,17 @@ func test_다른_앱으로_가면_멈추고_돌아오면_이어서_남() -> void
 		assert_false(p.stream_paused, "이어서")
 
 
-func test_기지는_출격보다_작고_먹먹함() -> void:
-	Music.set_run_time(0.0)
-	var run_cut := Music.target_cutoff
-	var run_db := Music.target_main_db
+func test_기지는_먹먹한_층만_작게_출격은_곡과_쌓인_층() -> void:
 	Music.set_base()
-	assert_true(Music.target_cutoff < run_cut, "더 먹먹")
-	assert_true(Music.target_main_db < run_db, "더 작음")
-	assert_eq(Music.target_layer2_db, MusicMix.run_layer2_db(0.0), "기지에선 층이 꺼짐")
+	assert_eq(Music.target_main_db, Juice.MUSIC_SILENT_DB, "기지엔 또렷한 곡이 안 들림")
+	assert_eq(Music.target_base_db, Juice.MUSIC_BASE_DB, "먹먹한 층")
+	assert_true(Music.target_base_db < Juice.MUSIC_RUN_DB, "더 작음")
+	for db in Music.target_stem_dbs:
+		assert_true(db < -60.0, "기지에선 음 층이 꺼짐")
 	Music.set_run_time(125.0)
-	assert_true(Music.target_layer2_db > MusicMix.run_layer2_db(0.0), "2분 뒤 출격 중엔 두 번째 층")
+	assert_eq(Music.target_main_db, Juice.MUSIC_RUN_DB, "출격은 곡")
+	assert_eq(Music.target_base_db, Juice.MUSIC_SILENT_DB, "먹먹한 층은 꺼짐")
+	assert_true(Music.target_stem_dbs[2] > -60.0, "2분 뒤엔 멜로디 층까지")
 	Music.set_base()
 
 
