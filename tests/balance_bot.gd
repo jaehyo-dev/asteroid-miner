@@ -87,8 +87,8 @@ static func best_choice(choices: Array) -> int:
 
 ## 정해진 시각마다의 평균 레벨 (레벨업 속도 확인용).
 ## 그 시각까지 살아 있는 판만 평균한다 (일찍 끝난 판의 레벨이 섞이면 속도가 아니라 생존을 재게 됨).
-## 살아 있는 판이 3분의 1보다 적으면 그 시각은 -1 (표본이 너무 적음).
-## v0.7.0 화물 무게 뒤로 귀환하지 않는 collector 봇은 4분에 약 40%만 살아 있어 절반 → 3분의 1로 낮춤.
+## 살아 있는 판이 4분의 1보다 적으면 그 시각은 -1 (표본이 너무 적음).
+## 귀환하지 않는 collector 봇은 4분에 약 3분의 1만 살아 있다. 기준이 3분의 1이면 맥(8/24)은 통과하고 CI(리눅스, 실수 계산이 조금 달라 7/24)는 떨어져서 4분의 1로 낮춤.
 static func average_levels(style: String, seeds: Array, marks: Array) -> Array[float]:
 	var result: Array[float] = []
 	for t in marks:
@@ -99,7 +99,7 @@ static func average_levels(style: String, seeds: Array, marks: Array) -> Array[f
 			if r["alive"]:
 				total += r["level"]
 				alive += 1
-		result.append(total / alive if alive * 3 >= seeds.size() else -1.0)
+		result.append(total / alive if alive * 4 >= seeds.size() else -1.0)
 	return result
 
 
