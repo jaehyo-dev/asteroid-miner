@@ -227,14 +227,17 @@ def mock_b(a, w, h, big, t=0, shift=0.0):
     ground = fit(a["ground_raw"], a["ground_box"], gw)
     paste(bg, ground, ((w - gw) // 2 + 40, h - ground.height // 2 + 10))
     col_w = 148 if not big else 250
-    y = 34 if not big else 42
-    row = 56 if not big else 63
+    y = 34 if not big else 46
+    row = 56 if not big else 62
     for i, s in enumerate(NAMES):
         paste(bg, nine("button", col_w, row - 4), (6, y))
         icon = build(a, i, 44)
         paste(bg, icon, (14, y + (row - 4 - icon.height) // 2))
-        text(bg, (64, y + (10 if not big else 3)), s, 12 if not big else 24, INK)
-        text(bg, (64, y + (26 if not big else 29)), ["강화 3/12", "전투기 1대", "가져온 광물", "도감 41%", "공사 중"][i], 12 if not big else 24, TEAL if i != 4 else TEAL)
+        if big:  # 폰은 24px 두 줄이 판 안에 안 들어가 이름만 둔다
+            text(bg, (64, y + (row - 4) // 2), s, 24, INK, "lm")
+        else:
+            text(bg, (64, y + 10), s, 12, INK)
+            text(bg, (64, y + 26), ["강화 3/12", "전투기 1대", "가져온 광물", "도감 41%", "공사 중"][i], 12, TEAL)
         y += row
     # 가운데 무대
     stage_x = col_w + 12 + (w - col_w - 12) // 2
