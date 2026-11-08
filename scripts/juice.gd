@@ -63,6 +63,32 @@ const HIT_SHAKE_TIME := 0.25
 const HIT_SHAKE_STRENGTH := 3.0
 const HIT_FLASH_TIME := 0.2
 
+# ── 효과 강화 연출 ─────────────────────
+## 효과 하나의 지속 시간(초): 관통 불꽃, 튕김 궤적, 폭발 고리, 치명타 숫자, 채굴 레이저 반짝임, 광물 더 나옴
+const EFFECT_TIME := {"pierce": 0.16, "bounce": 0.14, "explode": 0.3, "crit": 0.6, "laser": 0.14, "drop_extra": 0.4}
+## 한꺼번에 그리는 효과 상한과 치명타 숫자 상한 (글자는 그리기 호출을 따로 쓴다)
+const EFFECT_FX_MAX := 80
+const CRIT_TEXT_MAX := 10
+const CRIT_COLOR := Color("#ff5a6e")
+const CRIT_RISE := 18.0
+## 관통 불꽃 조각 수, 궤도 관통 가속기의 탄 꼬리 길이(그 시간 전 위치까지)
+const PIERCE_SPARKS := 4
+const ORBIT_TAIL_TIME := 0.05
+## 번개 궤적 꺾임 수와 옆으로 벌어지는 폭
+const LIGHTNING_SEGMENTS := 5
+const LIGHTNING_JITTER := 5.0
+## 편향 실드: 바깥 빛 비율, 완충 광택이 윤곽을 한 바퀴 도는 시간과 머리 길이(픽셀 수), 가끔 반짝이는 간격·시간·수, 막을 때 번쩍임 시간
+const SHIELD_GLOW_ALPHA := 0.3
+const SHIELD_SWEEP_TIME := 0.8
+const SHIELD_SWEEP_HEAD := 8
+const SHIELD_TWINKLE_EVERY := 3.5
+const SHIELD_TWINKLE_TIME := 0.18
+const SHIELD_TWINKLE_COUNT := 4
+const SHIELD_BREAK_TIME := 0.14
+## 과부하 반응로 맥동 빠르기, 전역 견인 비콘 고리 시간
+const OVERLOAD_PULSE := 7.0
+const BEACON_RING_TIME := 0.7
+
 # ── 레벨업과 화면 ─────────────────────
 ## 레벨업 순간 슬로모션: 실제 시간, 시뮬레이션 배율. 그동안 우주선 둘레에 빛이 퍼진다
 const LEVELUP_SLOWMO_TIME := 0.3
@@ -84,8 +110,28 @@ const CARD_REROLL_DROP_DISTANCE := 24.0
 const CARD_FLASH_STRENGTH := [0.25, 0.4, 0.55, 0.7, 0.85]
 const CARD_FLASH_RING := [0, 3, 6, 10, 16]
 const CARD_SHOW_DB := [-5.0, -3.0, -1.0, 1.0, 3.0]
+## 레전드리: 뒤집히기 전에 빛이 모이는 시간과 모이는 알갱이 수
+const CARD_LEGEND_GATHER := 0.3
+const CARD_GATHER_PARTS := 48
+## 앞면이 나오는 순간의 폭발 (등급별 노멀~레전드리): 파티클 수, 빛줄기 수, 빛줄기 길이, 파티클 속도(PC 카드 폭 기준), 지속 시간
+const CARD_BURST_PARTS := [8, 18, 34, 60, 120]
+const CARD_BURST_RAYS := [0, 6, 10, 14, 24]
+const CARD_BURST_RAY_LEN := [0.0, 50.0, 80.0, 120.0, 220.0]
+const CARD_BURST_SPEED := [40.0, 60.0, 80.0, 110.0, 170.0]
+const CARD_BURST_TIME := [0.35, 0.45, 0.55, 0.7, 0.9]
+## 유니크부터: 빛 기둥 시간, 약한 흔들림 세기(픽셀, 등급별)와 시간
+const CARD_PILLAR_TIME := 0.6
+const CARD_SHAKE := [0.0, 0.0, 0.0, 1.0, 2.0]
+const CARD_SHAKE_TIME := 0.25
+## 등장 효과 파티클 총량 상한, 건너뛸 때 가장 높은 등급 연출의 세기
+const CARD_FX_MAX := 240
+const CARD_SKIP_BURST := 0.6
 ## 건너뛴 직후 이 시간 동안은 눌러도 고르지 않는다 (연타로 실수 선택 방지)
 const CARD_SKIP_GUARD := 0.2
+## 카드가 뜨기 전부터 누르고 있던 손가락을 뗀 뒤 이 시간(밀리초) 안의 누름은 선택으로 치지 않는다 (조이스틱 손가락의 실수 선택 방지)
+const CARD_STALE_RELEASE_MS := 120
+## 그 손가락 기록을 믿는 시간(밀리초). 뗀 신호를 놓쳐도 이 뒤에는 카드를 고를 수 있다
+const CARD_STALE_MAX_MS := 4000
 ## 카드를 고른 순간의 번쩍임, 빛 고리, 화면이 닫히기까지 시간
 const CARD_PICK_FLASH := 0.8
 const CARD_PICK_RING := 8

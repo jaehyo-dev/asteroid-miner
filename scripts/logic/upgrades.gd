@@ -55,21 +55,23 @@ static func describe(id: String, grade: int = NORMAL, short: bool = false) -> St
 			return "발사 속도 +%s%%" % _num(v * 100.0)
 		"multishot":
 			var extra: float = u["bonus_damage"][grade]
+			if short:
+				return "%d발 더" % int(v) if extra <= 0.0 else "%d발 더, 피해 +%d%%" % [int(v), roundi(extra * 100.0)]
 			return "한 번에 %d발 더" % int(v) if extra <= 0.0 else "한 번에 %d발 더, 탄 피해 +%d%%" % [int(v), roundi(extra * 100.0)]
 		"damage":
 			return "탄 피해 +%s" % _num(v)
 		"range":
 			return "공격 사거리 +%s%%" % _num(v * 100.0)
 		"max_hp":
-			return "최대 체력 +%s, 그만큼 회복" % _num(v)
+			return "체력 +%s, 회복" % _num(v) if short else "최대 체력 +%s, 그만큼 회복" % _num(v)
 		"repair":
 			return "체력 %s 회복" % _num(v)
 		"speed":
 			if short:
-				return "이동 +%s%%, 무거워도 빠르게" % _num(v * 100.0)
+				return "이동 속도 +%s%%" % _num(v * 100.0)
 			return "이동 속도 +%s%% (화물이 무거워도 빠르게)" % _num(v * 100.0)
 		"magnet":
-			return "광물 끄는 범위 +%s%%" % _num(v * 100.0)
+			return "끄는 범위 +%s%%" % _num(v * 100.0) if short else "광물 끄는 범위 +%s%%" % _num(v * 100.0)
 	return ""
 
 
@@ -95,6 +97,8 @@ static func roll_grade(random: RandomNumberGenerator, time: float) -> int:
 static func available_in(list: Array, levels: Dictionary) -> PackedStringArray:
 	var result: PackedStringArray = []
 	for u in list:
+		if u.has("blocked_by") and levels.has(u["blocked_by"]):
+			continue  # 더 강한 레전드리를 이미 가졌으면 쓸모없는 카드는 뺀다 (궤도 관통 가속기 → 관통탄)
 		if int(u["max"]) <= 0 or int(levels.get(u["id"], 0)) < int(u["max"]):
 			result.append(u["id"])
 	return result
@@ -158,17 +162,39 @@ static func has_effect(cards: Array) -> bool:
 	return false
 
 
-## 고른 수치 강화를 누적값에 더한다. 발사 속도도 더한다 (곱으로 쌓으면 유니크가 겹칠 때 기지 최대 봇이 10분을 넘겨 살아남음).
+## 고른 강화를 누적값에 더한다. 발사 속도도 더한다 (곱으로 쌓으면 유니크가 겹칠 때 기지 최대 봇이 10분을 넘겨 살아남음).
+## 효과 강화는 등급(에픽·유니크)마다 값이 다르고 상한이 있다. 레전드리는 켜짐(1.0)만 기록한다.
 static func add_bonus(bonus: Dictionary, id: String, grade: int) -> void:
-	var v := value(id, grade)
+	var i := clampi(grade - EPIC, 0, 1)
+	var add := func(table: Array, cap: float) -> void: bonus[id] = minf(float(bonus.get(id, 0.0)) + table[i], cap)
 	match id:
 		"multishot":
-			bonus[id] = float(bonus.get(id, 0.0)) + v
+			bonus[id] = float(bonus.get(id, 0.0)) + value(id, grade)
 			bonus["multishot_damage"] = float(bonus.get("multishot_damage", 0.0)) + float(info(id)["bonus_damage"][grade])
+		"pierce":
+			add.call(Balance.PIERCE_ADD, Balance.PIERCE_CAP)
+		"ricochet":
+			add.call(Balance.RICOCHET_ADD, Balance.RICOCHET_CAP)
+		"crit":
+			add.call(Balance.CRIT_ADD, Balance.CRIT_CAP)
+		"drone":
+			add.call(Balance.DRONE_ADD, Balance.DRONE_CAP)
+		"mining_laser":
+			add.call(Balance.MINING_ADD, Balance.MINING_CAP)
+		"explosive":
+			var had: float = bonus.get("explosive_radius", 0.0)
+			bonus["explosive_radius"] = Balance.EXPLOSIVE_RADIUS[i] if had <= 0.0 else maxf(had, Balance.EXPLOSIVE_RADIUS[i]) + Balance.EXPLOSIVE_STAGE_RADIUS
+			bonus["explosive_share"] = maxf(float(bonus.get("explosive_share", 0.0)), Balance.EXPLOSIVE_SHARE[i])
+		"shield":
+			var had: float = bonus.get(id, 0.0)
+			bonus[id] = Balance.SHIELD_INTERVAL[i] if had <= 0.0 else maxf(minf(had, Balance.SHIELD_INTERVAL[i]) - Balance.SHIELD_STAGE_CUT, Balance.SHIELD_MIN_INTERVAL)
+		"orbit_pierce", "chain_matrix", "overload", "tractor_beacon":
+			bonus[id] = 1.0
 		_:
-			bonus[id] = float(bonus.get(id, 0.0)) + v
+			bonus[id] = float(bonus.get(id, 0.0)) + value(id, grade)
 
 
 ## 레벨업에 필요한 경험치 (현재 레벨 → 다음 레벨)
 static func xp_to_next(level: int) -> int:
-	return Balance.XP_BASE + (maxi(level, 1) - 1) * Balance.XP_GROWTH
+	var over := maxi(level - Balance.XP_SOFT_LEVEL, 0)
+	return Balance.XP_BASE + (maxi(level, 1) - 1) * Balance.XP_GROWTH + over * over * Balance.XP_SOFT_GROWTH

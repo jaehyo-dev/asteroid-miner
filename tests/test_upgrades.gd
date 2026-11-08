@@ -33,7 +33,7 @@ func test_최대_단계_강화는_나오지_않음() -> void:
 		levels[u["id"]] = u["max"]
 	levels["speed"] = 0
 	for i in 30:
-		var c := Upgrades.roll_choices(rng, levels, 3)
+		var c := Upgrades.roll_choices(rng, levels, 3, 0.0, false)
 		var ids: Array = c.map(func(card: Dictionary) -> String: return card["id"])
 		assert_eq(ids.size(), 2, "남은 2개만")
 		assert_true(ids.has("speed") and ids.has(Upgrades.REPAIR), str(ids))
@@ -93,7 +93,7 @@ func test_등급별_수치와_설명() -> void:
 	assert_eq(Upgrades.describe("multishot", Upgrades.UNIQUE), "한 번에 2발 더")
 	assert_eq(Upgrades.describe("damage", Upgrades.NORMAL), "탄 피해 +0.75")
 	assert_eq(Upgrades.describe("repair", Upgrades.EPIC), "체력 40 회복")
-	assert_eq(Upgrades.describe("pierce", Upgrades.UNIQUE, true), "대상 2개를 더 관통")
+	assert_eq(Upgrades.describe("pierce", Upgrades.UNIQUE, true), "2개 더 관통")
 
 
 func test_시간별_등급_확률은_설계_표와_같음() -> void:
@@ -119,10 +119,10 @@ func test_등급_분포가_확률을_따름() -> void:
 
 
 func test_잠겨_있으면_효과와_레전드리가_뽑히지_않음() -> void:
-	assert_false(Balance.EFFECT_CARDS_ENABLED, "3부 전까지는 잠금")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
 	var sim := _sim()
+	sim.effects_enabled = false
 	sim.effect_dry = 99  # 보정이 켜질 만한 값이어도
 	for i in 3000:
 		sim.rerolls_left = 1
@@ -133,8 +133,14 @@ func test_잠겨_있으면_효과와_레전드리가_뽑히지_않음() -> void:
 			assert_true(Balance.UPGRADES.any(func(u: Dictionary) -> bool: return u["id"] == card["id"]), "수치 강화만 " + card["id"])
 
 
+func test_효과_카드는_켜져_있음() -> void:
+	assert_true(Balance.EFFECT_CARDS_ENABLED)
+	assert_true(_sim().effects_enabled)
+
+
 func test_잠겨_있으면_보정이_세어지지_않음() -> void:
 	var sim := _sim()
+	sim.effects_enabled = false
 	sim.gain_xp(Balance.XP_BASE)
 	sim.choose(0)
 	assert_eq(sim.effect_dry, 0)

@@ -1,7 +1,7 @@
 class_name BalanceBot
 extends RefCounted
 ## 밸런스 확인용 자동 플레이 봇 (테스트 전용, 게임에는 포함되지 않음).
-## 강화는 무작위로 고르고, 움직이는 방식만 다르다.
+## 강화는 무작위 또는 "가장 좋아 보이는 것"(pick = "best": 등급이 높은 것, 같으면 레전드리·효과 > 수치)으로 고르고, 움직이는 방식만 다르다.
 ##   still: 가만히 있음 / wander: 2초마다 무작위 방향으로 돌아다님 / flee: 가까운 운석 반대로 피함
 ##   collector: 가까운 운석은 피하고, 아니면 가장 가까운 광물을 주우러 감 (보통 플레이어에 가장 가까움)
 ##   returner: collector처럼 줍다가 화물칸이 RETURN_CARGO_RATIO 이상 차거나 체력이 RETURN_HP_RATIO 아래면
@@ -21,7 +21,7 @@ const RETURN_HP_RATIO := 0.35
 
 ## 한 판을 끝까지(또는 max_time까지) 돌리고 {time, level, value, alive}를 돌려준다.
 ## base: 기지 공용 업그레이드 단계 (id → 단계)
-static func play(style: String, seed_value: int, max_time: float, base: Dictionary = {}) -> Dictionary:
+static func play(style: String, seed_value: int, max_time: float, base: Dictionary = {}, pick := "random") -> Dictionary:
 	var sim := RunSim.new(seed_value)
 	sim.apply_base(base)
 	var rng := RandomNumberGenerator.new()
@@ -32,7 +32,7 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 	while not sim.is_over() and sim.time < max_time:  # 귀환해도 판이 끝난다
 		if not sim.choices.is_empty():
 			levelup_times.append(sim.time)
-			sim.choose(rng.randi_range(0, sim.choices.size() - 1))
+			sim.choose(best_choice(sim.choices) if pick == "best" else rng.randi_range(0, sim.choices.size() - 1))
 			continue
 		match style:
 			"wander":
@@ -69,7 +69,20 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 			_:
 				move = Vector2.ZERO
 		sim.update(STEP, move)
-	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times}
+	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times, "picks": sim.upgrade_levels}
+
+
+## "가장 좋아 보이는" 카드 번호: 등급이 높은 것, 같으면 효과·레전드리가 수치보다 먼저 (사람이 눈에 띄는 카드를 고르는 플레이)
+static func best_choice(choices: Array) -> int:
+	var best := 0
+	var best_score := -1.0
+	for i in choices.size():
+		var c: Dictionary = choices[i]
+		var score := float(c["grade"]) * 2.0 + (1.0 if Upgrades.is_effect(c["id"]) else 0.0)
+		if score > best_score:
+			best = i
+			best_score = score
+	return best
 
 
 ## 정해진 시각마다의 평균 레벨 (레벨업 속도 확인용).
@@ -91,9 +104,9 @@ static func average_levels(style: String, seeds: Array, marks: Array) -> Array[f
 
 
 ## 여러 판의 생존 시간 [최소, 중앙값, 최대]
-static func survival_stats(style: String, seeds: Array, max_time: float, base: Dictionary = {}) -> Array[float]:
+static func survival_stats(style: String, seeds: Array, max_time: float, base: Dictionary = {}, pick := "random") -> Array[float]:
 	var times: Array[float] = []
 	for s in seeds:
-		times.append(float(play(style, s, max_time, base)["time"]))
+		times.append(float(play(style, s, max_time, base, pick)["time"]))
 	times.sort()
 	return [times[0], times[times.size() / 2], times[times.size() - 1]]

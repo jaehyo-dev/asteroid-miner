@@ -10,6 +10,28 @@ const MAX_TIME := 600.0
 
 func _init() -> void:
 	var seeds := range(1, 101)
+	for pick in ["random", "best"]:
+		print("카드 고르기: %s" % pick)
+		_table(seeds, pick)
+	# 기지 업그레이드 최대: 10분 안에 끝나야 한다 (test_balance.gd와 같은 기준)
+	var maxed := {}
+	for u in Balance.BASE_UPGRADES:
+		maxed[u["id"]] = u["max"]
+	for pick in ["random", "best"]:
+		var stats := BalanceBot.survival_stats("collector", range(1, 41), MAX_TIME + 1.0, maxed, pick)
+		print("기지 최대 collector %s: 최소 %.0f · 중앙 %.0f · 최대 %.0f초" % [pick, stats[0], stats[1], stats[2]])
+	# 레벨업 속도 테스트(test_balance.gd)와 같은 24판: 4분까지 살아남은 판 수와 2분·4분 평균 레벨
+	var level_seeds := range(1000, 1024)
+	var alive := 0
+	for s in level_seeds:
+		if BalanceBot.play("collector", s, 240.0)["alive"]:
+			alive += 1
+	var lv := BalanceBot.average_levels("collector", level_seeds, [120.0, 240.0])
+	print("collector 4분 생존 %d/24, 평균 레벨 2분 %.1f · 4분 %.1f" % [alive, lv[0], lv[1]])
+	quit(0)
+
+
+func _table(seeds: Array, pick: String) -> void:
 	print("| 봇 | 한 판 길이(초) | 사망률(10분 안) | 2분 안 사망률 | 광물 가치 | 최종 레벨 | 귀환율 | 귀환 시점(초) | 가져간 가치 |")
 	print("|---|---|---|---|---|---|---|---|---|")
 	for style in STYLES:
@@ -22,7 +44,7 @@ func _init() -> void:
 		var return_time := 0.0
 		var home := 0.0
 		for s in seeds:
-			var r := BalanceBot.play(style, s, MAX_TIME)
+			var r := BalanceBot.play(style, s, MAX_TIME, {}, pick)
 			total_time += r["time"]
 			value += r["value"]
 			levels += r["level"]
@@ -37,12 +59,3 @@ func _init() -> void:
 		var n := float(seeds.size())
 		var avg_return := "%.1f" % (return_time / returns) if returns > 0 else "-"
 		print("| %s | %.1f | %d%% | %d%% | %.0f | %.1f | %d%% | %s | %.0f |" % [style, total_time / n, roundi(deaths * 100.0 / n), roundi(early * 100.0 / n), value / n, levels / n, roundi(returns * 100.0 / n), avg_return, home / n])
-	# 레벨업 속도 테스트(test_balance.gd)와 같은 24판: 4분까지 살아남은 판 수와 2분·4분 평균 레벨
-	var level_seeds := range(1000, 1024)
-	var alive := 0
-	for s in level_seeds:
-		if BalanceBot.play("collector", s, 240.0)["alive"]:
-			alive += 1
-	var lv := BalanceBot.average_levels("collector", level_seeds, [120.0, 240.0])
-	print("collector 4분 생존 %d/24, 평균 레벨 2분 %.1f · 4분 %.1f" % [alive, lv[0], lv[1]])
-	quit(0)

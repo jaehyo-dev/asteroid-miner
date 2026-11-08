@@ -134,6 +134,12 @@ func _process(delta: float) -> void:
 	danger.queue_redraw()
 
 
+func _input(event: InputEvent) -> void:
+	# 레벨업 슬로모션 동안의 누름은 카드가 뜰 때 건너뛰기로 친다 (0.3초 먼저 눌러도 한 번에 넘어가게)
+	if slowmo > 0.0 and current_menu == Menu.NONE and event.is_pressed() and (event is InputEventScreenTouch or event is InputEventMouseButton):
+		cards.queue_skip()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	# 레벨업 카드: 숫자키 1, 2, 3으로 고르고 R로 다시 뽑는다. 다 펼쳐지기 전이면 건너뛰기만 한다.
 	if current_menu == Menu.LEVEL_UP and event is InputEventKey and event.pressed and not event.echo:
@@ -247,6 +253,14 @@ func _play_sounds() -> void:
 			Sfx.play("player_hit")
 		elif e == "levelup":
 			Sfx.play("levelup")
+		elif e == "shield_block":
+			Sfx.play_shield_block()
+		elif e == "explode":
+			Sfx.play("break_mid", -1.0, 1.15, -10.0)
+		elif e == "drone_shoot":
+			Sfx.play("shoot", -1.0, 1.25, -8.0)
+		elif e == "beacon":
+			Sfx.play("beacon", 0.0)
 	for a in sim.destroyed + sim.crashed:
 		var db := _break_sounds.next_db(sim.time) if a.kind == RunSim.ROCK else _enemy_sound_db(break_sound(a), Juice.ENEMY_DESTROY_SOUND_WINDOW)
 		if a.golden or (a.kind == RunSim.ROCK and a.type == 2):

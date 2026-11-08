@@ -249,6 +249,27 @@ def bullet_sheet() -> Image.Image:
     return rotsprite.dir8_sheet(row(frames), 32, 32)
 
 
+## 호위 드론: 팩 색(Main Ship 금속 + 청록 눈)으로 손으로 찍은 작은 비행체. 위쪽을 봄. 2프레임은 꼬리 불꽃 깜빡임
+DRONE_COLORS = {"0": (43, 25, 37), "1": (92, 81, 100), "2": (165, 178, 157), "3": (254, 248, 229), "4": (48, 225, 185),
+                "5": (248, 148, 25), "6": (246, 206, 80)}
+DRONE_FRAMES = [
+    ["...0...", "..030..", ".01210.", "0124210", "0121210", "00.1.00", "...5..."],
+    ["...0...", "..030..", ".01210.", "0124210", "0121210", "00.1.00", "...6..."],
+]
+
+
+def drone_sheet() -> Image.Image:
+    frames = []
+    for rows in DRONE_FRAMES:
+        img = Image.new("RGBA", (len(rows[0]), len(rows)), (0, 0, 0, 0))
+        for y, line in enumerate(rows):
+            for x, ch in enumerate(line):
+                if ch != ".":
+                    img.putpixel((x, y), DRONE_COLORS[ch] + (255,))
+        frames.append(center_in(img, 16))
+    return rotsprite.dir8_sheet(row(frames), 16, 16)
+
+
 def build() -> None:
     os.makedirs(OUT, exist_ok=True)
     d8 = rotsprite.dir8_sheet
@@ -256,6 +277,7 @@ def build() -> None:
     for name, strip in ship_strips().items():
         shrink_ship.shrink_sheet(strip, name).save(f"{OUT}/{name}.png")
     bullet_sheet().save(f"{OUT}/bullet.png")  # 팩 Auto cannon bullet을 60%로 다시 찍음
+    drone_sheet().save(f"{OUT}/drone.png")  # 호위 드론
 
     # 적 3종 (팩은 아래를 봄 → 뒤집음): 몸, 엔진, 파괴
     enemies = {

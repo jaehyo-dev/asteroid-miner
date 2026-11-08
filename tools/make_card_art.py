@@ -29,7 +29,7 @@ ICONS = {
     "fire_rate": ("icons_sample.png", 0.0, 0.33), "multishot": ("icons_a.png", 0.0, 1 / 3), "damage": ("icons_a.png", 1 / 3, 2 / 3),
     "range": ("icons_a.png", 2 / 3, 1.0), "max_hp": ("icons_b.png", 0.0, 1 / 3), "repair": ("icons_b.png", 1 / 3, 2 / 3),
     "speed": ("icons_b.png", 2 / 3, 1.0), "magnet": ("icons_c.png", 0.0, 1 / 3),
-    "pierce": ("icons_d.png", 0.0, 1 / 3), "ricochet": ("icons_g.png", 0.0, 0.5), "explosive": ("icons_d.png", 2 / 3, 1.0),
+    "pierce": ("icons_d.png", 0.0, 1 / 3), "ricochet": ("icons_h.png", 0.0, 1.0), "explosive": ("icons_d.png", 2 / 3, 1.0),
     "crit": ("icons_e.png", 0.0, 0.5), "shield": ("icons_g.png", 0.5, 1.0), "drone": ("icons_sample.png", 0.67, 1.0),
     "mining_laser": ("icons_c.png", 1 / 3, 2 / 3),
     "orbit_pierce": ("icons_e.png", 0.5, 1.0), "chain_matrix": ("icons_f.png", 0.0, 1 / 3), "overload": ("icons_f.png", 1 / 3, 2 / 3),

@@ -1,13 +1,15 @@
 class_name LevelCard
 extends BaseButton
 ## 레벨업 카드 한 장 (프레임 S). 9칸 프레임 + 등급 색 바꾸기 + 장식, 원형 받침과 아이콘, 종류 표, 이름, 설명, 단계 점.
-## 프레임·장식·꼬리표는 논리 1배, 받침과 아이콘은 2배, 글자는 12px·24px (review/v070_step5/design.md 6번).
+## 프레임·장식·꼬리표·받침·아이콘은 모두 논리 1배로 뒤 출격 화면과 같은 픽셀 격자다. 글자는 PC 12px, 폰 24px.
 
 const ART := "res://assets/sprites/run/card/"
 const FONT := preload("res://assets/fonts/galmuri/Galmuri11.ttf")
 const GRADE_SHADER := preload("res://scripts/card_grade.gdshader")
 
 const INK := Color("#fef8e5")
+## 이름과 글자 크기가 같아서 설명은 조금 어둡게 구분한다
+const DESC_COLOR := Color("#d9d0c0")
 const NAME_COLORS: Array[Color] = [INK, Color("#99e9e6"), Color("#a884f3"), Color("#f6ce50"), INK]
 ## 등급별 빛 색과 계단 빛의 알파 (0~255). 높은 등급일수록 띠가 많다
 const GLOW_COLORS: Array[Color] = [Color("#5c5164"), Color("#30e1b9"), Color("#a884f3"), Color("#f6ce50"), Color.WHITE]
@@ -37,9 +39,16 @@ const FRAME_RADIUS := 8
 const FRAME_INSET := 2
 ## 설명 최대 줄 수
 const DESC_MAX_LINES := 2
+## 카드 폭: 글자 작은 화면(PC) · 글자 큰 화면(폰). 예전 196 · 262의 약 73%
+const CARD_W_SMALL := 144
+const CARD_W_LARGE := 190
+## 프레임 그림이 찌그러지지 않는 최소 높이 (9칸 나누기의 위아래 모서리)
+const FRAME_MIN_H := 169
+## 아이콘 한 변 (게임 그림과 같은 1배)
+const ICON_SIZE := 48
 
-## 글자 큰 화면(폰)을 쓰는 최소 논리 크기: 카드 3장에 이름 24px 한 줄, 설명 24px 두 줄이 들어가야 한다
-const LARGE_MIN := Vector2(790, 345)
+## 글자 큰 화면(폰)을 쓰는 최소 논리 크기: 카드 3장에 이름 24px 두 줄, 설명 24px 두 줄이 들어가야 한다
+const LARGE_MIN := Vector2(700, 340)
 
 static var _materials := {}
 static var _rainbow_material: ShaderMaterial
@@ -127,35 +136,32 @@ static func desc_lines(card: Dictionary, font_size: int, width: float) -> Packed
 
 
 ## 논리 화면과 보여 줄 카드에 맞춘 크기표. 카드 높이는 가장 긴 내용에 맞춘다 (설명 아래 빈 공간이 없게).
-## 화면이 낮으면 받침, 위 여백, 버튼을 차례로 줄인다.
+## 화면이 낮으면 위 여백과 버튼을 차례로 줄인다.
 static func layout_for(view: Vector2, cards: Array) -> Dictionary:
 	var large := view.x >= LARGE_MIN.x and view.y >= LARGE_MIN.y
 	var count := maxi(cards.size(), Balance.UPGRADE_CHOICE_COUNT)
-	var roomy := view.x >= 826.0  # 폰 표준 폭: 그보다 좁으면 카드 폭을 지키려고 간격부터 줄인다
-	var gap := (12 if roomy else 8) if large else 10
-	var edge := 8 if large and roomy else 4
-	var w := mini(262 if large else 196, (int(view.x) - 2 * edge - (count - 1) * gap) / count)
-	var inner := float(w - 2 * PAD - 4)
-	var name_size := 24
-	var desc_size := 24 if large else 12
+	var gap := 12 if large else 10
+	var w := mini(CARD_W_LARGE if large else CARD_W_SMALL, (int(view.x) - 2 * 4 - (count - 1) * gap) / count)
+	var inner := float(w - 2 * PAD - 2)
+	var text_size := 24 if large else 12
 	var name_lines := 1
 	var desc_count := 1
 	for c in cards:
-		name_lines = maxi(name_lines, wrap_text(Upgrades.display_name(c["id"]), name_size, inner).size())
-		desc_count = maxi(desc_count, desc_lines(c, desc_size, inner).size())
+		name_lines = maxi(name_lines, wrap_text(Upgrades.display_name(c["id"]), text_size, inner).size())
+		desc_count = maxi(desc_count, desc_lines(c, text_size, inner).size())
+	var ped := "ped_phone" if large else "ped_pc"
 	var lay := {
-		"large": large, "w": w, "gap": gap, "inner": inner, "name_size": name_size, "desc_size": desc_size, "tag_size": 24 if large else 12,
-		"tag_h": 36 if large else 23, "dot": 6 if large else 5, "glow_u": 2 if large else 1, "name_h": name_lines * (name_size + 1),
+		"large": large, "w": w, "gap": gap, "inner": inner, "name_size": text_size, "desc_size": text_size, "tag_size": 12,
+		"btn_size": text_size, "tag_h": 21, "dot": 6 if large else 5, "glow_u": 2 if large else 1,
+		"name_h": name_lines * (text_size + 1), "ped": ped, "ped_h": tex(ped).get_height(),
 	}
-	for tight in 3:
-		lay["ped"] = "ped_phone" if large and tight == 0 else "ped_pc"
-		lay["ped_top"] = 24 if tight < 2 else 16
-		lay["btn_gap"] = (5 if large else 4) if tight < 2 else 3
-		var btn_h := (40 if large else 30) if tight < 2 else (34 if large else 27)
-		lay["btn"] = Vector2i(300 if large else 200, btn_h)
-		var ped_h: int = tex(str(lay["ped"])).get_height() * 2
-		lay["ped_h"] = ped_h
-		lay["h"] = lay["ped_top"] + ped_h + lay["tag_h"] / 2 + 3 + lay["name_h"] + 2 + desc_count * (desc_size + 1) + 4 + lay["dot"] + 3 + PAD_BOTTOM
+	for tight in 2:
+		lay["ped_top"] = 20 if tight == 0 else 14
+		lay["btn_gap"] = (6 if large else 5) if tight == 0 else 3
+		var btn_h := (36 if large else 26) if tight == 0 else (32 if large else 25)
+		lay["btn"] = Vector2i(220 if large else 150, btn_h)
+		var body: int = lay["ped_top"] + lay["ped_h"] + lay["tag_h"] / 2 + 3 + lay["name_h"] + 2 + desc_count * (text_size + 1) + 4 + lay["dot"] + 3 + PAD_BOTTOM
+		lay["h"] = maxi(body, FRAME_MIN_H)
 		lay["total"] = CREST_RISE + lay["h"] + lay["btn_gap"] + btn_h
 		if lay["total"] + 16 <= view.y:
 			break
@@ -281,13 +287,13 @@ func _add_body(card: Dictionary, next_level: int, lay: Dictionary, mat: ShaderMa
 	var grade: int = card["grade"]
 	var ped := tex(str(lay["ped"]))
 	var py: int = lay["ped_top"]
-	_add_sprite(ped, Vector2(cx - ped.get_width(), py), mat, 2, _content)
-	_add_sprite(tex("icons/" + str(card["id"])), Vector2(cx - 48, py + (lay["ped_h"] - 96) / 2), null, 2, _content)
+	_add_sprite(ped, Vector2(cx - ped.get_width() / 2, py), mat, 1, _content)
+	_add_sprite(tex("icons/" + str(card["id"])), Vector2(cx - ICON_SIZE / 2, py + (int(lay["ped_h"]) - ICON_SIZE) / 2), null, 1, _content)
 	# 알약 꼬리표: 받침 아래쪽에 걸침. 양끝은 그대로 두고 가운데 한 줄만 늘린다
 	var kind := Upgrades.kind_of(card["id"])
 	var tag_size: int = lay["tag_size"]
 	var tag_h: int = lay["tag_h"]
-	var tag_w := int(FONT.get_string_size(kind, HORIZONTAL_ALIGNMENT_LEFT, -1, tag_size).x) + 30
+	var tag_w := maxi(int(FONT.get_string_size(kind, HORIZONTAL_ALIGNMENT_LEFT, -1, tag_size).x) + 30, tex("pill").get_width())
 	var y: int = py + lay["ped_h"] - tag_h / 2
 	var pill := NinePatchRect.new()
 	var pill_art := tex("pill")
@@ -311,7 +317,7 @@ func _add_body(card: Dictionary, next_level: int, lay: Dictionary, mat: ShaderMa
 	y += lay["name_h"] + 2
 	var desc_size: int = lay["desc_size"]
 	for line in desc_lines(card, desc_size, lay["inner"]):
-		_add_line(line, y, desc_size, INK)
+		_add_line(line, y, desc_size, DESC_COLOR)
 		y += desc_size + 1
 	_add_dots(Upgrades.max_stage(card["id"]), next_level, grade, w, h, lay["dot"])
 
@@ -377,22 +383,24 @@ func _frame_rect() -> Rect2:
 	return Rect2(Vector2.ZERO, size).grow(-FRAME_INSET)
 
 
-## 등장 연출: ct = 이 카드의 경과 시간(초). 내려옴(뒷면) → 뒤집힘 → 앞면 번쩍.
-func set_reveal(ct: float, drop_distance: float) -> void:
+## 등장 연출: ct = 이 카드의 경과 시간(초). 내려옴(뒷면) → (레전드리는 빛이 모이는 동안 대기) → 뒤집힘 → 앞면 번쩍.
+func set_reveal(ct: float, drop_distance: float, wait := 0.0) -> void:
 	visible = ct >= 0.0
 	if ct < 0.0:
 		return
 	var grade: int = choice["grade"]
-	var flip_start := Juice.CARD_DROP_TIME
+	var flip_start := Juice.CARD_DROP_TIME + wait
 	var flash_start := flip_start + Juice.CARD_FLIP_TIME
 	position = home
 	scale.x = 1.0
 	_content.visible = ct >= flip_start + Juice.CARD_FLIP_TIME * 0.5
 	var flash := 0.0
 	var boost := 0
-	if ct < flip_start:
-		var r := ct / flip_start
+	if ct < Juice.CARD_DROP_TIME:
+		var r := ct / Juice.CARD_DROP_TIME
 		position.y -= roundf(drop_distance * (1.0 - r) * (1.0 - r))  # 감속하며 내려옴
+	elif ct < flip_start:
+		flash = 0.5 * (ct - Juice.CARD_DROP_TIME) / wait  # 빛이 모이는 동안 카드가 점점 밝아진다
 	elif ct < flash_start:
 		scale.x = maxf(absf(1.0 - 2.0 * (ct - flip_start) / Juice.CARD_FLIP_TIME), 0.04)  # 폭이 줄었다 늘어남
 	else:

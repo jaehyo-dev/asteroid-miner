@@ -33,7 +33,7 @@ const SOUNDS := {
 	"pickup_2": {"files": ["pickup_2"], "db": -11.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
 	"pickup_3": {"files": ["pickup_3"], "db": -7.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
 	"player_hit": {"files": ["player_hit"], "db": 0.0, "pitch": 1.0, "jitter": 0.05, "max": 1},
-	# 실드가 막음 (5단계 편향 실드용, 지금은 부르는 곳 없음)
+	# 실드가 막음
 	"shield_block": {"files": ["shield_block"], "db": -12.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	# 레벨업: 마림바 도-미-솔-도, 마지막 음은 첫 음으로 돌아와 작게 줄어듦
 	"levelup": {"files": ["levelup"], "db": -9.5, "pitch": 1.0, "jitter": 0.0, "max": 1},
@@ -43,6 +43,8 @@ const SOUNDS := {
 	"open": {"files": ["card_show"], "db": -14.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
 	"cargo_heavy": {"files": ["cargo_heavy"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},
 	# 심연의 포격: 예고(붉은 조준선이 보일 때, 낮게 웅웅) → 에너지 구체 발사. 높은 소리를 깎아 낮고 둔탁하게, 예전보다 작게
+	# 전역 견인 비콘: 레벨업 카드 소리를 낮게
+	"beacon": {"files": ["card_show"], "db": -10.0, "pitch": 0.7, "jitter": 0.0, "max": 1},
 	"barrage_warn": {"files": ["barrage_warn"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
 	"barrage_fire": {"files": ["barrage_fire"], "db": -10.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
 }
@@ -150,6 +152,11 @@ func pool(sound_name: String) -> Array:
 
 
 ## 실드가 공격을 막았을 때 (5단계 편향 실드에서 부름)
+## 레전드리 카드에 빛이 모이는 소리
+func play_card_gather() -> void:
+	play("barrage_warn", 0.0, 2.0, -8.0)
+
+
 func play_shield_block() -> void:
 	play("shield_block")
 

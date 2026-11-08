@@ -26,6 +26,7 @@ class Enemy:
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
 	var hit_dir := Vector2.ZERO  ## 마지막으로 맞은 탄이 날아온 방향 (맞으면 그쪽으로 튕기는 모션)
 	var hit_time := 0.0  ## 튕김 모션 남은 시간 (그리기용)
+	var last_bullet_damage := 0.0  ## 마지막으로 맞힌 탄의 피해 (고폭 탄두 폭발 계산용, 치명타 제외)
 	# 고대 경비선 전용
 	var aim := 0.0  ## 선체(포)가 바라보는 방향 (라디안)
 	var charge := -1.0  ## 충전한 시간 (충전 중이 아니면 -1)
@@ -62,6 +63,16 @@ class Bullet:
 	var vel: Vector2
 	var life: float  ## 남은 비행 시간
 	var damage: float
+	var pierce := 0  ## 더 뚫을 수 있는 수 (-1이면 사거리 끝까지)
+	var bounces := 0  ## 더 튕길 수 있는 수
+	var hits: Array[Enemy] = []  ## 이미 맞힌 적 (관통·튕김 탄이 같은 적을 두 번 맞히지 않게)
+
+
+## 호위 드론 한 기
+class Drone:
+	var pos: Vector2
+	var facing := -PI / 2.0
+	var timer := 0.0  ## 다음 발사까지 남은 시간
 
 
 var rng := RandomNumberGenerator.new()
@@ -95,8 +106,11 @@ var picked: Array[Dictionary] = []
 ## "new_jelly"·"new_bug"·"new_guard"(처음 등장), "guard_charge"·"guard_fire"(고대 경비선),
 ## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석),
 ## "gate_open"·"gate_close"(워프 게이트), "warp_charge"·"warp_cancel"·"warp_done"(워프 충전),
-## "cargo_heavy"(화물이 무거워 처음 느려짐), "hit_rock"·"hit_guard"·"hit_jelly"·"hit_bug"(탄이 운석·적에 맞음, 맞은 수만큼)
+## "cargo_heavy"(화물이 무거워 처음 느려짐), "hit_rock"·"hit_guard"·"hit_jelly"·"hit_bug"(탄이 운석·적에 맞음, 맞은 수만큼),
+## "shield_block"(실드가 막음), "beacon"(견인 비콘), "drone_shoot", "explode"
 var events: PackedStringArray = []
+## 이번 프레임의 효과 연출 {type, pos, ...}: "pierce", "bounce"(to, chain), "explode"(radius), "crit"(damage), "laser", "drop_extra"
+var fx: Array[Dictionary] = []
 ## 탄으로 부순 적 수 (운석·황금 운석·생명체)
 var kills := 0
 var minerals: Array[Mineral] = []
@@ -142,6 +156,24 @@ var effects_enabled := Balance.EFFECT_CARDS_ENABLED
 ## 효과 카드 없이 지나간 레벨업 수 (효과 카드 보정)
 var effect_dry := 0
 
+# 효과 강화·레전드리 (apply_upgrades가 upgrade_bonus에서 다시 계산)
+var pierce_count := 0
+var bounce_count := 0
+var explosive_radius := 0.0
+var explosive_share := 0.0
+var crit_chance := 0.0
+var mineral_bonus := 0.0
+var orbit_pierce := false
+var chain_matrix := false
+var overload := false
+var tractor_beacon := false
+var drones: Array[Drone] = []
+## 편향 실드: 간격(0이면 없음)과 지금까지 충전한 시간
+var shield_interval := 0.0
+var shield_charge := 0.0
+var _beacon_timer := Balance.BEACON_INTERVAL
+var _drone_angle := 0.0
+
 var _spawn_timer := 0.0
 ## 다음 황금 운석까지 남은 시간
 var _golden_timer := Balance.GOLDEN_FIRST_TIME
@@ -179,6 +211,7 @@ func update(delta: float, move: Vector2) -> void:
 	destroyed.clear()
 	crashed.clear()
 	picked.clear()
+	fx.clear()
 	if is_over() or (not choices.is_empty() and not run_during_levelup):
 		return  # 판이 끝났거나 강화를 고르는 중이면 멈춘다 (레벨업 슬로모션 동안만 계속)
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
@@ -221,9 +254,12 @@ func update(delta: float, move: Vector2) -> void:
 	_update_barrages(delta)
 	_move_enemies(delta)
 	_auto_fire(delta)
+	_update_drones(delta)
 	_move_bullets(delta)
 	_check_bullet_hits()
+	_update_shield(delta)
 	_check_player_hits()
+	_update_beacon(delta)
 	_update_minerals(delta)
 
 
@@ -347,6 +383,11 @@ func guard_count() -> int:
 func damage_player(amount: float) -> bool:
 	if invuln > 0.0 or not alive:
 		return false
+	if shield_ready():
+		shield_charge = 0.0
+		invuln = Balance.SHIELD_BLOCK_INVULN
+		events.append("shield_block")
+		return true  # 피해만 막는다 (부딪힌 운석·맞은 탄은 맞았을 때처럼 사라짐)
 	hp = maxf(hp - amount, 0.0)
 	invuln = Balance.SHIP_INVULN_TIME
 	events.append("hit")
@@ -538,16 +579,96 @@ func _auto_fire(delta: float) -> void:
 	var base_angle := intercept_angle(player_pos, target.pos, target.vel, Balance.BULLET_SPEED)
 	var life := fire_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR
 	for shot in shot_pattern(base_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG), Balance.PARALLEL_SHOT_GAP):
-		var b := Bullet.new()
-		b.pos = player_pos + shot.offset
-		b.prev_pos = b.pos
-		b.vel = Vector2.from_angle(shot.angle) * Balance.BULLET_SPEED
-		b.life = life
-		b.damage = bullet_damage
-		bullets.append(b)
+		_fire_bullet(player_pos + shot.offset, shot.angle, life, bullet_damage)
 	# 프레임 사이에 넘친 시간은 다음 발사에 반영해 프레임 속도와 관계없이 간격을 지킨다.
-	_fire_timer = maxf(_fire_timer + fire_interval, 0.0)
+	_fire_timer = maxf(_fire_timer + current_fire_interval(), 0.0)
 	events.append("shoot")
+
+
+## 지금 발사 간격: 과부하 반응로는 체력이 낮으면 더 빠르다
+func current_fire_interval() -> float:
+	return fire_interval / Balance.OVERLOAD_FIRE_MULT if overload_active() else fire_interval
+
+
+func overload_active() -> bool:
+	return overload and hp <= max_hp * Balance.OVERLOAD_HP_RATIO
+
+
+## 탄 하나를 만든다. 상한이 차면 만들지 않는다.
+func _fire_bullet(from: Vector2, angle: float, life: float, damage: float) -> Bullet:
+	if bullets.size() >= Balance.MAX_BULLETS:
+		return null
+	var b := Bullet.new()
+	b.pos = from
+	b.prev_pos = from
+	b.vel = Vector2.from_angle(angle) * Balance.BULLET_SPEED
+	b.life = life
+	b.damage = damage
+	b.pierce = -1 if orbit_pierce else pierce_count
+	b.bounces = bounce_count
+	bullets.append(b)
+	return b
+
+
+## 호위 드론: 우주선 둘레를 돌며 따라오고, 가까운 적을 쏜다. 드론 수는 강화 누적값을 따른다.
+func _update_drones(delta: float) -> void:
+	var count := int(upgrade_bonus.get("drone", 0.0))
+	while drones.size() < count:
+		var d := Drone.new()
+		d.pos = player_pos
+		d.timer = Balance.DRONE_FIRE_INTERVAL * drones.size() / float(count)  # 서로 다른 때 쏘게
+		drones.append(d)
+	if drones.is_empty():
+		return
+	_drone_angle = wrapf(_drone_angle + Balance.DRONE_SPIN * delta, 0.0, TAU)
+	var drone_range := fire_range * Balance.DRONE_RANGE_RATIO
+	var fired := false
+	for i in drones.size():
+		var d := drones[i]
+		var home := player_pos + Vector2.from_angle(_drone_angle + TAU * i / drones.size()) * Balance.DRONE_ORBIT
+		d.pos = d.pos.lerp(home, 1.0 - exp(-Balance.DRONE_FOLLOW * delta))
+		d.timer -= delta
+		var target := pick_target(d.pos, enemies, drone_range)
+		if target != null:
+			d.facing = (target.pos - d.pos).angle()
+			if d.timer <= 0.0:
+				d.timer = Balance.DRONE_FIRE_INTERVAL
+				var angle := intercept_angle(d.pos, target.pos, target.vel, Balance.BULLET_SPEED)
+				fired = _fire_bullet(d.pos, angle, drone_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR, bullet_damage * Balance.DRONE_DAMAGE) != null or fired
+		else:
+			d.timer = maxf(d.timer, 0.0)
+	if fired:
+		events.append("drone_shoot")
+
+
+## 편향 실드 충전
+func _update_shield(delta: float) -> void:
+	shield_charge = minf(shield_charge + delta, shield_interval)
+
+
+func shield_ready() -> bool:
+	return shield_interval > 0.0 and shield_charge >= shield_interval
+
+
+## 충전 비율 (0~1, 실드가 없으면 0)
+func shield_ratio() -> float:
+	return shield_charge / shield_interval if shield_interval > 0.0 else 0.0
+
+
+## 전역 견인 비콘: 일정 시간마다 화면 안의 모든 광물을 끌어온다
+func _update_beacon(delta: float) -> void:
+	if not tractor_beacon:
+		return
+	_beacon_timer -= delta
+	if _beacon_timer > 0.0:
+		return
+	_beacon_timer += Balance.BEACON_INTERVAL
+	events.append("beacon")
+	var half := view_size / 2.0
+	for m in minerals:
+		var off := (m.pos - player_pos).abs()
+		if off.x <= half.x and off.y <= half.y:
+			m.attracted = true
 
 
 func _move_bullets(delta: float) -> void:
@@ -561,24 +682,36 @@ func _move_bullets(delta: float) -> void:
 	bullets = kept
 
 
-## 탄이 운석에 맞으면 탄은 사라지고 운석 체력이 준다. 체력이 0이 되면 운석이 부서진다.
+## 탄이 운석에 맞으면 운석 체력이 준다. 관통·튕김이 남아 있으면 탄이 계속 간다.
+## 탄으로 부서진 적만 폭발하고, 폭발로 부서진 적은 다시 터지지 않는다.
 func _check_bullet_hits() -> void:
 	var kept_bullets: Array[Bullet] = []
 	for b in bullets:
-		var hit := false
+		var alive_bullet := true
 		for a in enemies:
 			# 이번 프레임에 지나간 선분으로 판정해, 프레임이 느려도 탄이 운석을 뚫고 지나가지 않게 한다.
-			if a.hp > 0.0 and segment_distance(b.prev_pos, b.pos, a.pos) < a.radius + Balance.BULLET_RADIUS:
-				a.hp -= b.damage
-				a.flash = Juice.ENEMY_FLASH_TIME
-				a.hit_dir = b.vel.normalized()
-				a.hit_time = Balance.HIT_KNOCK_TIME
-				events.append("hit_" + a.kind)
-				hit = true
-				break
-		if not hit:
+			# (이미 맞힌 적 확인은 비싸므로 거리가 맞을 때만 한다)
+			if a.hp > 0.0 and segment_distance(b.prev_pos, b.pos, a.pos) < a.radius + Balance.BULLET_RADIUS and not b.hits.has(a):
+				_hit_enemy(b, a)
+				var hit_pos := a.pos
+				if _try_bounce(b, a):
+					break  # 방향이 바뀌었으니 이번 프레임 판정은 끝
+				if b.pierce == 0:
+					alive_bullet = false
+					break
+				if b.pierce > 0:
+					b.pierce -= 1
+				fx.append({"type": "pierce", "pos": hit_pos, "dir": b.vel.normalized(), "legend": orbit_pierce})
+		if alive_bullet:
 			kept_bullets.append(b)
 	bullets = kept_bullets
+	var dead: Array[Enemy] = []
+	for a in enemies:
+		if a.hp <= 0.0:
+			dead.append(a)
+	if explosive_radius > 0.0:
+		for a in dead:
+			_explode(a.pos, a.last_bullet_damage)
 	var kept: Array[Enemy] = []
 	for a in enemies:
 		if a.hp <= 0.0:
@@ -588,13 +721,71 @@ func _check_bullet_hits() -> void:
 	enemies = kept
 
 
+## 탄 한 발의 명중: 치명타를 굴리고 피해를 준다.
+func _hit_enemy(b: Bullet, a: Enemy) -> void:
+	b.hits.append(a)
+	a.last_bullet_damage = b.damage
+	var damage := b.damage
+	if crit_chance > 0.0 and rng.randf() < crit_chance:
+		damage *= Balance.CRIT_MULT
+		fx.append({"type": "crit", "pos": a.pos, "damage": damage})
+	a.hp -= damage
+	a.flash = Juice.ENEMY_FLASH_TIME
+	a.hit_dir = b.vel.normalized()
+	a.hit_time = Balance.HIT_KNOCK_TIME
+	events.append("hit_" + a.kind)
+	if mineral_bonus > 0.0 and a.kind == ROCK:
+		fx.append({"type": "laser", "pos": a.pos + (b.pos - a.pos).limit_length(a.radius)})
+
+
+## 튕길 대상이 있으면 탄을 그쪽으로 꺾는다 (피해가 줄어든다). 꺾었으면 true.
+func _try_bounce(b: Bullet, from: Enemy) -> bool:
+	if b.bounces <= 0:
+		return false
+	var best: Enemy = null
+	var best_dist := Balance.RICOCHET_RANGE
+	for e in enemies:
+		var d := from.pos.distance_to(e.pos)
+		if e.hp > 0.0 and d <= best_dist and not b.hits.has(e):
+			best = e
+			best_dist = d
+	if best == null:
+		return false
+	b.bounces -= 1
+	b.damage *= Balance.CHAIN_DAMAGE if chain_matrix else Balance.RICOCHET_DAMAGE
+	b.pos = from.pos
+	b.prev_pos = from.pos
+	b.vel = Vector2.from_angle(intercept_angle(from.pos, best.pos, best.vel, Balance.BULLET_SPEED)) * Balance.BULLET_SPEED
+	b.life = maxf(b.life, Balance.RICOCHET_RANGE / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR)
+	fx.append({"type": "bounce", "pos": from.pos, "to": best.pos, "chain": chain_matrix})
+	return true
+
+
+## 고폭 탄두: 주변 적에 부순 탄 피해의 일부를 준다 (드론·튕긴 탄은 줄어든 피해 기준).
+func _explode(at: Vector2, bullet_hit: float) -> void:
+	fx.append({"type": "explode", "pos": at, "radius": explosive_radius})
+	events.append("explode")
+	var damage := bullet_hit * explosive_share
+	for e in enemies:
+		if e.hp > 0.0 and e.pos.distance_to(at) < explosive_radius + e.radius:
+			e.hp -= damage
+			e.flash = Juice.ENEMY_FLASH_TIME
+
+
 ## 탄으로 운석을 부쉈을 때
 func _on_enemy_destroyed(a: Enemy) -> void:
 	kills += 1
 	destroyed.append(a)
 	events.append("destroy")
 	for drop in drops_of(a):
-		for i in int(drop["count"]):
+		var count := int(drop["count"])
+		if mineral_bonus > 0.0 and a.kind == ROCK:
+			var total := count * (1.0 + mineral_bonus)
+			var extra := int(total) - count + (1 if rng.randf() < fposmod(total, 1.0) else 0)
+			if extra > 0:
+				count += extra
+				fx.append({"type": "drop_extra", "pos": a.pos})
+		for i in count:
 			var m := drop_mineral(a.pos, int(drop["grade"]))
 			# 운석 자리에서 사방으로 튕겨 나가 감속하며 멈춘다 (멈출 때까지 가는 거리 = 속도 / 감속)
 			m.vel = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(Juice.MINERAL_POP_MIN, Juice.MINERAL_POP_MAX) * Juice.MINERAL_POP_DAMP
@@ -679,6 +870,18 @@ func apply_upgrades() -> void:
 	max_hp = Balance.SHIP_MAX_HP + up.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp")
 	fire_range = Balance.FIRE_RANGE * (1.0 + up.call("range"))
 	hp = minf(hp, max_hp)
+	pierce_count = int(up.call("pierce"))
+	chain_matrix = up.call("chain_matrix") > 0.0
+	bounce_count = int(up.call("ricochet")) + (Balance.CHAIN_BOUNCES if chain_matrix else 0)
+	explosive_radius = up.call("explosive_radius")
+	explosive_share = up.call("explosive_share")
+	crit_chance = up.call("crit")
+	mineral_bonus = up.call("mining_laser")
+	orbit_pierce = up.call("orbit_pierce") > 0.0
+	overload = up.call("overload") > 0.0
+	tractor_beacon = up.call("tractor_beacon") > 0.0
+	shield_interval = up.call("shield")
+	shield_charge = minf(shield_charge, shield_interval)  # 강화로 간격이 줄어도 비율이 1을 넘지 않게
 
 
 ## 광물 하나를 떨어뜨린다.
@@ -809,7 +1012,8 @@ static func value_of(counts: PackedInt32Array) -> int:
 
 ## 시간에 따라 늘어나는 운석 체력. 계단식으로 늘어서 처음 구간은 기본 체력(탄 수) 그대로다.
 static func asteroid_hp(base_hp: float, t: float) -> float:
-	return base_hp * (1.0 + floorf(maxf(t, 0.0) / Balance.ASTEROID_HP_GROWTH_TIME))
+	var late := maxf(t - Balance.ENEMY_LATE_HP_START, 0.0) / Balance.ENEMY_LATE_HP_TIME
+	return base_hp * (1.0 + floorf(maxf(t, 0.0) / Balance.ASTEROID_HP_GROWTH_TIME)) * (1.0 + late * late * Balance.ENEMY_LATE_HP_SCALE)
 
 
 ## 선분 a-b와 점 p 사이의 가장 짧은 거리

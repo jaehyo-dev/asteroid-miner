@@ -249,7 +249,14 @@ const REROLLS_PER_RUN := 2
 const GRADE_WEIGHTS_START := [55.0, 27.0, 12.0, 5.0, 1.0]
 const GRADE_WEIGHTS_END := [35.0, 30.0, 20.0, 12.0, 3.0]
 ## 효과 강화·레전드리 카드가 뽑히는지. 실제 효과는 5단계 3부에서 만든다: 그때까지 잠가 둔다 (보정도 함께 꺼짐)
-const EFFECT_CARDS_ENABLED := false
+const EFFECT_CARDS_ENABLED := true
+## 효과 카드가 쌓여 멈추지 않는 판을 막는 값 (봇 측정). 이 레벨부터 필요한 경험치가 제곱으로 늘고,
+## 이 시각부터 적 체력이 제곱으로 늘어난다 (보통 한 판 길이보다 뒤라 평소 플레이에는 영향이 거의 없음)
+const XP_SOFT_LEVEL := 14
+const XP_SOFT_GROWTH := 4
+const ENEMY_LATE_HP_START := 270.0
+const ENEMY_LATE_HP_TIME := 60.0
+const ENEMY_LATE_HP_SCALE := 0.6
 ## 에픽·유니크 칸이 효과 강화일 확률 (나머지는 수치 강화)
 const EFFECT_SHARE := 0.6
 ## 효과 카드 없는 레벨업이 이만큼 이어지면 다음 화면에 에픽 효과 1장 확정
@@ -270,21 +277,61 @@ const UPGRADES := [
 ]
 ## 효과 강화 7종 (에픽·유니크만). desc·short는 [에픽, 유니크] 문구, short는 폰 2줄용. 실제 수치와 효과는 3부에서 넣는다
 const EFFECT_UPGRADES := [
-	{"id": "pierce", "name": "텅스텐 관통탄", "kind": "공격", "max": 3, "desc": ["탄이 대상 1개를 더 뚫고 지나감", "탄이 대상 2개를 더 뚫고 지나감"], "short": ["대상 1개를 더 관통", "대상 2개를 더 관통"]},
-	{"id": "ricochet", "name": "반사 코팅 탄", "kind": "공격", "max": 2, "desc": ["맞은 뒤 1번 튕김 (피해 70%)", "맞은 뒤 2번 튕김 (피해 70%)"], "short": ["1번 튕김, 피해 70%", "2번 튕김, 피해 70%"]},
-	{"id": "explosive", "name": "고폭 탄두", "kind": "공격", "max": 3, "desc": ["부술 때 반경 24 폭발, 탄 피해의 50%", "부술 때 반경 36 폭발, 탄 피해의 75%"], "short": ["부술 때 폭발, 탄 피해의 50%", "부술 때 폭발, 탄 피해의 75%"]},
-	{"id": "crit", "name": "표적 분석 AI", "kind": "공격", "max": 3, "desc": ["치명타 확률 15% (2배 피해)", "치명타 확률 25% (2배 피해)"], "short": ["치명타 확률 15%", "치명타 확률 25%"]},
-	{"id": "shield", "name": "편향 실드 발생기", "kind": "방어", "max": 3, "desc": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"], "short": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"]},
-	{"id": "drone", "name": "호위 드론 사출", "kind": "드론", "max": 3, "desc": ["드론 1기가 따라다니며 함께 공격", "드론 2기가 따라다니며 함께 공격"], "short": ["드론 1기가 함께 공격", "드론 2기가 함께 공격"]},
+	{"id": "pierce", "name": "텅스텐 관통탄", "kind": "공격", "max": 3, "blocked_by": "orbit_pierce", "desc": ["탄이 대상 1개를 더 뚫고 지나감", "탄이 대상 2개를 더 뚫고 지나감"], "short": ["1개 더 관통", "2개 더 관통"]},
+	{"id": "ricochet", "name": "반사 코팅 탄", "kind": "공격", "max": 2, "desc": ["맞은 뒤 1번 튕김 (피해 70%)", "맞은 뒤 2번 튕김 (피해 70%)"], "short": ["1번 튕김 피해 70%", "2번 튕김 피해 70%"]},
+	{"id": "explosive", "name": "고폭 탄두", "kind": "공격", "max": 3, "desc": ["부술 때 반경 24 폭발, 탄 피해의 50%", "부술 때 반경 36 폭발, 탄 피해의 75%"], "short": ["부수면 폭발 피해 50%", "부수면 폭발 피해 75%"]},
+	{"id": "crit", "name": "표적 분석 AI", "kind": "공격", "max": 3, "desc": ["치명타 확률 15% (2배 피해)", "치명타 확률 25% (2배 피해)"], "short": ["치명타 15%", "치명타 25%"]},
+	{"id": "shield", "name": "편향 실드 발생기", "kind": "방어", "max": 3, "desc": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"], "short": ["20초마다 1번 막음", "12초마다 1번 막음"]},
+	{"id": "drone", "name": "호위 드론 사출", "kind": "드론", "max": 3, "desc": ["드론 1기가 따라다니며 함께 공격", "드론 2기가 따라다니며 함께 공격"], "short": ["드론 1기 함께 공격", "드론 2기 함께 공격"]},
 	{"id": "mining_laser", "name": "정밀 채굴 레이저", "kind": "채굴", "max": 3, "desc": ["운석에서 나오는 광물 +25%", "운석에서 나오는 광물 +50%"], "short": ["운석 광물 +25%", "운석 광물 +50%"]},
 ]
 ## 레전드리 4종: 한 판에 1번, 한 화면에 1장까지
 const LEGENDARY_UPGRADES := [
-	{"id": "orbit_pierce", "name": "궤도 관통 가속기", "kind": "공격", "max": 1, "desc": "모든 탄이 사거리 끝까지 관통", "short": "모든 탄이 사거리 끝까지 관통"},
-	{"id": "chain_matrix", "name": "연쇄 반사 매트릭스", "kind": "공격", "max": 1, "desc": "3번 연쇄 튕김, 튕길 때마다 피해 -20%", "short": "3번 튕김, 피해 -20%씩"},
-	{"id": "overload", "name": "과부하 반응로", "kind": "공격", "max": 1, "desc": "체력이 절반 이하면 발사 속도 ×2", "short": "체력 절반 이하면 발사 속도 ×2"},
-	{"id": "tractor_beacon", "name": "전역 견인 비콘", "kind": "채굴", "max": 1, "desc": "8초마다 화면 안 모든 광물을 끌어옴", "short": "8초마다 모든 광물을 끌어옴"},
+	{"id": "orbit_pierce", "name": "궤도 관통 가속기", "kind": "공격", "max": 1, "desc": "모든 탄이 사거리 끝까지 관통", "short": "모든 탄이 끝까지 관통"},
+	{"id": "chain_matrix", "name": "연쇄 반사 매트릭스", "kind": "공격", "max": 1, "desc": "3번 연쇄 튕김, 튕길 때마다 피해 -20%", "short": "3번 튕김 피해 -20%씩"},
+	{"id": "overload", "name": "과부하 반응로", "kind": "공격", "max": 1, "desc": "체력이 절반 이하면 발사 속도 ×2", "short": "체력 절반 이하 연사 ×2"},
+	{"id": "tractor_beacon", "name": "전역 견인 비콘", "kind": "채굴", "max": 1, "desc": "8초마다 화면 안 모든 광물을 끌어옴", "short": "8초마다 모든 광물 끌어옴"},
 ]
+
+## 효과 강화 수치. 배열은 [에픽, 유니크]. 최대 단계는 고른 횟수로 세고, 합쳐서 넘지 않는 상한은 여기에 둔다.
+const PIERCE_ADD := [1, 2]
+const PIERCE_CAP := 4
+const RICOCHET_ADD := [1, 2]
+const RICOCHET_CAP := 3
+## 튕길 때마다 곱해지는 피해, 다음 대상을 찾는 거리
+const RICOCHET_DAMAGE := 0.7
+const RICOCHET_RANGE := 110.0
+## 폭발: 반경, 탄 피해 대비 비율, 단계마다 늘어나는 반경. 폭발로 부서진 적은 다시 터지지 않는다 (연쇄 폭주 방지)
+const EXPLOSIVE_RADIUS := [24.0, 36.0]
+const EXPLOSIVE_SHARE := [0.5, 0.75]
+const EXPLOSIVE_STAGE_RADIUS := 6.0
+const CRIT_ADD := [0.15, 0.25]
+const CRIT_CAP := 0.5
+const CRIT_MULT := 2.0
+## 편향 실드: 막는 간격, 단계마다 줄어드는 시간, 최소 간격, 막은 뒤 무적 시간
+const SHIELD_INTERVAL := [20.0, 12.0]
+const SHIELD_STAGE_CUT := 3.0
+const SHIELD_MIN_INTERVAL := 8.0
+const SHIELD_BLOCK_INVULN := 0.5
+## 호위 드론: 수, 상한, 탄 피해 비율, 발사 간격, 사거리 비율, 우주선과의 거리, 도는 속도(라디안/초), 따라오는 빠르기
+const DRONE_ADD := [1, 2]
+const DRONE_CAP := 3
+const DRONE_DAMAGE := 0.5
+const DRONE_FIRE_INTERVAL := 1.0
+const DRONE_RANGE_RATIO := 0.8
+const DRONE_ORBIT := 22.0
+const DRONE_SPIN := 1.6
+const DRONE_FOLLOW := 8.0
+const MINING_ADD := [0.25, 0.5]
+const MINING_CAP := 1.0
+## 레전드리: 연쇄 튕김 수와 튕길 때마다 곱해지는 피해, 과부하가 켜지는 체력 비율과 발사 속도 배율, 견인 비콘 간격
+const CHAIN_BOUNCES := 3
+const CHAIN_DAMAGE := 0.8
+const OVERLOAD_HP_RATIO := 0.5
+const OVERLOAD_FIRE_MULT := 2.0
+const BEACON_INTERVAL := 8.0
+## 화면에 한꺼번에 있을 수 있는 탄 수 (다중 포신·드론·관통이 겹칠 때 폰 성능용)
+const MAX_BULLETS := 160
 
 # ── 피격·위험 표시 (조작감) ─────────────────────────
 ## (맞았을 때 화면 흔들림·붉은 번쩍임 수치는 scripts/juice.gd)

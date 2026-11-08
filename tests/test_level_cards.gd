@@ -3,7 +3,7 @@ extends TestCase
 
 const PHONE := Vector2(844, 390)
 const SMALL_PHONE := Vector2(793, 357)
-const VIEWS: Array[Vector2] = [PHONE, SMALL_PHONE, Vector2(640, 360), Vector2(640, 320), Vector2(560, 320), Vector2(720, 450), Vector2(1000, 480), Vector2(790, 345), Vector2(789, 345)]
+const VIEWS: Array[Vector2] = [PHONE, SMALL_PHONE, Vector2(640, 360), Vector2(640, 320), Vector2(560, 320), Vector2(720, 450), Vector2(1000, 480), Vector2(790, 345), Vector2(699, 345), Vector2(700, 340)]
 
 
 ## 모든 강화 × 그 강화에 나올 수 있는 등급
@@ -46,12 +46,28 @@ func test_폰은_위아래_8px_이상_여백() -> void:
 		assert_true(view.y - int(lay["total"]) >= 16, "%s 여백 합 %d" % [view, view.y - int(lay["total"])])
 
 
+func test_카드_크기와_픽셀_격자() -> void:
+	# 예전(PC 196, 폰 262)의 70~75%이고, 아이콘은 게임 그림과 같은 1배 48px
+	var pc := LevelCard.layout_for(Vector2(640, 360), _all_cards().slice(0, 3))
+	var phone := LevelCard.layout_for(PHONE, _all_cards().slice(0, 3))
+	assert_true(pc["w"] >= 196 * 0.7 and pc["w"] <= 196 * 0.75, "PC 폭 %d" % pc["w"])
+	assert_true(phone["w"] >= 262 * 0.7 and phone["w"] <= 262 * 0.75, "폰 폭 %d" % phone["w"])
+	assert_eq(LevelCard.tex("icons/pierce").get_width(), LevelCard.ICON_SIZE)
+	assert_true(LevelCard.tex("ped_pc").get_width() >= LevelCard.ICON_SIZE, "아이콘이 받침 안에 들어감")
+
+
+func test_폰_설명_글자는_3_5mm_이상() -> void:
+	# 폭 약 147mm 폰이 844 논리 픽셀: 1픽셀 = 0.174mm
+	var phone := LevelCard.layout_for(PHONE, _all_cards().slice(0, 3))
+	assert_true(phone["desc_size"] * 147.0 / PHONE.x >= 3.5, "폰 설명 글자 %dpx" % phone["desc_size"])
+
+
 func test_PC는_글자_작은_화면() -> void:
 	assert_false(LevelCard.layout_for(Vector2(640, 360), _all_cards().slice(0, 3))["large"])
 	assert_false(LevelCard.layout_for(Vector2(640, 320), _all_cards().slice(0, 3))["large"])
 
 
-func test_설명은_최대_2줄이고_이름은_폰에서_1줄() -> void:
+func test_설명과_이름은_최대_2줄() -> void:
 	for view in VIEWS:
 		var lay := LevelCard.layout_for(view, _all_cards().slice(0, 3))
 		for c in _all_cards():
@@ -60,7 +76,7 @@ func test_설명은_최대_2줄이고_이름은_폰에서_1줄() -> void:
 			for line in lines:
 				assert_true(LevelCard.FONT.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, lay["desc_size"]).x <= lay["inner"], "%s 폭 넘침: %s" % [view, line])
 			var names := LevelCard.wrap_text(Upgrades.display_name(c["id"]), lay["name_size"], lay["inner"])
-			assert_true(names.size() <= (1 if lay["large"] else 2), "%s 이름 %s" % [view, names])
+			assert_true(names.size() <= 2, "%s 이름 %s" % [view, names])
 			for line in names:
 				assert_true(LevelCard.FONT.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, lay["name_size"]).x <= lay["inner"], "%s 이름 폭 넘침: %s" % [view, line])
 

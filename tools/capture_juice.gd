@@ -38,6 +38,7 @@ func _hold(action: String, on: bool) -> void:
 
 func _process(_delta: float) -> bool:
 	frame += 1
+	RenderingServer.force_draw(false)  # 창이 다른 창에 가려져도 프레임을 그린다 (macOS는 가려진 창을 안 그림)
 	if frame == 1:
 		# 자동 로드(App, Sfx 등)가 준비된 뒤에 불러야 run.gd가 컴파일된다 (preload는 너무 이름)
 		run = load("res://scenes/run.tscn").instantiate()

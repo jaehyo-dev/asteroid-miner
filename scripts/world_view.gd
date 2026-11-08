@@ -60,6 +60,16 @@ const GUARD_NOSE := 12.0
 ## 새로운 위협 배너 색 (해파리, 날벌레)
 const JELLY_COLOR := Color("#c8a5d8")
 const BUG_COLOR := Color("#a5cc5f")
+## 효과 연출 색: 관통 불꽃, 튕김 궤적, 연쇄 번개, 폭발, 채굴 레이저, 실드 금색과 조각 색, 과부하 붉은빛, 비콘 고리
+const PIERCE_COLOR := Color("#f6ce50")
+const BOUNCE_COLOR := Color("#99e9e6")
+const CHAIN_COLOR := Color("#a884f3")
+const EXPLODE_COLOR := Color("#f89419")
+const LASER_COLOR := Color("#30e1b9")
+const SHIELD_GOLD := Color("#f6ce50")
+const SHIELD_SHARD := Color("#f89419")
+const OVERLOAD_COLOR := Color("#f25c76")
+const BEACON_COLOR := Color("#99e9e6")
 
 var sim: RunSim
 ## 워프 게이트 연출 (귀환할 때 우주선이 빨려 들어가는 모습에 씀)
@@ -87,6 +97,13 @@ var _flash_layer: Node2D
 ## 마지막으로 쏜 뒤 지난 시간 (자동 포 프레임용)
 var _cannon_t := 1.0
 var _time := 0.0
+## 효과 강화 연출 (RunSim.fx에 지난 시간 t를 더해 보관)
+var _effects: Array[Dictionary] = []
+## 전역 견인 비콘 고리: 지난 시간 (음수면 없음)
+var _beacon_t := -1.0
+## 실드: 완충 뒤 지난 시간(광택·반짝임), 막은 뒤 지난 시간(번쩍임), 음수면 없음
+var _shield_full_t := -1.0
+var _shield_break_t := -1.0
 
 
 func _ready() -> void:
@@ -105,6 +122,7 @@ func step(delta: float) -> void:
 		return
 	_time += delta
 	_cannon_t = 0.0 if sim.events.has("shoot") else _cannon_t + delta
+	_step_effects(delta)
 	for a in sim.destroyed + sim.crashed:
 		_add_boom(a)
 	# 방향 전환은 lerp_angle로 부드럽게 따라가고, 그림만 가장 가까운 8방향으로 맞춘다
@@ -136,6 +154,43 @@ func step(delta: float) -> void:
 		if fx["t"] < maxf(Juice.PICKUP_FX_TIME[fx["grade"]], POPUP_TIME):
 			kept_fx.append(fx)
 	_pickups = kept_fx
+
+
+## 효과 강화 연출을 새로 받고 시간을 흘린다.
+func _step_effects(delta: float) -> void:
+	for f in sim.fx:
+		if _effects.size() < Juice.EFFECT_FX_MAX:
+			f["t"] = 0.0
+			_effects.append(f)
+		if f["type"] == "explode":
+			for i in 8:
+				_spawn_debris(f["pos"], Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.5, 1.0) * float(f["radius"]) * 2.5, 0.3, EXPLODE_COLOR, 1.0)
+	var kept: Array[Dictionary] = []
+	for f in _effects:
+		f["t"] += delta
+		if f["t"] < Juice.EFFECT_TIME[f["type"]]:
+			kept.append(f)
+	_effects = kept
+	if sim.events.has("beacon"):
+		_beacon_t = 0.0
+	elif _beacon_t >= 0.0:
+		_beacon_t = _beacon_t + delta if _beacon_t + delta < Juice.BEACON_RING_TIME else -1.0
+	_shield_full_t = (maxf(_shield_full_t, 0.0) + delta) if sim.shield_ready() else -1.0  # 완충된 순간 0에서 시작
+	if sim.events.has("shield_block"):
+		_break_shield()
+	elif _shield_break_t >= 0.0:
+		_shield_break_t = _shield_break_t + delta if _shield_break_t + delta < Juice.SHIELD_BREAK_TIME else -1.0
+
+
+## 막는 순간: 윤곽이 번쩍이고, 윤곽 픽셀이 금·주황 조각으로 흩어진다.
+func _break_shield() -> void:
+	_shield_full_t = -1.0
+	_shield_break_t = 0.0
+	var outline := ShipOutline.of_dir(maxi(_ship_dir, 0))
+	var center := sim.player_pos.round()
+	for p: Vector2 in outline["line"]:
+		var vel := p.normalized() * _rng.randf_range(20.0, 70.0)
+		_spawn_debris(center + p, vel, _rng.randf_range(0.3, 0.6), SHIELD_GOLD if _rng.randf() < 0.6 else SHIELD_SHARD, 1.0)
 
 
 ## 부서진 적: 팩 파괴 애니메이션 + 파편 파티클. 클수록 파편이 많고 굵고 빠르며, 깨지는 애니메이션은 느리다(묵직함)
@@ -213,14 +268,128 @@ func _draw() -> void:
 	_draw_barrages()
 	var bullet_frame := int(_time * BULLET_FPS)
 	for b in sim.bullets:
+		if sim.orbit_pierce:
+			_draw_orbit_tail(b)
 		RunSprites.draw(self, "bullet", bullet_frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
 	for fx in _pickups:
 		_draw_pickup_fx(fx)
+	_draw_effects()
 	if sim.returned:
 		_draw_ship_warp()
 	elif sim.alive:
+		_draw_drones()
 		_draw_ship()
+		_draw_shield()
 	_flash_layer.queue_redraw()
+
+
+## 궤도 관통 가속기: 탄 뒤로 긴 빛 꼬리
+func _draw_orbit_tail(b: RunSim.Bullet) -> void:
+	var tail := b.pos - b.vel * Juice.ORBIT_TAIL_TIME
+	RunSprites.line(self, b.pos.round(), tail.round(), Color(PIERCE_COLOR, 0.55), 2.0)
+
+
+## 호위 드론: 8방향 그림 (꼬리 불꽃 2프레임)
+func _draw_drones() -> void:
+	var frame := int(_time * ENGINE_FPS)
+	for d in sim.drones:
+		RunSprites.draw(self, "drone", frame, PixelArt.dir8(d.facing + PI / 2.0), d.pos.round())
+
+
+## 효과 강화 연출: 관통 불꽃, 튕김 궤적, 폭발 고리, 치명타 숫자, 채굴 레이저 반짝임, 비콘 고리
+func _draw_effects() -> void:
+	var texts := 0
+	for f in _effects:
+		var pos: Vector2 = (f["pos"] as Vector2).round()
+		var k: float = f["t"] / Juice.EFFECT_TIME[f["type"]]
+		match f["type"]:
+			"pierce":
+				var dir: Vector2 = f["dir"]
+				for i in Juice.PIERCE_SPARKS:
+					var side := dir.rotated(deg_to_rad(-50.0 + 33.0 * i))
+					RunSprites.rect(self, Rect2((pos + side * (4.0 + 16.0 * k)).round(), Vector2.ONE * (2.0 if f["legend"] else 1.0)), Color(PIERCE_COLOR, 1.0 - k))
+			"bounce":
+				_draw_bounce(pos, (f["to"] as Vector2).round(), bool(f["chain"]), k)
+			"explode":
+				var r: float = float(f["radius"]) * (1.0 - (1.0 - k) * (1.0 - k))
+				RunSprites.disc(self, pos, r * 0.7, Color(EXPLODE_COLOR, 0.35 * (1.0 - k)))
+				RunSprites.ring(self, pos, r, Color(PIERCE_COLOR, 1.0 - k))
+			"crit":
+				if texts < Juice.CRIT_TEXT_MAX:
+					texts += 1
+					var arm := roundi(5.0 * (1.0 - k))
+					if arm > 0:
+						RunSprites.rect(self, Rect2(pos + Vector2(-arm, 0), Vector2(arm * 2 + 1, 1)), Color(1, 1, 1, 1.0 - k))
+						RunSprites.rect(self, Rect2(pos + Vector2(0, -arm), Vector2(1, arm * 2 + 1)), Color(1, 1, 1, 1.0 - k))
+					var at := pos + Vector2(-18, -8 - Juice.CRIT_RISE * k)
+					var text := str(roundi(float(f["damage"])))
+					draw_string(FONT, (at + Vector2.ONE).round(), text, HORIZONTAL_ALIGNMENT_CENTER, 36, 24, Color(0, 0, 0, 1.0 - k))
+					draw_string(FONT, at.round(), text, HORIZONTAL_ALIGNMENT_CENTER, 36, 24, Color(Juice.CRIT_COLOR, 1.0 - k * k))
+			"laser":
+				var arm := 1 + roundi(2.0 * (1.0 - k))
+				RunSprites.rect(self, Rect2(pos + Vector2(-arm, 0), Vector2(arm * 2 + 1, 1)), Color(LASER_COLOR, 1.0 - k))
+				RunSprites.rect(self, Rect2(pos + Vector2(0, -arm), Vector2(1, arm * 2 + 1)), Color(Color.WHITE, 1.0 - k))
+			"drop_extra":
+				RunSprites.ring(self, pos, 4.0 + 12.0 * k, Color(LASER_COLOR, 1.0 - k))
+	if _beacon_t >= 0.0:
+		var k := _beacon_t / Juice.BEACON_RING_TIME
+		var center := sim.player_pos.round()
+		var far := sim.view_size.length() / 2.0
+		draw_arc(center, far * k, 0.0, TAU, 64, Color(BEACON_COLOR, 0.9 * (1.0 - k)), 1.0)
+		draw_arc(center, far * k * 0.8, 0.0, TAU, 64, Color(BEACON_COLOR, 0.5 * (1.0 - k)), 1.0)
+
+
+## 튕김 궤적: 반사탄은 곧은 선, 연쇄 반사는 번개처럼 꺾인 선 (시간으로 꺾임이 정해져 깜빡임)
+func _draw_bounce(a: Vector2, b: Vector2, chain: bool, k: float) -> void:
+	var color := Color(CHAIN_COLOR if chain else BOUNCE_COLOR, 1.0 - k)
+	if not chain:
+		RunSprites.line(self, a, b, color)
+		return
+	var side := (b - a).orthogonal().normalized()
+	var last := a
+	for i in range(1, Juice.LIGHTNING_SEGMENTS + 1):
+		var t := float(i) / Juice.LIGHTNING_SEGMENTS
+		var jitter := sin(i * 12.9 + a.x + _time * 40.0) * Juice.LIGHTNING_JITTER if i < Juice.LIGHTNING_SEGMENTS else 0.0
+		var next := (a.lerp(b, t) + side * jitter).round()
+		RunSprites.line(self, last, next, color, 2.0)
+		RunSprites.line(self, last, next, Color(Color.WHITE, 1.0 - k))
+		last = next
+
+
+## 편향 실드: 충전 비율만큼 진해지는 금빛 윤곽 + 바깥 빛. 완충되면 광택이 윤곽을 한 바퀴 돌고, 그 뒤로 가끔 반짝인다.
+func _draw_shield() -> void:
+	if sim.shield_interval <= 0.0:
+		return
+	var center := (sim.player_pos + recoil_offset(_cannon_t, _ship_angle)).round()
+	var outline := ShipOutline.of_dir(maxi(_ship_dir, 0))
+	var line: PackedVector2Array = outline["line"]
+	if _shield_break_t >= 0.0:  # 막는 순간: 희게 번쩍
+		for p in line:
+			RunSprites.rect(self, Rect2(center + p, Vector2.ONE), Color(Color.WHITE, 1.0 - _shield_break_t / Juice.SHIELD_BREAK_TIME))
+		return
+	var ratio := sim.shield_ratio()
+	if ratio <= 0.0:
+		return
+	var pulse := 0.85 + 0.15 * sin(_time * 3.0)
+	var base := Color(SHIELD_GOLD, ratio * ratio * pulse)
+	var glow := Color(SHIELD_GOLD, ratio * Juice.SHIELD_GLOW_ALPHA * pulse)
+	for p: Vector2 in outline["glow"]:
+		RunSprites.rect(self, Rect2(center + p, Vector2.ONE), glow)
+	for p in line:
+		RunSprites.rect(self, Rect2(center + p, Vector2.ONE), base)
+	if _shield_full_t < 0.0 or line.is_empty():
+		return
+	var n := line.size()
+	if _shield_full_t < Juice.SHIELD_SWEEP_TIME:
+		var head := int(_shield_full_t / Juice.SHIELD_SWEEP_TIME * n)
+		for i in Juice.SHIELD_SWEEP_HEAD:
+			RunSprites.rect(self, Rect2(center + line[posmod(head - i, n)], Vector2.ONE), Color(Color.WHITE, 1.0 - float(i) / Juice.SHIELD_SWEEP_HEAD))
+		return
+	var cycle := fposmod(_shield_full_t, Juice.SHIELD_TWINKLE_EVERY)
+	if cycle < Juice.SHIELD_TWINKLE_TIME:
+		var seed_i := int(_shield_full_t / Juice.SHIELD_TWINKLE_EVERY) * 37
+		for i in Juice.SHIELD_TWINKLE_COUNT:
+			RunSprites.rect(self, Rect2(center + line[(seed_i + i * 13) % n], Vector2.ONE), Color(Color.WHITE, 1.0 - cycle / Juice.SHIELD_TWINKLE_TIME))
 
 
 ## 맞은 적·운석을 흰색으로 덮는다 (셰이더가 색을 흰색으로, 알파 = 섞는 정도: 맞은 순간 가장 하얗고 사라짐)
@@ -451,6 +620,14 @@ func _draw_ship() -> void:
 		return
 	var dir := maxi(_ship_dir, 0)
 	var center := (sim.player_pos + recoil_offset(_cannon_t, _ship_angle)).round()
+	# 과부하 반응로: 체력이 낮을 때 붉게 맥동하고, 쏠 때 총구 불꽃이 커진다
+	var tint := Color.WHITE
+	if sim.overload_active():
+		var red := 0.5 + 0.5 * sin(_time * Juice.OVERLOAD_PULSE)
+		tint = Color(1.0, 1.0 - 0.45 * red, 1.0 - 0.45 * red)
+		RunSprites.disc(self, center, 11.0 + 2.0 * red, Color(OVERLOAD_COLOR, 0.12 + 0.12 * red))
+		if _cannon_t < 0.07:
+			RunSprites.disc(self, (center + Vector2.from_angle(_ship_angle) * 10.0).round(), 4.0, Color(PIERCE_COLOR, 0.8))
 	# 화물이 무거우면 불꽃이 느리게 깜빡이고 가끔 꺼지듯 줄며 연기가 샌다 (Cargo.heaviness 0~1)
 	var heavy := Cargo.heaviness(sim.cargo.fill_ratio())
 	var frame := int(_time * ENGINE_FPS * (1.0 - 0.5 * heavy))
@@ -461,9 +638,9 @@ func _draw_ship() -> void:
 	if moving and heavy > 0.0:
 		_draw_smoke(center, heavy)
 	RunSprites.draw(self, "ship_flame_power" if power else "ship_flame_idle", frame, dir, center)
-	RunSprites.draw(self, "ship_engine", 0, dir, center)
-	RunSprites.draw(self, "ship_cannon", cannon_frame(_cannon_t), dir, center)
-	RunSprites.draw(self, "ship", damage_stage(sim.hp, sim.max_hp), dir, center)
+	RunSprites.draw(self, "ship_engine", 0, dir, center, tint)
+	RunSprites.draw(self, "ship_cannon", cannon_frame(_cannon_t), dir, center, tint)
+	RunSprites.draw(self, "ship", damage_stage(sim.hp, sim.max_hp), dir, center, tint)
 
 
 ## 무거운 엔진 연기: 두 엔진 뒤로 회색 점이 커지며 흐려진다 (위치는 시간으로만 정해 따로 상태가 없음)

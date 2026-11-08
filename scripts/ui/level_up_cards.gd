@@ -23,10 +23,24 @@ var _dim: ColorRect
 var _choices: Array = []
 var _levels: Dictionary = {}
 var _t := 0.0
-var _guard := 0.0
+var _guard_until := 0
 var _picked := -1
 var _is_reroll := false
 var _sounded: Array[bool] = []
+var _gathered: Array[bool] = []
+## 카드별 등장 시작 시각과 빛이 모이는 시간
+var _starts: Array[float] = []
+var _fx := CardFx.new()
+var _shake_left := 0.0
+var _shake_power := 0.0
+var _shake_rng := RandomNumberGenerator.new()
+## 눌려 있는 손가락과, 카드가 뜨기 전부터 눌려 있던 손가락 (조이스틱 손가락 실수 선택 방지)
+var _touches := {}
+var _stale := {}
+var _stale_released_at := -100000
+var _shown_at := 0
+## 슬로모션 중에 누른 건너뛰기를 카드가 뜰 때 적용한다
+var _skip_queued := false
 
 
 func _ready() -> void:
@@ -37,12 +51,21 @@ func _ready() -> void:
 	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_dim)
 	_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_dim.set_offsets_preset(Control.PRESET_FULL_RECT)
+	for side: Side in [SIDE_LEFT, SIDE_TOP]:
+		_dim.set_offset(side, -4.0)  # 흔들림으로 화면 끝이 비지 않게 조금 넓게
+	for side: Side in [SIDE_RIGHT, SIDE_BOTTOM]:
+		_dim.set_offset(side, 4.0)
+	add_child(_fx)
+	_fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	reroll_button = Button.new()
 	reroll_button.flat = true
 	reroll_button.focus_mode = Control.FOCUS_NONE
 	reroll_button.pressed.connect(reroll)
 	MenuPanel.add_press_feel(reroll_button)
 	add_child(reroll_button)
+	add_child(_fx.front)
+	_fx.front.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	resized.connect(_apply_layout)
 	hide()
 	set_process(false)
@@ -55,20 +78,32 @@ func show_cards(choices: Array, levels: Dictionary, rerolls: int, is_reroll: boo
 	rerolls_left = rerolls
 	_is_reroll = is_reroll
 	_t = 0.0
-	_guard = 0.0
 	_picked = -1
 	_sounded.clear()
 	_sounded.resize(choices.size())
 	_sounded.fill(false)
+	_gathered.clear()
+	_gathered.resize(choices.size())
+	_gathered.fill(false)
+	var grades: Array[int] = []
+	for c in choices:
+		grades.append(c["grade"])
+	_starts = card_starts(grades, is_reroll)
+	_shake_left = 0.0
+	position = Vector2.ZERO
+	_fx.clear()
 	for c in cards:
 		remove_child(c)
 		c.queue_free()
 	cards.clear()
 	for i in choices.size():
 		var card := LevelCard.new()
-		card.pressed.connect(choose.bind(i))
+		card.pressed.connect(_on_card_pressed.bind(i))
 		add_child(card)
 		cards.append(card)
+	move_child(_fx.front, -1)
+	_stale = _touches.duplicate()
+	_shown_at = Time.get_ticks_msec()
 	state = State.REVEAL
 	show()
 	set_process(true)
@@ -77,31 +112,52 @@ func show_cards(choices: Array, levels: Dictionary, rerolls: int, is_reroll: boo
 	_set_input_open(false)
 	_dim.modulate.a = 1.0 if is_reroll else 0.0
 	_step_reveal()
+	if _skip_queued and not is_reroll:
+		skip()
+	_skip_queued = false
 
 
 func close() -> void:
 	state = State.CLOSED
 	set_process(false)
+	position = Vector2.ZERO
+	_fx.clear()
 	hide()
+
+
+## 카드가 뜨기 직전(레벨업 슬로모션)에 누르면, 뜨자마자 건너뛴다.
+func queue_skip() -> void:
+	_skip_queued = true
 
 
 func is_revealing() -> bool:
 	return state == State.REVEAL or state == State.GUARD
 
 
-func _first_delay() -> float:
-	return 0.0 if _is_reroll else Juice.CARD_FIRST_DELAY
+## 카드별 등장 시작 시각. 레전드리는 빛이 모이는 만큼 다음 카드가 늦게 나온다. (다시 뽑기는 짧게, 모으기 없음)
+static func card_starts(grades: Array[int], is_reroll: bool) -> Array[float]:
+	var result: Array[float] = []
+	var t := 0.0 if is_reroll else Juice.CARD_FIRST_DELAY
+	for g in grades:
+		result.append(t)
+		t += Juice.CARD_REROLL_STAGGER if is_reroll else Juice.CARD_STAGGER
+		t += gather_time(g, is_reroll)
+	return result
 
 
-func _stagger() -> float:
-	return Juice.CARD_REROLL_STAGGER if _is_reroll else Juice.CARD_STAGGER
+static func gather_time(grade: int, is_reroll: bool) -> float:
+	return Juice.CARD_LEGEND_GATHER if grade == Upgrades.LEGENDARY and not is_reroll else 0.0
 
 
 func _reveal_end() -> float:
-	return _first_delay() + (cards.size() - 1) * _stagger() + Juice.CARD_DROP_TIME + Juice.CARD_FLIP_TIME + Juice.CARD_FLASH_TIME
+	var last := 0.0
+	for i in cards.size():
+		last = maxf(last, _starts[i] + gather_time(_choices[i]["grade"], _is_reroll))
+	return last + Juice.CARD_DROP_TIME + Juice.CARD_FLIP_TIME + Juice.CARD_FLASH_TIME
 
 
 func _process(delta: float) -> void:
+	_step_shake(delta)
 	match state:
 		State.REVEAL:
 			_t += delta
@@ -110,8 +166,7 @@ func _process(delta: float) -> void:
 			else:
 				_step_reveal()
 		State.GUARD:
-			_guard -= delta
-			if _guard <= 0.0:
+			if Time.get_ticks_msec() >= _guard_until:  # 프레임이 느려도 실제 시간으로 막는다
 				_open_input()
 
 
@@ -120,17 +175,46 @@ func _step_reveal() -> void:
 		_dim.modulate.a = minf(_t / Juice.CARD_DIM_TIME, 1.0)
 	var distance := Juice.CARD_REROLL_DROP_DISTANCE if _is_reroll else Juice.CARD_DROP_DISTANCE
 	for i in cards.size():
-		var ct := _t - _first_delay() - i * _stagger()
-		cards[i].set_reveal(ct, distance)
-		if ct >= Juice.CARD_DROP_TIME + Juice.CARD_FLIP_TIME * 0.5:
+		var ct := _t - _starts[i]
+		var wait := gather_time(_choices[i]["grade"], _is_reroll)
+		cards[i].set_reveal(ct, distance, wait)
+		if wait > 0.0 and ct >= Juice.CARD_DROP_TIME and not _gathered[i]:
+			_gathered[i] = true
+			_fx.gather(_card_rect(i), wait)
+			Sfx.play_card_gather()
+		if ct >= Juice.CARD_DROP_TIME + wait + Juice.CARD_FLIP_TIME * 0.5:
 			_play_show(i)
 
 
-## 앞면이 보이는 순간 소리. 등급이 높을수록 크다
-func _play_show(i: int) -> void:
-	if not _sounded[i]:
-		_sounded[i] = true
-		Sfx.play("card_show", -1.0, 1.0, Juice.CARD_SHOW_DB[_choices[i]["grade"]])
+func _card_rect(i: int) -> Rect2:
+	return Rect2(cards[i].home, cards[i].size)
+
+
+## 앞면이 보이는 순간: 등급만큼 소리와 빛. 유니크부터 빛 기둥과 약한 흔들림
+func _play_show(i: int, strength := 1.0) -> void:
+	if _sounded[i]:
+		return
+	_sounded[i] = true
+	var grade: int = _choices[i]["grade"]
+	Sfx.play("card_show", -1.0, 1.0, Juice.CARD_SHOW_DB[grade])
+	if grade >= Upgrades.UNIQUE:
+		Sfx.play("break_big", -1.0, 1.0, -9.0 if grade == Upgrades.UNIQUE else -5.0)  # 쿵 하는 낮은 소리
+	_fx.burst(_card_rect(i), grade, strength)
+	if Juice.CARD_SHAKE[grade] > 0.0 and App.settings.shake:
+		_shake_left = Juice.CARD_SHAKE_TIME
+		_shake_power = Juice.CARD_SHAKE[grade]
+
+
+## 화면 전체를 잠깐 정수 픽셀로 흔든다
+func _step_shake(delta: float) -> void:
+	if _shake_left <= 0.0:
+		return
+	_shake_left -= delta
+	if _shake_left <= 0.0:
+		position = Vector2.ZERO
+	else:
+		var p := _shake_power * _shake_left / Juice.CARD_SHAKE_TIME
+		position = Vector2(_shake_rng.randf_range(-p, p), _shake_rng.randf_range(-p, p)).round()
 
 
 func _finish_reveal() -> void:
@@ -162,13 +246,48 @@ func skip() -> void:
 	for i in cards.size():
 		if not _sounded[i] and (best < 0 or _choices[i]["grade"] > _choices[best]["grade"]):
 			best = i
-	if best >= 0:
-		_play_show(best)
-	_sounded.fill(true)
 	_finish_reveal()
+	if best >= 0:
+		_play_show(best, Juice.CARD_SKIP_BURST)
+	_sounded.fill(true)
 	state = State.GUARD
-	_guard = Juice.CARD_SKIP_GUARD
+	_guard_until = Time.get_ticks_msec() + int(Juice.CARD_SKIP_GUARD * 1000.0)
 	_set_input_open(false)
+
+
+## 눌려 있는 손가락을 센다 (화면이 닫혀 있어도 세야 카드가 뜰 때 "미리 누르고 있던 손가락"을 안다)
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_stale.erase(event.index)  # 같은 번호로 새로 눌렀으면 뗀 신호를 놓친 것이다
+			_touches[event.index] = true
+			_tap_with_other_finger(event)
+		else:
+			_touches.erase(event.index)
+			if _stale.erase(event.index):
+				_stale_released_at = Time.get_ticks_msec()
+
+
+## 조이스틱을 누른 채 다른 손가락으로 카드를 누른 경우: 둘째 손가락은 버튼에 전달되지 않아 여기서 직접 고른다.
+func _tap_with_other_finger(event: InputEventScreenTouch) -> void:
+	if state != State.READY or _stale_expired() or _stale.is_empty():
+		return
+	var at := get_global_transform_with_canvas().affine_inverse() * event.position
+	for i in cards.size():
+		if _card_rect(i).has_point(at):
+			choose(i)
+			return
+
+
+## 뗀 신호를 놓친 손가락 때문에 카드를 영영 못 고르는 일이 없게, 기록은 잠깐만 믿는다.
+func _stale_expired() -> bool:
+	return Time.get_ticks_msec() - _shown_at >= Juice.CARD_STALE_MAX_MS
+
+
+## 카드를 눌렀을 때: 미리 누르고 있던 손가락이 있거나 막 뗐으면 선택하지 않는다.
+func _on_card_pressed(index: int) -> void:
+	if _stale_expired() or (_stale.is_empty() and Time.get_ticks_msec() - _stale_released_at >= Juice.CARD_STALE_RELEASE_MS):
+		choose(index)
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -244,7 +363,7 @@ func _build_button(lay: Dictionary, y: int, view_w: int) -> void:
 		plate.material = LevelCard.grade_material(Upgrades.NORMAL)
 		plate.modulate = OFF_MODULATE
 	reroll_button.add_child(plate)
-	var font_size: int = lay["tag_size"]
+	var font_size: int = lay["btn_size"]
 	var title := "다시 뽑기"
 	var count := "%d회" % rerolls_left
 	var font := LevelCard.FONT

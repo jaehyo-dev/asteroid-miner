@@ -116,7 +116,7 @@ func test_레벨업하면_카드가_뜨고_고르면_닫힘() -> void:
 	assert_true(run.cards.is_revealing(), "등장 연출 중")
 	var view: Vector2 = run.get_viewport_rect().size
 	assert_eq(run.cards.size, view, "화면 전체를 덮음")
-	assert_eq(run.cards._dim.size, view, "어두운 판도 화면 전체")
+	assert_eq(run.cards._dim.size, view + Vector2(8, 8), "어두운 판은 흔들림 여유만큼 화면보다 넓음")
 	for c in run.cards.cards:
 		assert_true(Rect2(Vector2.ZERO, view).encloses(Rect2(c.home, c.size)), "카드가 화면 안: %s" % c.home)
 	var t: float = run.sim.time
