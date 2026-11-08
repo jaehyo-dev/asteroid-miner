@@ -9,12 +9,18 @@ var failures: PackedStringArray = []
 
 ## 테스트용 저장 파일. 실제 플레이 저장(user://save.json)을 건드리지 않는다.
 const TEST_SAVE_PATH := "user://test_save.json"
+const TEST_SETTINGS_PATH := "user://test_settings.cfg"
 
 
 ## 테스트 함수마다 빈 저장에서 시작한다.
 func _enter_tree() -> void:
 	SaveData.path = TEST_SAVE_PATH
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE_PATH))
+	# 설정도 테스트용 파일과 기본값에서 시작한다 (실제 user://settings.cfg를 건드리지 않음)
+	GameSettings.path = TEST_SETTINGS_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SETTINGS_PATH))
+	App.settings = GameSettings.new()
+	App.apply_settings()
 
 
 ## 조건이 참이어야 한다.

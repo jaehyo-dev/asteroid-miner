@@ -25,6 +25,8 @@ const RADIUS_PER_DEBRIS := 3.0
 const DEBRIS_TIME := 0.35
 const DEBRIS_SPEED := 60.0
 const GOLDEN_DEBRIS_COUNT := 24
+## 화면에 한꺼번에 있을 수 있는 파편 파티클 총량 (넘치면 새 파편을 만들지 않음, 폰 성능용)
+const PARTICLE_MAX := 160
 ## 이 반지름 이상이면 파편이 2픽셀 덩어리 (큰 운석·황금 운석)
 const DEBRIS_BIG_RADIUS := 16.0
 ## 히트스톱: 큰 운석·황금 운석을 부순 순간 시뮬레이션을 멈추는 시간 (Engine.time_scale은 안 씀, 입력은 계속)
@@ -54,10 +56,6 @@ const PICKUP_RING_RADIUS := [6.0, 10.0, 14.0, 24.0]
 const SHIP_TURN_LERP := 18.0
 ## 최고 속도의 이 비율보다 빠르면 출력 불꽃(Powering), 아니면 대기(Idle)
 const ENGINE_POWER_RATIO := 0.5
-## 우주선 아래 옅은 빛 (폰에서도 가장 눈에 띄게): 색, 겹 반지름(바깥 → 안, 겹칠수록 진함), 한 겹 진하기. 너무 밝으면 안 됨
-const SHIP_GLOW_COLOR := Color("#b8e8ff")
-const SHIP_GLOW_RADIUS := [18.0, 13.0, 8.0]
-const SHIP_GLOW_ALPHA := 0.045
 ## 무적 중 깜빡이는 간격
 const BLINK_INTERVAL := 0.08
 ## 피격: 중간 화면 흔들림(시간, 세기 픽셀), 화면 붉은 번쩍임·가장자리 테두리 시간

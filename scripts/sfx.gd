@@ -94,6 +94,8 @@ func _ready() -> void:
 	_raid_player.stream = synth(RAID_SOUND["notes"], RAID_SOUND["wave"], RAID_SOUND["volume"])
 	_raid_player.volume_db = VOLUME_DB
 	add_child(_raid_player)
+	for child in get_children():
+		(child as AudioStreamPlayer).bus = &"SFX"  # 효과음은 모두 효과음 버스로 (설정의 크기 조절)
 
 
 func _make_player(sound: Dictionary) -> AudioStreamPlayer:

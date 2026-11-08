@@ -68,11 +68,11 @@ var gate_fx: GateFx
 var moving := false
 ## 레벨업 빛 세기 (1 → 0, scripts/run.gd가 슬로모션 동안 정함)
 var levelup_light := 0.0
-## 우주선 아래 옅은 빛을 그릴지 (비교 그림용으로 끌 수 있음)
-var ship_glow := true
 
 ## 파편 효과: [위치, 속도, 남은 시간, 색, 크기(픽셀)]
 var _debris: Array = []
+## 다 쓴 파편을 버리지 않고 모아 두었다가 다시 쓴다 (매 폭발마다 배열을 새로 만들지 않게)
+var _debris_pool: Array = []
 ## 파괴 애니메이션: {name(시트), dir, pos, t(지난 시간), start(시작 프레임), fps}
 var _booms: Array[Dictionary] = []
 ## 줍기 연출: {pos, grade, gain(화물칸에서 늘어난 가치에 광물 보너스를 적용한 값), color(그때 보너스 색), t(지난 시간)}
@@ -121,6 +121,8 @@ func step(delta: float) -> void:
 		d[2] -= delta
 		if d[2] > 0.0:
 			kept.append(d)
+		else:
+			_debris_pool.append(d)
 	_debris = kept
 	var kept_booms: Array[Dictionary] = []
 	for b in _booms:
@@ -147,7 +149,20 @@ func _add_boom(a: RunSim.Enemy) -> void:
 	var speed := Juice.DEBRIS_SPEED * (1.0 + a.radius / 40.0)
 	for i in count:
 		var vel := Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.4, 1.0) * speed
-		_debris.append([a.pos, vel, Juice.DEBRIS_TIME * (1.6 if a.golden else 1.0) * _rng.randf_range(0.7, 1.3), DEBRIS_COLORS[key], size])
+		_spawn_debris(a.pos, vel, Juice.DEBRIS_TIME * (1.6 if a.golden else 1.0) * _rng.randf_range(0.7, 1.3), DEBRIS_COLORS[key], size)
+
+
+## 파편 하나를 만든다. 총량 상한(Juice.PARTICLE_MAX)이 차면 만들지 않고, 풀에 남은 것이 있으면 다시 쓴다.
+func _spawn_debris(pos: Vector2, vel: Vector2, life: float, color: Color, size: float) -> void:
+	if _debris.size() >= Juice.PARTICLE_MAX:
+		return
+	var d: Array = _debris_pool.pop_back() if not _debris_pool.is_empty() else [Vector2.ZERO, Vector2.ZERO, 0.0, Color.WHITE, 1.0]
+	d[0] = pos
+	d[1] = vel
+	d[2] = life
+	d[3] = color
+	d[4] = size
+	_debris.append(d)
 
 
 ## 파괴 애니메이션 속도: 적 함선은 같고, 운석은 클수록 느리게
@@ -419,7 +434,7 @@ func _draw_ship_warp() -> void:
 	draw_set_transform(Vector2.ZERO)
 
 
-## 내 우주선 (팩 Main Ship): 옅은 바닥 빛 → 엔진 불꽃(빠르면 출력, 느리면 대기) → 엔진 → 자동 포(쏠 때 총구 불꽃) → 몸(피해 단계).
+## 내 우주선 (팩 Main Ship): 엔진 불꽃(빠르면 출력, 느리면 대기) → 엔진 → 자동 포(쏠 때 총구 불꽃) → 몸(피해 단계).
 ## 쏘면 뒤로 1~2픽셀 밀렸다 돌아온다(반동).
 func _draw_ship() -> void:
 	_draw_levelup_light()
@@ -428,10 +443,6 @@ func _draw_ship() -> void:
 		return
 	var dir := maxi(_ship_dir, 0)
 	var center := (sim.player_pos + recoil_offset(_cannon_t, _ship_angle)).round()
-	if ship_glow:
-		# 폰에서도 우주선이 가장 눈에 띄게 아주 옅은 빛을 깐다 (반동과 상관없이 제자리)
-		for r: float in Juice.SHIP_GLOW_RADIUS:
-			draw_circle(sim.player_pos.round(), r, Color(Juice.SHIP_GLOW_COLOR, Juice.SHIP_GLOW_ALPHA))
 	# 화물이 무거우면 불꽃이 느리게 깜빡이고 가끔 꺼지듯 줄며 연기가 샌다 (Cargo.heaviness 0~1)
 	var heavy := Cargo.heaviness(sim.cargo.fill_ratio())
 	var frame := int(_time * ENGINE_FPS * (1.0 - 0.5 * heavy))

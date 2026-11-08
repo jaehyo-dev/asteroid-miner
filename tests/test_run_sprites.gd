@@ -151,6 +151,33 @@ func test_부서지면_파괴_애니메이션과_파편이_생기고_끝나면_�
 	view.queue_free()
 
 
+func test_파편은_총량_상한을_넘지_않고_다_쓴_것을_다시_씀() -> void:
+	var sim := RunSim.new(7)
+	var view := WorldView.new()
+	view.sim = sim
+	add_child(view)
+	for i in 20:  # 황금 운석 20개 = 파편 480개 요청
+		var e := RunSim.Enemy.new()
+		e.golden = true
+		e.radius = 20.0
+		sim.destroyed.append(e)
+	view.step(0.01)
+	assert_eq(view._debris.size(), Juice.PARTICLE_MAX, "상한까지만")
+	sim.destroyed.clear()
+	for i in 120:
+		view.step(1.0 / 60.0)
+	assert_eq(view._debris.size(), 0, "시간이 지나면 모두 사라짐")
+	assert_eq(view._debris_pool.size(), Juice.PARTICLE_MAX, "버리지 않고 풀에 모아 둠")
+	var pooled: Array = view._debris_pool.back()
+	var e2 := RunSim.Enemy.new()
+	e2.radius = 4.0
+	sim.destroyed.append(e2)
+	view.step(0.01)
+	assert_true(view._debris.any(func(d: Array) -> bool: return is_same(d, pooled)), "풀의 파편을 다시 씀")
+	assert_eq(view._debris.size() + view._debris_pool.size(), Juice.PARTICLE_MAX, "새로 만들지 않음")
+	view.queue_free()
+
+
 func test_HUD_숫자는_목표까지_빠르게_카운트업() -> void:
 	var v := 0.0
 	var frames := 0

@@ -3,7 +3,6 @@ extends SceneTree
 ## 창을 띄워 실행하고(헤드리스는 그림이 안 그려짐), Godot 무비 모드로 프레임을 PNG로 저장한다.
 ##   godot --path . --resolution 1280x720 --fixed-fps 30 --write-movie <폴더>/f.png -s res://tools/capture_juice.gd -- combat
 ##   장면: combat(전투·큰 운석 깨짐), minerals(광물 튕김·자석), hit(피격·레벨업)
-##   glow: 우주선 아래 옅은 빛 있음/없음 스크린샷 2장 (무비 모드 없이, -- glow <저장 폴더>)
 
 var run: Node
 var scene := ""
@@ -58,7 +57,7 @@ func _process(_delta: float) -> bool:
 
 func _setup() -> void:
 	match scene:
-		"combat", "glow":
+		"combat":
 			run.sim.max_hp = 1.0e6  # 무적은 깜빡임이 보여서 체력만 크게
 			run.sim.hp = 1.0e6
 			_rock(0, Vector2(80, -30), 1.0, Vector2(-12, 4))
@@ -101,14 +100,4 @@ func _step() -> bool:
 				run.sim.drop_mineral(run.sim.player_pos + Vector2(30, 0), 1)
 			_hold("move_right", frame > 55 and frame < 75)
 			return frame >= 125
-		"glow":
-			if frame == 40:
-				run.process_mode = Node.PROCESS_MODE_DISABLED  # 이 순간에 멈추고 빛만 켜고 끈다
-			elif frame == 42:
-				root.get_texture().get_image().save_png(out_dir.path_join("glow_on.png"))
-				run.world.ship_glow = false
-				run.world.queue_redraw()
-			elif frame == 44:
-				root.get_texture().get_image().save_png(out_dir.path_join("glow_off.png"))
-				return true
 	return false

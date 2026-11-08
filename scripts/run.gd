@@ -11,6 +11,9 @@ const GATE_BANNER_COLOR := Color("#7cf0ff")
 
 ## 메뉴 종류
 enum Menu { NONE, PAUSE, GAME_OVER, LEVEL_UP }
+## 일시 정지 메뉴의 설정 버튼 번호
+const PAUSE_SHAKE := 1
+const PAUSE_SFX := 2
 
 
 @onready var world: WorldView = $World
@@ -100,7 +103,7 @@ func _process(delta: float) -> void:
 			_show_game_over()
 	camera.position = sim.player_pos.round()
 	# 맞았을 때 화면 흔들림 (카메라만 살짝 밀고, 배경 별은 흔들지 않음)
-	camera.offset = alert.shake_offset(_shake_rng) if current_menu == Menu.NONE else Vector2.ZERO
+	camera.offset = alert.shake_offset(_shake_rng) if current_menu == Menu.NONE and App.settings.shake else Vector2.ZERO
 	starfield.scroll = camera.position
 	world.queue_redraw()
 	hud.queue_redraw()
@@ -234,7 +237,25 @@ func _on_portrait_changed(is_portrait: bool) -> void:
 func pause() -> void:
 	if current_menu != Menu.NONE or sim.is_over():
 		return
-	_open_menu(Menu.PAUSE, "일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", ["계속하기", "포기하고 기지로"])
+	_open_menu(Menu.PAUSE, "일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", _pause_options())
+
+
+## 일시 정지 메뉴 버튼: 계속하기, 설정 2개(누를 때마다 바뀜), 포기
+func _pause_options() -> PackedStringArray:
+	return ["계속하기", App.settings.shake_label(), App.settings.sfx_label(), "포기하고 기지로"]
+
+
+## 일시 정지 메뉴의 설정 버튼: 바꾸고 저장한 뒤 메뉴를 그대로 다시 보여 준다 (누른 버튼에 포커스 유지)
+func _change_setting(index: int) -> void:
+	if index == PAUSE_SHAKE:
+		App.settings.shake = not App.settings.shake
+	else:
+		App.settings.cycle_sfx()
+		App.apply_settings()
+	App.settings.save_file()
+	Sfx.play_click()  # 바뀐 효과음 크기를 바로 들려준다
+	menu.show_menu("일시 정지", "기지로 돌아가면 이번 판 광물은 사라집니다", _pause_options())
+	menu.buttons()[index].grab_focus()
 
 
 ## 판이 끝났을 때 (귀환 성공 또는 파괴): 가져가는 광물과 위험도 배율을 곱한 최종 가치를 보여 준다.
@@ -305,6 +326,8 @@ func _on_menu_chosen(index: int) -> void:
 		Menu.PAUSE:
 			if index == 0:
 				_close_menu()
+			elif index == PAUSE_SHAKE or index == PAUSE_SFX:
+				_change_setting(index)
 			else:
 				get_tree().change_scene_to_file(MAIN_SCENE)
 		Menu.LEVEL_UP:
