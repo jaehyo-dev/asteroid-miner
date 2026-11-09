@@ -13,7 +13,7 @@
 - `research_start`, `research_drag_left`, `_far_left`, `_right`, `_far_right`, `_up`, `research_fork`, `research_fork_chosen`, `research_all_chosen_up`, `research_drag_pc.gif`, `research_drag_phone.gif`.
 - 가지 사이 128~156 → 184칸, 칸 사이 46~50 → 68칸, 갈림길 소켓 사이 78 → 92칸. 소켓·이름 겹침 0건을 스크립트가 assert로 확인해요.
 - 아래 이름표 띠를 불투명하게 해서 칸이 그 밑으로 지나가요. 안내 글자도 띠 안으로 옮겼어요.
-- 결정 반영: 새 이름, 채굴 순서(자석 → 화물칸 → 이동 속도), 갈림길 무료, "곧 추가", "제안" 표시 제거.
+- 결정 반영: 새 이름, 채굴 순서(자석 → 화물칸 → 이동 속도), 갈림길 무료(잘못 전달된 내용, PLAN 39장으로 바뀜), "곧 추가", "제안" 표시 제거.
 
 ## 3) 전시관, 격납고 아이콘
 - `museum`, `museum_full`: 못 찾은 칸은 틀까지 어두운 색 하나로, 등급 색은 틀 전체에. 영웅 이상의 모서리 징, 전설·보스의 뿔은 유지.
