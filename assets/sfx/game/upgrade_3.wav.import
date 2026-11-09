@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://c8n2tdm15ewqd"
-path="res://.godot/imported/click_4.wav-5589b6b59b94d5504acbf90381a9c70a.sample"
+uid="uid://bqloifrpldcw1"
+path="res://.godot/imported/upgrade_3.wav-c53fa1ff2579dc62f37f8249cb864d71.sample"
 
 [deps]
 
-source_file="res://assets/sfx/game/click_4.wav"
-dest_files=["res://.godot/imported/click_4.wav-5589b6b59b94d5504acbf90381a9c70a.sample"]
+source_file="res://assets/sfx/game/upgrade_3.wav"
+dest_files=["res://.godot/imported/upgrade_3.wav-c53fa1ff2579dc62f37f8249cb864d71.sample"]
 
 [params]
 

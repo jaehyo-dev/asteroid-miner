@@ -46,9 +46,12 @@ const SOUNDS := {
 	"card_swell": {"files": ["card_a_swell"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_gather": {"files": ["card_a_gather"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_pick": {"files": ["card_pick"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	# UI 버튼: 부드러운 톡 (review/v070_fix/listen4/ 1번). 연타해도 덜 피곤하게 음 높이를 조금 흔든다
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
-	# 연구소 강화 성공
-	"click_up": {"files": ["pickup_2"], "db": -11.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
+	# 연구소 강화·갈림길 해금 (권총 녹음, 카드 선택 e3와 다른 구간), 만렙은 강화 소리 + 번쩍일 때 꼬리. 광물 부족은 낮은 툭
+	"upgrade": {"files": ["upgrade_1"], "db": -5.0, "pitch": 1.0, "jitter": 0.03, "max": 2},
+	"upgrade_max": {"files": ["upgrade_max_1"], "db": -6.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"deny": {"files": ["deny"], "db": -10.0, "pitch": 1.0, "jitter": 0.04, "max": 1},
 	# 건물 창 열기·닫기: 3차 후보 2번 "공기압 슉 + 딸깍" (창 소리와 카드 소리를 완전히 나눈다)
 	"open": {"files": ["window_open"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"close": {"files": ["window_close"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
@@ -60,14 +63,9 @@ const SOUNDS := {
 	"barrage_fire": {"files": ["barrage_fire"], "db": -10.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
 }
 
-## 버튼 소리 시험 (웹 주소 ?clicktest): 고르면 나머지를 지운다. 후보 파일은 표의 크기(click, click_up)로 틀도록 맞춰 있음
-const CLICK_SOUNDS := [
-	{"name": "1 부드러운 톡", "click": "click_1", "up": "click_1_up"},
-	{"name": "2 작은 공기 톡", "click": "click_2", "up": "click_2_up"},
-	{"name": "3 낮은 딸깍", "click": "click_3", "up": "click_3_up"},
-	{"name": "4 짧은 홀로그램 톡", "click": "click_4", "up": "click_4_up"},
-	{"name": "지금 소리", "click": "click", "up": "pickup_2"},
-]
+## 강화 소리 시험 (웹 주소 ?upgradetest): 고르면 나머지를 지운다
+const UPGRADE_SOUNDS := [{"name": "1 탄창 착-칵", "file": "upgrade_1"}, {"name": "2 슬라이드 놓음 컥", "file": "upgrade_2"}, {"name": "3 걸쇠 틱-착", "file": "upgrade_3"}]
+const MAX_SOUNDS := [{"name": "1 묵직한 쇠종", "file": "upgrade_max_1"}, {"name": "2 레전드리 두 종", "file": "upgrade_max_2"}, {"name": "3 금속판 쿵 + 울림", "file": "upgrade_max_3"}]
 
 ## 체력 낮음 경고음: 높낮이를 두 번 오가는 경보
 const WARNING_SOUND := {"wave": "square", "notes": [[880.0, 0.09], [620.0, 0.09], [880.0, 0.09], [620.0, 0.12]], "volume": 0.3}
@@ -182,11 +180,9 @@ func play_card_gather() -> void:
 	play("card_gather")
 
 
-## 버튼 소리 시험: 후보를 바꾼다 (이후 "click"·"click_up" 재생에 쓰임)
-func use_click_sound(index: int) -> void:
-	var s: Dictionary = CLICK_SOUNDS[index]
-	_streams["click"] = [load(SFX_DIR + s["click"] + ".wav")]
-	_streams["click_up"] = [load(SFX_DIR + s["up"] + ".wav")]
+## 강화 소리 시험: 이름("upgrade"·"upgrade_max")의 파일을 바꾼다
+func use_sound(sound_name: String, file: String) -> void:
+	_streams[sound_name] = [load(SFX_DIR + file + ".wav")]
 
 
 ## 실드가 공격을 막았을 때

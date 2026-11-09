@@ -36,7 +36,10 @@ signal launched
 @onready var hud: BaseHud = %Hud
 @onready var starfield: Starfield = %Starfield
 @onready var panel: BaseWindow = %Panel
-var _click_i := -1
+## 강화 시험에서 넣어 주는 광물
+const TEST_CREDITS := 50000
+var _upgrade_i := 0
+var _max_i := 0
 @onready var toast: Label = %Toast
 
 var save: SaveData
@@ -151,8 +154,8 @@ func _setup_stage() -> void:
 	stage.theme.default_font = font
 	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("base10"):
 		App.base_debug_busy = true
-	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("clicktest"):
-		call_deferred("enable_click_test")
+	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("upgradetest"):
+		call_deferred("enable_upgrade_test")
 
 
 ## 창 크기가 바뀔 때: 정수 배율을 다시 맞추고 배치·버튼·카메라를 다시 잡는다.
@@ -318,17 +321,35 @@ func _on_result_chosen(index: int) -> void:
 		launch()
 
 
-## 버튼 소리 시험: 버튼을 누를 때마다 다음 후보를 들려주고 이름이 잠깐 뜬다. 첫 후보로 시작
-func enable_click_test() -> void:
-	hud.add_click_test().pressed.connect(next_click_sound)
-	next_click_sound()
+## 강화 소리 시험: 강화·만렙 후보를 각각 차례로 바꾸고(그 소리와 이름), 광물을 넉넉히 넣는다
+func enable_upgrade_test() -> void:
+	hud.add_test_button("강화 소리").pressed.connect(next_upgrade_sound)
+	hud.add_test_button("만렙 소리").pressed.connect(next_max_sound)
+	hud.add_test_button("광물 +5만").pressed.connect(add_test_credits)
+	show_toast("강화 시험: 오른쪽 아래 버튼으로 후보를 바꿔요")
 
 
-func next_click_sound() -> void:
-	_click_i = (_click_i + 1) % Sfx.CLICK_SOUNDS.size()
-	Sfx.use_click_sound(_click_i)
-	Sfx.play("click")
-	show_toast("버튼 소리: %s" % Sfx.CLICK_SOUNDS[_click_i]["name"])
+func next_upgrade_sound() -> void:
+	_upgrade_i = (_upgrade_i + 1) % Sfx.UPGRADE_SOUNDS.size()
+	var s: Dictionary = Sfx.UPGRADE_SOUNDS[_upgrade_i]
+	Sfx.use_sound("upgrade", s["file"])
+	Sfx.play("upgrade")
+	show_toast("강화 소리: %s" % s["name"])
+
+
+func next_max_sound() -> void:
+	_max_i = (_max_i + 1) % Sfx.MAX_SOUNDS.size()
+	var s: Dictionary = Sfx.MAX_SOUNDS[_max_i]
+	Sfx.use_sound("upgrade_max", s["file"])
+	Sfx.play("upgrade_max")
+	show_toast("만렙 소리: %s" % s["name"])
+
+
+func add_test_credits() -> void:
+	save.credits += TEST_CREDITS
+	save.save_file()
+	refresh()
+	show_toast("광물 +%s" % Hud.thousands(TEST_CREDITS))
 
 
 ## 창이 열리면 위쪽 띠가 위로 들어간다 (ratio 1 = 다 보임)

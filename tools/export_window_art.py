@@ -72,12 +72,15 @@ def main():
     save(m3.dark_case(p), "case_off")
     # 격납고: 받침, 회전 시트(눕힌 우주선 35도), 함께 도는 그림자
     ped = p["pedestal35"].convert("RGBA")
-    px = ped.load()
+    save(ped, "pedestal")
+    # 윗면 고리만 따로: 빛기둥 앞에 다시 그려 고리가 묻히지 않게
+    ring = Image.new("RGBA", ped.size, (0, 0, 0, 0))
+    px, rp = ped.load(), ring.load()
     for yy in range(ped.height):
         for xx in range(ped.width):
             if px[xx, yy] == (*bytes.fromhex("30e1b9"), 255):
-                px[xx, yy] = (*bytes.fromhex("1da775"), 255)  # 윗면 고리를 빛기둥과 같은 톤으로 은은하게
-    save(ped, "pedestal")
+                rp[xx, yy] = px[xx, yy]
+    save(ring, "pedestal_ring")
     Image.open("review/v070_fix3/spin3d/spin_e35.png").convert("RGBA").save(f"{OUT}spin.png")
     shadows = Image.new("RGBA", (64 * 8, 56 * 5), (0, 0, 0, 0))
     for j in range(40):

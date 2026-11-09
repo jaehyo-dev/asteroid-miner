@@ -38,6 +38,7 @@ var _comet: Array = []  # 달리는 칸들
 var _comet_s := -1
 var _comet_key := ""
 var _flash_i := -1
+var _max_pending := false  # 만렙 꼬리 소리를 칸이 번쩍일 때 낸다
 var _unlit := {}
 var _pan_target := 0
 var _press := Vector2(-1, -1)
@@ -168,7 +169,7 @@ func _process(delta: float) -> void:
 		if _comet_s >= _comet.size() + 8:
 			_comet_s = -1
 			_unlit.clear()
-			_flash_i = 0
+			_start_flash()
 	elif _flash_i >= 0:
 		_flash_i += 1
 		if _flash_i >= FLASH.size():
@@ -287,7 +288,11 @@ func act() -> void:
 	if not done:
 		return
 	win.save.save_file()
-	Sfx.play("click_up" if not swapped else "click")
+	_max_pending = side == "c" and Research.state(win.save, branch, i) == "max"
+	if swapped:
+		Sfx.play("click")
+	else:
+		Sfx.play("upgrade", -1.0, 1.0, 2.0 if _max_pending else 0.0)  # 만렙은 조금 크게
 	win.bought.emit(selected)
 	win.refresh_head()
 	_refresh()
@@ -310,7 +315,7 @@ func _run_comet(k: String, old_lit: Dictionary) -> void:
 				break
 	_comet_key = k
 	if _comet.is_empty():  # 맨 아래 칸이거나 길이 안 이어지면 칸만 번쩍
-		_flash_i = 0
+		_start_flash()
 		_comet_s = -1
 		return
 	_unlit.clear()
@@ -321,6 +326,20 @@ func _run_comet(k: String, old_lit: Dictionary) -> void:
 				_unlit[at] = true
 	_comet_s = 0
 	_flash_i = -1
+
+
+## 칸이 하얗게 번쩍이기 시작. 만렙이면 이때 무거운 울림
+func _start_flash() -> void:
+	_flash_i = 0
+	if _max_pending:
+		_max_pending = false
+		Sfx.play("upgrade_max")
+
+
+## 꺼진 강화 버튼을 눌렀을 때: 광물이 모자라면 부드럽게 막히는 툭
+func _on_denied() -> void:
+	if action_info().get("note", "") == "광물이 모자라요":
+		Sfx.play("deny")
 
 
 # ── 설명 창 ────────────────────────────────────
@@ -795,6 +814,7 @@ class PopupPanel_ extends Control:
 		b.position = Vector2(12, h - bh - 9)
 		b.size = Vector2(w - 24, bh)
 		b.pressed.connect(v.act)
+		b.denied.connect(v._on_denied)
 		add_child(b)
 		v.action_button = b
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -884,6 +904,7 @@ class StripPanel extends Control:
 		b.position = Vector2(v._board_size.x - BTN_W - 6, 10)
 		b.size = Vector2(BTN_W, 26)
 		b.pressed.connect(v.act)
+		b.denied.connect(v._on_denied)
 		add_child(b)
 		v.action_button = b
 		mouse_filter = Control.MOUSE_FILTER_STOP

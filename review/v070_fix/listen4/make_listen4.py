@@ -1,5 +1,5 @@
 """UI 버튼 소리 후보 4개 (+강화용 밝은 소리): 창 소리 2번 "공기압 슉 + 딸깍"과 어울리는 부드럽고 짧은 "톡". 합성 + Kenney CC0 녹음만.
-실행: 저장소 맨 위에서 python3 review/v070_fix/listen4/make_listen4.py → 여기 *.ogg, measure.md, assets/sfx/game/click_N(_up).wav"""
+실행: 저장소 맨 위에서 python3 review/v070_fix/listen4/make_listen4.py → 여기 *.ogg, measure.md, 고른 1번은 assets/sfx/game/click.wav"""
 import sys
 
 import numpy as np
@@ -75,8 +75,8 @@ def main():
         assert su["c"] > sc["c"], (name, "강화가 더 밝아야")
         game = loud(c) + CLICK_DB
         assert game < window_game, (name, "창 소리보다 작게", game, window_game)
-        save(stereo(c), f"{GAME}click_{n}.wav")
-        save(stereo(u), f"{GAME}click_{n}_up.wav")
+        if n == 1:  # 사용자가 고른 1번 "부드러운 톡"만 게임 파일로 (지금 click.wav와 비교하는 measure 표는 고르기 전 값)
+            save(stereo(c), f"{GAME}click.wav")
         save(stereo(c), f"{HERE}click_{n}.ogg", quality=6)
         save(stereo(u), f"{HERE}click_{n}_up.ogg", quality=6)
         # 들어 보기용: 천천히 3번, 연타 6번(음높이 흔들림 ±5%), 강화 1번

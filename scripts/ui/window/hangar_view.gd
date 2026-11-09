@@ -11,22 +11,35 @@ const WEAPON := {"name": "펄스 연사포", "desc": "가까운 거리에서 빠
 const RING_TOP := 8
 const LIFT := 62  # 받침 면에서 우주선 그림 가운데까지 (그림자와 떨어지게)
 const LIFT_SMALL := 40
-# 빛기둥 (받침 그림 한 칸 기준)
+# 빛기둥 (받침 그림 한 칸 기준). 무작위 점 없이 깔끔한 띠 + 경계 1~2줄 체크 디더만
 const BEAM_HALF := 34  # 기둥 반폭: 윗면 고리 바로 안쪽
 const BEAM_FRONT := 16  # 윗면 타원 앞쪽 깊이: 기둥 아래가 이 호를 따라 끝난다
-const BEAM_DARK := Color("#125952")
-const BEAM_MID := Color("#1da775")
-const BEAM_LIGHT := Color("#30e1b9")
-const BEAM_SPARK := Color("#99e9e6")
-const SCAN_PERIOD := 6.0  # 주사선이 아래에서 위까지 가는 시간 (둘이 반 주기 어긋나게)
-const GRAINS := 7
-const GRAIN_PERIOD := 3.0
+const BEAM_NARROW := 0.18  # 맨 위에서 반폭이 이 비율만큼 좁아짐
+const BEAM_DOME := 0.16  # 가장자리일수록 일찍 끝나 띠 경계와 윗끝이 둥글다
+## 진하기 후보: 표는 [이 높이까지(0 = 받침 면, 1 = 맨 위), 색], 아래부터.
+## 채운 띠는 아래쪽에만 두고 위는 배경이 비친다 (가장자리 선·빛줄기만 더 올라가 둥글게 사라짐)
+const BEAM_STYLES := [
+	{"name": "옅게", "bands": [[0.12, "#125952"], [0.26, "#355148"], [0.4, "#3c3544"]],
+		"edge": [[0.25, "#1da775"], [0.55, "#125952"], [0.8, "#355148"]], "streak": [[0.35, "#125952"], [0.7, "#355148"]]},
+	{"name": "보통", "bands": [[0.16, "#125952"], [0.34, "#355148"], [0.52, "#3c3544"]],
+		"edge": [[0.35, "#30e1b9"], [0.62, "#1da775"], [0.85, "#125952"]], "streak": [[0.45, "#1da775"], [0.75, "#125952"]]},
+	{"name": "진하게", "bands": [[0.1, "#1da775"], [0.24, "#125952"], [0.42, "#355148"], [0.6, "#3c3544"]],
+		"edge": [[0.45, "#30e1b9"], [0.72, "#1da775"], [0.9, "#125952"]], "streak": [[0.5, "#1da775"], [0.82, "#125952"]]},
+]
+const BEAM_STREAKS := [-0.5, 0.14, 0.6]  # 세로 빛줄기 자리 (반폭 비율)
+const SCAN_PERIOD := 5.0  # 주사선이 받침에서 위까지 가는 시간
+const SCAN_TOP := 0.85
+const GRAINS := [-0.62, -0.22, 0.3, 0.68]  # 떠오르는 빛 알갱이 자리, 차례로 1초씩 어긋남
+const GRAIN_PERIOD := 4.0
+const GRAIN_TOP := 0.72
+const GRAIN_COLORS := [[0.3, "#99e9e6"], [0.55, "#30e1b9"], [1.0, "#1da775"]]
 
 var _t := 0.0
 var _stats: Array = []
 var _fighter: Dictionary
-var _beam: Array[ImageTexture] = []  # [평소, 깜빡임]
-var _beam_key := Vector2i.ZERO
+var beam_style := 1  # BEAM_STYLES 번호 (시안 비교용)
+var _beam: ImageTexture
+var _beam_key := Vector3i.ZERO
 
 
 func setup() -> void:
@@ -82,6 +95,7 @@ func _draw_stage(x: int, y: int, w: int, h: int) -> void:
 	var ship_k := 2 if win.compact else 3
 	var top := y + 2
 	_draw_beam(cx, mid, top, k)
+	draw_texture_rect(WindowArt.tex("pedestal_ring"), Rect2(cx - pw / 2, py, pw, ph), false)  # 고리는 빛 앞에 다시
 	var src := Rect2(i % 8 * SPIN.x, i / 8 * SPIN.y, SPIN.x, SPIN.y)
 	# 그림자는 받침과 같은 배율로 윗면 타원 안에만 놓고, 기둥 위·우주선 아래에 그린다
 	var shw := SPIN.x * k
@@ -94,28 +108,59 @@ func _draw_stage(x: int, y: int, w: int, h: int) -> void:
 	draw_texture_rect_region(WindowArt.tex("spin"), Rect2(cx - sw / 2, mid - lift - sh / 2 + bob, sw, sh), src)
 
 
-## 받침 위 빛기둥 그림을 칸 단위로 굽는다. flicker면 조금 옅게.
-## 밝기 = 높이(아래 진함) × 가로(가장자리 밝음) → 잡음 디더로 색을 고르므로 위로 갈수록 성기게 사라진다
-static func bake_beam(half: int, above: int, front: int, flicker := false) -> Image:
+## 표에서 높이 s의 색 (넘으면 투명)
+static func band_color(table: Array, s: float) -> Color:
+	for row: Array in table:
+		if s < row[0]:
+			return Color(row[1])
+	return Color.TRANSPARENT
+
+
+## 높이 t(0 = 받침 면)에서 반폭 (칸)
+static func beam_half(half: int, t: float) -> float:
+	return half * (1.0 - BEAM_NARROW * t)
+
+
+## 가로 위치의 띠 높이: 가장자리일수록 커져 둥글게 끝난다. dx = 가운데에서 떨어진 칸
+static func beam_s(t: float, dx: float, hw: float) -> float:
+	var u := minf(dx / hw, 1.0)
+	return t + BEAM_DOME * (1.0 - sqrt(1.0 - u * u))
+
+
+## 받침 위 빛기둥 그림을 칸 단위로 굽는다 (style = BEAM_STYLES 번호)
+static func bake_beam(half: int, above: int, front: int, style := 1) -> Image:
+	var st: Dictionary = BEAM_STYLES[style]
+	var bands: Array = st["bands"]
 	var w := half * 2
 	var img := Image.create(w, above + front, false, Image.FORMAT_RGBA8)
-	var ramp: Array[Color] = [Color.TRANSPARENT, BEAM_DARK, BEAM_MID, BEAM_LIGHT]
-	var dim := 0.86 if flicker else 1.0
 	for cy in img.get_height():
-		var t := clampf(1.0 - float(cy) / float(above), 0.0, 1.0)  # 0 = 받침 면, 1 = 맨 위
+		var t := clampf(float(above - cy) / float(above), 0.0, 1.0)
+		var hw := beam_half(half, t)
 		for cx in w:
-			var u := absf((cx + 0.5) / half - 1.0)  # 0 = 가운데, 1 = 가장자리
-			if cy >= above and float(cy - above) >= front * sqrt(1.0 - u * u):
+			var dx := absf(cx + 0.5 - half)
+			if dx > hw:
+				continue
+			if cy >= above and float(cy - above) >= front * sqrt(1.0 - pow(dx / half, 2.0)):
 				continue  # 윗면 타원 앞쪽 호 바깥
-			var level: float
-			if cx == 0 or cx == w - 1:
-				level = 3.4 * pow(1.0 - t, 0.9)  # 양옆 밝은 세로선, 위에서 흩어지며 사라짐
-			else:
-				level = 3.4 * pow(1.0 - t, 1.5) * (0.46 + 0.22 * pow(u, 5.0))
-			# 줄무늬가 보이지 않게, 고른 잡음과 무작위 잡음을 반씩 섞어 디더링
-			var ign := fposmod(52.9829189 * fposmod(0.06711056 * cx + 0.00583715 * cy, 1.0), 1.0)
-			var noise := (ign + fposmod(sin(cx * 12.9898 + cy * 78.233) * 43758.5453, 1.0)) * 0.5
-			img.set_pixel(cx, cy, ramp[clampi(int(level * dim + noise), 0, 3)])
+			var s := beam_s(t, dx, hw)
+			var col := Color.TRANSPARENT
+			var line: Array = []
+			if dx > hw - 1.0:
+				line = st["edge"]  # 양옆 밝은 선
+			elif BEAM_STREAKS.any(func(f: float) -> bool: return cx == int(half + f * hw)):
+				line = st["streak"]
+			# 선 끝 4줄은 한 줄 건너 하나씩만 찍어 부드럽게 끊긴다
+			if not line.is_empty() and not ((line[-1][0] - s) * above < 4.0 and cy % 2 == 0):
+				col = band_color(line, s)
+			if col.a == 0.0:
+				for j in bands.size():
+					if s < bands[j][0]:
+						col = Color(bands[j][1])
+						# 띠 경계 바로 아래 2줄은 위 띠 색과 체크무늬로 섞는다
+						if (bands[j][0] - s) * above < 2.0 and (cx + cy) % 2 == 0:
+							col = Color(bands[j + 1][1]) if j + 1 < bands.size() else Color.TRANSPARENT
+						break
+			img.set_pixel(cx, cy, col)
 	return img
 
 
@@ -123,32 +168,29 @@ func _draw_beam(cx: int, mid: int, top: int, k: int) -> void:
 	var above := (mid - top) / k
 	if above <= 0:
 		return  # 레이아웃이 잡히기 전
-	var key := Vector2i(k, above)
+	var key := Vector3i(k, above, beam_style)
 	if key != _beam_key:
 		_beam_key = key
-		_beam.clear()
-		for f in [false, true]:
-			_beam.append(ImageTexture.create_from_image(bake_beam(BEAM_HALF, above, BEAM_FRONT, f)))
-	# 아주 약한 깜빡임: 0.1초 칸마다 정해진 무작위로 드물게
-	var blink := fposmod(sin(floorf(_t * 10.0) * 12.9898) * 43758.5453, 1.0) < 0.07
+		_beam = ImageTexture.create_from_image(bake_beam(BEAM_HALF, above, BEAM_FRONT, beam_style))
 	var half := BEAM_HALF * k
-	draw_texture_rect(_beam[1 if blink else 0], Rect2(cx - half, top, half * 2, (above + BEAM_FRONT) * k), false)
-	var height := mid - top
-	# 주사선 2줄: 받침에서 올라가며 옅어지고 끊어진다
-	for n in 2:
-		var t := fposmod(_t / SCAN_PERIOD + n * 0.5, 1.0)
-		var row := mid - int(t * height) / k * k
-		var col := BEAM_LIGHT if t < 0.4 else (BEAM_MID if t < 0.7 else BEAM_DARK)
-		var gap := 1 + int(t * t * 4.0)  # 위로 갈수록 성기게
-		for c in range(1, BEAM_HALF * 2 - 1, gap):
-			draw_rect(Rect2(cx - half + c * k, row, k, k), col)
-	# 떠오르는 빛 알갱이: 자리·속도는 번호로 고정
-	for n in GRAINS:
-		var h := fposmod(sin(n * 78.233) * 43758.5453, 1.0)
-		var t := fposmod(_t / (GRAIN_PERIOD * (1.0 + h)) + h, 1.0)
-		var gx := cx - half + (2 + int(h * (BEAM_HALF * 2 - 4)) ) * k
-		var gy := mid - int(t * height * 0.8) / k * k
-		draw_rect(Rect2(gx, gy, k, k), BEAM_SPARK if t < 0.5 else (BEAM_LIGHT if t < 0.8 else BEAM_MID))
+	var left := cx - half
+	draw_texture_rect(_beam, Rect2(left, top, half * 2, (above + BEAM_FRONT) * k), false)
+	var st: Dictionary = BEAM_STYLES[beam_style]
+	# 주사선 1줄: 받침에서 천천히 올라가며 띠처럼 옅어진다
+	var t := fposmod(_t / SCAN_PERIOD, 1.0) * SCAN_TOP
+	var row := mid - int(t * above) * k
+	var hw := beam_half(BEAM_HALF, t)
+	for c in BEAM_HALF * 2:
+		var dx := absf(c + 0.5 - BEAM_HALF)
+		if dx <= hw - 1.0:
+			var col := band_color(st["edge"], beam_s(t, dx, hw))
+			if col.a > 0.0:
+				draw_rect(Rect2(left + c * k, row, k, k), col)
+	# 떠오르는 빛 알갱이: 자리와 출발 시각이 정해져 규칙적으로 오른다
+	for n in GRAINS.size():
+		var g := fposmod(_t / GRAIN_PERIOD + float(n) / GRAINS.size(), 1.0) * GRAIN_TOP
+		var gx := BEAM_HALF + int(GRAINS[n] * beam_half(BEAM_HALF, g))
+		draw_rect(Rect2(left + gx * k, mid - int(g * above) * k, k, k), band_color(GRAIN_COLORS, g / GRAIN_TOP))
 
 
 func _draw_desc(x: int, y: int, w: int, h: int) -> void:

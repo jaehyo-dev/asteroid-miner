@@ -26,8 +26,8 @@ const TOUCH_MIN := 44.0
 var large := false
 ## 위아래 바 몫 (풍경을 키보드로 따라갈 때, 출격 버튼 자리)
 var top_h := 28.0
-## 창 소리 시험 버튼 (평소 없음)
-var click_test: Button
+## 소리 시험 버튼들 (?upgradetest에서만, 평소 없음)
+var test_buttons: Array[Button] = []
 var bottom_h := 25.0
 var _ore := TextureRect.new()
 
@@ -95,20 +95,22 @@ func relayout() -> void:
 	old_versions.position = Vector2(8.0, size.y - 14.5 - old_versions.size.y / 2.0)
 	_place_button(sortie, font_size, 34.0 if large else 25.0, 76.0)
 	_place_label(hint, Vector2.ZERO, 12, 19.0, 36.0)
-	if click_test != null:
-		click_test.size = Vector2(84.0, 34.0)  # 시험용이라 판 그림 없이, 손가락으로 누를 크기
-		click_test.position = Vector2(size.x - click_test.size.x - 8.0, version.position.y - click_test.size.y - 4.0)
+	for n in test_buttons.size():  # 시험용이라 판 그림 없이, 손가락으로 누를 크기로 버전 글자 위에 쌓는다
+		var b := test_buttons[n]
+		b.size = Vector2(96.0, 34.0)
+		b.position = Vector2(size.x - b.size.x - 8.0, version.position.y - (b.size.y + 4.0) * (n + 1))
 	hint.position = Vector2(version.position.x - hint.size.x - 8.0, size.y - hint.size.y)  # 버전 표시 왼쪽의 아래 띠: 가운데 착륙장을 피하고 건물 칸보다 아래
 
 
-## 버튼 소리 시험 버튼 (?clicktest에서만 만든다): 오른쪽 아래, 버전 글자 위
-func add_click_test() -> Button:
-	click_test = Button.new()
-	click_test.text = "버튼 소리"
-	click_test.focus_mode = Control.FOCUS_NONE
-	add_child(click_test)
+## 소리 시험 버튼: 오른쪽 아래, 버전 글자 위로 쌓인다
+func add_test_button(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	add_child(b)
+	test_buttons.append(b)
 	relayout()
-	return click_test
+	return b
 
 
 ## 보유 광물 글자가 바뀌면 판 폭도 다시
@@ -139,7 +141,7 @@ func _place_button(b: Button, font_size: int, h: float, pad: float) -> void:
 
 ## 고정 버튼이 pos(Stage 좌표)를 덮는지 (그 위에서는 끌기를 시작하지 않는다)
 func hits_button(pos: Vector2) -> bool:
-	for b: Button in [fullscreen, old_versions, sortie, click_test]:
-		if b != null and b.visible and Rect2(b.position, b.size).has_point(pos):
+	for b: Button in [fullscreen, old_versions, sortie] + test_buttons:
+		if b.visible and Rect2(b.position, b.size).has_point(pos):
 			return true
 	return false

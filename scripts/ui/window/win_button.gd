@@ -2,6 +2,9 @@ class_name WinButton
 extends Button
 ## 창 안 버튼: 판 그림 + 글자 + 광물 가격. text는 비워 두고 label·cost로 그린다.
 
+## 꺼진 채로 눌렸을 때 (막힌 소리용)
+signal denied
+
 var label := ""
 var cost := -1
 const MARGIN_X := 12
@@ -20,6 +23,11 @@ func set_info(new_label: String, new_cost := -1, off := false) -> void:
 	cost = new_cost
 	disabled = off
 	queue_redraw()
+
+
+func _gui_input(event: InputEvent) -> void:
+	if disabled and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		denied.emit()
 
 
 func _draw() -> void:

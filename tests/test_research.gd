@@ -427,31 +427,67 @@ func test_폰에서_고른_칸이_띠_위로_보임() -> void:
 	main.queue_free()
 
 
-# ── 버튼 소리 시험, focus 표시, 빛기둥 ─────────────
+# ── 강화 소리, 강화 소리 시험, focus 표시, 빛기둥 ─────────────
 
-func test_버튼_소리_후보는_평소_버튼이_없고_시험에서_차례로_돎() -> void:
+func test_강화_소리_후보는_평소_버튼이_없고_시험에서_차례로_돎() -> void:
 	var main: Control = load("res://scenes/main.tscn").instantiate()
 	main.auto_start = false
 	add_child(main)
 	await wait_frames()
-	assert_true(main.hud.click_test == null, "정식 화면에는 없음")
-	main.enable_click_test()
-	assert_not_null(main.hud.click_test)
-	assert_eq(main._click_i, 0, "후보 1부터")
-	assert_true(main.toast.text.contains(Sfx.CLICK_SOUNDS[0]["name"]))
-	for i in Sfx.CLICK_SOUNDS.size() - 1:
-		main.hud.click_test.pressed.emit()
-	assert_true(main.toast.text.contains("지금 소리"), "마지막은 지금 소리")
-	main.hud.click_test.pressed.emit()
-	assert_eq(main._click_i, 0, "다시 처음으로")
-	assert_true(main.hud.hits_button(main.hud.click_test.position + Vector2.ONE), "눌러도 끌기가 아님")
-	for s: Dictionary in Sfx.CLICK_SOUNDS:
-		var click: AudioStreamWAV = load(Sfx.SFX_DIR + s["click"] + ".wav")
-		assert_not_null(click, s["name"])
-		assert_not_null(load(Sfx.SFX_DIR + s["up"] + ".wav"), s["name"])
-		if s["name"] != "지금 소리":
-			assert_true(click.get_length() <= 0.081, "%s 0.08초 안쪽" % s["name"])
-	Sfx.use_click_sound(Sfx.CLICK_SOUNDS.size() - 1)  # 다른 테스트에 영향 없게 원래 소리로
+	assert_true(main.hud.test_buttons.is_empty(), "정식 화면에는 없음")
+	main.enable_upgrade_test()
+	assert_eq(main.hud.test_buttons.size(), 3)
+	var up: Button = main.hud.test_buttons[0]
+	for i in Sfx.UPGRADE_SOUNDS.size():
+		up.pressed.emit()
+	assert_eq(main._upgrade_i, 0, "한 바퀴 돌면 처음으로")
+	assert_true(main.toast.text.contains(Sfx.UPGRADE_SOUNDS[0]["name"]))
+	main.hud.test_buttons[1].pressed.emit()
+	assert_true(main.toast.text.contains(Sfx.MAX_SOUNDS[1]["name"]))
+	var before: int = main.save.credits
+	main.hud.test_buttons[2].pressed.emit()
+	assert_eq(main.save.credits, before + main.TEST_CREDITS, "광물을 넣어 줌")
+	for b: Button in main.hud.test_buttons:
+		assert_true(main.hud.hits_button(b.position + Vector2.ONE), "눌러도 끌기가 아님")
+	for s: Dictionary in Sfx.UPGRADE_SOUNDS + Sfx.MAX_SOUNDS:
+		assert_not_null(load(Sfx.SFX_DIR + s["file"] + ".wav"), s["name"])
+	for s: Dictionary in Sfx.UPGRADE_SOUNDS:
+		var e3: AudioStreamWAV = load(Sfx.SFX_DIR + "card_pick.wav")
+		assert_true((load(Sfx.SFX_DIR + s["file"] + ".wav") as AudioStreamWAV).get_length() < e3.get_length(), "%s e3보다 짧음" % s["name"])
+	Sfx.use_sound("upgrade", "upgrade_1")  # 다른 테스트에 영향 없게 기본으로
+	Sfx.use_sound("upgrade_max", "upgrade_max_1")
+	main.save.credits = before
+	main.queue_free()
+
+
+func test_만렙_강화는_번쩍일_때_울림을_내고_광물_부족은_툭() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	main.auto_start = false
+	add_child(main)
+	await wait_frames()
+	var save: SaveData = main.save
+	var old_credits := save.credits
+	var old_upgrades := save.upgrades.duplicate()
+	var w: BaseWindow = main.panel
+	w.open("research")
+	await wait_frames()
+	var v: ResearchView = w.view
+	v._select_branch("hull")
+	var id: String = Research.tree("hull")[0]
+	save.upgrades[id] = BaseUpgrades.max_level(id) - 1
+	save.credits = 0
+	v.select_cell("0c")
+	assert_eq(v.action_info()["note"], "광물이 모자라요")
+	v._on_denied()  # 꺼진 버튼을 누름
+	assert_true(Sfx.pool("deny").any(func(p: AudioStreamPlayer) -> bool: return p.playing), "광물 부족 툭")
+	save.credits = 1000000
+	v.act()
+	assert_eq(v._flash_i, 0, "맨 아래 칸은 빛이 달리지 않고 바로 번쩍")
+	assert_false(v._max_pending)
+	assert_true(Sfx.pool("upgrade_max").any(func(p: AudioStreamPlayer) -> bool: return p.playing), "번쩍일 때 만렙 울림")
+	save.credits = old_credits
+	save.upgrades = old_upgrades
+	save.save_file()
 	main.queue_free()
 
 
@@ -462,19 +498,30 @@ func test_모든_버튼의_focus_테두리가_비어_있음() -> void:
 	b.queue_free()
 
 
-func test_빛기둥은_아래가_촘촘하고_위로_성기며_팔레트만_씀() -> void:
-	var img := HangarView.bake_beam(34, 100, 16)
-	var palette := [Color.TRANSPARENT, HangarView.BEAM_DARK, HangarView.BEAM_MID, HangarView.BEAM_LIGHT]
-	var inside := func(y0: int, y1: int) -> int:
-		var n := 0
-		for y in range(y0, y1):
-			for x in range(1, img.get_width() - 1):  # 양옆 세로선 빼고 안쪽
+func test_빛기둥은_무작위_없이_띠로_옅어지고_위로_좁아지며_팔레트만_씀() -> void:
+	var palette := PackedStringArray(["125952", "1da775", "30e1b9", "355148", "3c3544"])
+	for style in HangarView.BEAM_STYLES.size():
+		var img := HangarView.bake_beam(34, 100, 16, style)
+		var name: String = HangarView.BEAM_STYLES[style]["name"]
+		assert_true(img.get_data() == HangarView.bake_beam(34, 100, 16, style).get_data(), "%s 매번 같음" % name)
+		var widths: Array[int] = []
+		for y in 100:
+			var n := 0
+			for x in img.get_width():
 				var c := img.get_pixel(x, y)
-				assert_true(palette.any(func(p: Color) -> bool: return p.is_equal_approx(c)), "void32 색만")
-				n += 1 if c.a > 0.0 else 0
-		return n
-	assert_true(inside.call(0, 8) < 10, "맨 위는 거의 사라짐")
-	assert_true(inside.call(25, 50) * 2 < inside.call(50, 75), "위로 갈수록 성김")
-	assert_true(inside.call(50, 75) < inside.call(75, 100), "받침 쪽이 가장 촘촘함")
-	assert_true(img.get_pixel(0, 95).is_equal_approx(HangarView.BEAM_LIGHT), "가장자리는 밝은 세로선")
-	assert_true(img.get_pixel(1, 115).a == 0.0, "아래는 타원 호 따라 끝남")
+				if c.a > 0.0:
+					assert_true(palette.has(c.to_html(false)), "%s void32 색만" % name)
+					n += 1
+			widths.append(n)
+		assert_eq(widths[0], 0, "%s 윗변 없이 사라짐" % name)
+		assert_true(widths[30] < widths[95], "%s 위로 좁아짐" % name)
+		# 가운데 열을 같은 체크 칸끼리(2줄 간격) 보며 아래에서 위로 띠 순서(진함 → 옅음 → 투명)를 거꾸로 가지 않음
+		var order: Array = HangarView.BEAM_STYLES[style]["bands"].map(func(b: Array) -> String: return b[1].trim_prefix("#"))
+		var prev := 0
+		for y in range(98, 0, -2):
+			var c := img.get_pixel(33, y)
+			var r := order.size() if c.a == 0.0 else order.find(c.to_html(false))
+			assert_true(r >= prev, "%s 위로 갈수록 옅어짐 (y=%d)" % [name, y])
+			prev = r
+		assert_eq(prev, order.size(), "%s 맨 위는 투명" % name)
+	assert_true(HangarView.bake_beam(34, 100, 16).get_pixel(1, 115).a == 0.0, "아래는 타원 호 따라 끝남")
