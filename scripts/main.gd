@@ -136,6 +136,7 @@ static func game_version() -> String:
 
 ## Stage에 끌어도 흔들리지 않는 격자용 설정: 글자도 그림과 같은 칸으로 그려지게 번짐·겹쳐 그리기를 끈다.
 func _setup_stage() -> void:
+	starfield.star_gain = 2.5
 	stage.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var font: FontFile = (load("res://assets/fonts/galmuri/Galmuri11.ttf") as FontFile).duplicate()
 	font.oversampling = 1.0
@@ -163,7 +164,7 @@ func _fit_stage() -> void:
 ## 건물·착륙장 버튼을 누르는 자리에 맞춘다.
 func _place_spots() -> void:
 	for id in spot_buttons:
-		var r := BaseLayout.touch_rect(id, view.large)
+		var r := BaseLayout.touch_rect(id)
 		var b: Button = spot_buttons[id]
 		b.position = r.position
 		b.size = r.size
@@ -191,7 +192,7 @@ func _set_hover(id: String, on: bool) -> void:
 ## 키보드로 고른 건물: 강조하고, 화면 밖이면 따라간다
 func _on_spot_focus(id: String) -> void:
 	_set_hover(id, true)
-	_apply_cam(BaseLayout.reveal_cam(cam, BaseLayout.touch_rect(id, view.large), view.map, stage.size, hud.top_h, hud.bottom_h))
+	_apply_cam(BaseLayout.reveal_cam(cam, BaseLayout.touch_rect(id), view.map, stage.size, hud.top_h, hud.bottom_h))
 
 
 ## 보유 광물과 기지 모습(연구 불빛, 광물 더미)을 저장 내용에 맞춘다.
@@ -354,7 +355,8 @@ func _clear_drag() -> void:
 
 
 func _can_drag(pos: Vector2) -> bool:
-	return not (launching or panel.visible or result_menu.visible or view.landing_t >= 0.0 or App.portrait or hud.hits_button(pos))
+	# 정거장이 화면 안에 다 들어오면 끌기를 켜지 않는다 (손이 조금 움직인 누름이 끌기로 먹히지 않게)
+	return BaseLayout.can_pan(view.map, stage.size) and not (launching or panel.visible or result_menu.visible or view.landing_t >= 0.0 or App.portrait or hud.hits_button(pos))
 
 
 ## 끌기가 시작되면 누른 건물의 번쩍임·이름표를 끄고, 안내를 거둔다.

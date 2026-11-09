@@ -2,7 +2,7 @@ class_name BaseView
 extends Control
 ## 기지 풍경: 소행성 위 네모 격자 갑판 정거장. 착륙장(3칸 높이), 건물, 건설 예정 칸, 통로, 맨 바깥 둘레 띠, 지도 가장자리 꾸밈, 대기 움직임.
 ## 좌표는 착륙장 가운데가 원점인 그림 픽셀(BaseLayout). 그림 1픽셀 = 격자 1칸이고 화면 배율은 부모 Stage가 정수로 맞춘다.
-## 복잡함 줄이는 규칙(계획서 32번): 밝기 건물 > 갑판 > 통로, 흐린 이름 글자, 건설 예정은 다음 2칸, 꾸밈은 지도 가장자리에만.
+## 복잡함 줄이는 규칙(계획서 32번): 밝기 건물 > 갑판 > 통로, 흐린 이름 글자, 건설 예정은 다음 1칸, 꾸밈은 지도 가장자리에만 (착륙장 소품은 착륙장 칸 안에만).
 ## 누르기는 main.gd가 BaseLayout.touch_rect 자리에 놓은 버튼이 맡고, 여기서는 그리기만 한다.
 
 ## 이륙 연출 시간: 조종사 탑승 + 이륙 → 워프 충전 → 점프 (WarpJump)
@@ -18,8 +18,8 @@ const NAME_DIM := Color(0.62, 0.58, 0.68, 0.85)
 const NAME_EMPTY := Color(0.82, 0.68, 0.32, 0.8)
 const NAME_LIT := Color("#fef8e5")
 const NAME_PAD := Color("#99e9e6")
+const EMPTY_NAME := "건설 예정"
 const NAME_OUTLINE := Color8(20, 18, 26)
-const NAME_OUTLINE_SIZE := 2
 ## 건물 창 불빛 색 (원본 그림의 창 색). 이 자리들을 천천히 번갈아 끈다
 const WINDOW_COLORS := [Color8(254, 248, 229), Color8(246, 206, 80), Color8(48, 225, 185), Color8(153, 233, 230)]
 const WINDOW_OFF := Color8(60, 53, 68)
@@ -30,8 +30,8 @@ const WINDOW_SPOTS := 8
 const ANTENNA_SPOTS := [[1, 12, 46], [2, 14, 62], [1, 26, 34], [1, 62, 32]]
 ## 연구소 불빛(부품 3) 자리: 돔 아래 띠를 따라 왼쪽부터
 const LIGHT_SPOTS := [[16, 60], [22, 62], [28, 64], [34, 65], [40, 66], [48, 66], [54, 65], [60, 64], [66, 62], [72, 60]]
-## 창고 앞 광물 더미 자리 (창고 그림 기준, 더미 그림의 아래 가운데)
-const PILE_SPOT := Vector2(66, 86)
+## 창고 앞 광물 더미 자리 (창고 그림 기준, 더미 그림의 아래 가운데). 그림 아래 끝을 넘지 않아야 이름 글자와 안 겹친다
+const PILE_SPOT := Vector2(66, 84)
 ## 착륙장 고리 가운데에 놓는 우주선 칸(48x48)의 아래 가운데, 칸 안 여백(연출의 발 위치), 조종사 자리, 착륙장 이름표 자리
 const SHIP_FOOT := Vector2(0, 24)
 const SHIP_PAD := 14.0
@@ -41,12 +41,14 @@ const PAD_NAME_Y := -64.0
 const GUIDE_FRACS := [0.077, 0.135, 0.195, 0.255, 0.662, 0.72, 0.78, 0.838]
 ## 착륙장 그림의 고리가 가운데보다 위라 내려서 고리를 원점에 맞춘다
 const PAD_DROP := 13.0
-## 관제탑·연료관 자리 (착륙장 가운데 기준, 그림 아래 가운데)
+## 관제탑 자리, 착륙장 아래쪽 소품 (착륙장 가운데 기준, 그림 아래 가운데)
 const TOWER_FOOT := Vector2(-40, -78)
-const FUEL_FOOT := Vector2(38, 120)
+const PAD_PROPS := {"fuel": Vector2(38, 128), "cargo": Vector2(-38, 128)}
 ## 지도 가장자리 꾸밈: [그림, 왼쪽(-1)/오른쪽(1), 세로 위치(둘레 높이 비율)]
 const DECOR := [["solar", -1, 0.42], ["solar", 1, 0.42], ["mast", -1, 0.16], ["dish", 1, 0.16], ["tanks", -1, 0.82], ["tanks", 1, 0.82]]
 const DECOR_GAP := 30.0
+## 위쪽 경고등은 상단 바에 가리지 않게 귀퉁이보다 이만큼 내려 놓는다
+const BEACON_TOP_FOOT := 26.0
 ## 맨 바깥 둘레 띠 두께: 앞쪽(아래)은 턱이 보여 두껍게
 const EDGE_THIN := 3.0
 const EDGE_FRONT := 4.0
@@ -66,7 +68,7 @@ var time := 0.0
 var launch_t := -1.0
 ## 귀환 착륙 연출 진행 시간 (-1이면 없음)
 var landing_t := -1.0
-## 글자가 2배인 폰 배치인지, 임시 건물을 더했는지
+## 착륙장 이름표 글자가 2배인 폰 배치인지, 임시 건물을 더했는지
 var large := false
 var busy := false
 ## 정거장 칸, 지도 사각형, 둘레 선분
@@ -117,8 +119,8 @@ func setup(is_large: bool, is_busy: bool) -> void:
 	large = is_large
 	busy = is_busy
 	cells = BaseLayout.station_cells(busy)
-	map = BaseLayout.map_rect(cells, large)
-	_outline = BaseLayout.outline(cells, large)
+	map = BaseLayout.map_rect(cells)
+	_outline = BaseLayout.outline(cells)
 	buildings.clear()
 	for id in BaseLayout.CELLS:
 		buildings.append([id, "b_" + id, BaseLayout.CELLS[id], BaseLayout.NAMES[id]])
@@ -221,7 +223,7 @@ func _draw() -> void:
 # ── 땅, 갑판, 통로, 둘레 ──────────────────────────────
 
 func _draw_ground() -> void:
-	var g := tex("ground")
+	var g := tex("ground_small" if BaseLayout.fits_small_ground(cells) else "ground")
 	draw_texture(g, (-g.get_size() / 2.0).round())
 
 
@@ -254,13 +256,13 @@ func _is_lit(id: String) -> bool:
 
 func _draw_decks() -> void:
 	for b in buildings:
-		var r := BaseLayout.plate_rect(b[2], large)
+		var r := BaseLayout.plate_rect(b[2])
 		draw_texture_rect(tex("deck_lit" if _is_lit(b[0]) else "deck"), Rect2(r.position, tex("deck").get_size()), false)
 	for c in empties:
 		var t := tex("deck_empty")
-		var r := BaseLayout.plate_rect(c, large)
+		var r := BaseLayout.plate_rect(c)
 		draw_texture(t, Vector2(r.position.x, r.end.y - t.get_height()))
-		_sprite(tex("icon_empty"), BaseLayout.cell_center(c, large) + Vector2(0, 2))
+		_sprite(tex("icon_empty"), BaseLayout.cell_center(c) + Vector2(0, 2))
 
 
 ## 이웃한 칸 사이 통로. 착륙장과는 가운데 줄만 잇는다 (통로가 많으면 어지러움)
@@ -270,11 +272,11 @@ func _draw_walkways() -> void:
 		if c.x != 0:
 			var right := c + Vector2i.RIGHT
 			if c.x != -1 and cells.has(right):
-				_walk_h(BaseLayout.plate_rect(c, large).end.x, BaseLayout.plate_rect(right, large).position.x, c.y)
+				_walk_h(BaseLayout.plate_rect(c).end.x, BaseLayout.plate_rect(right).position.x, c.y)
 			var down := c + Vector2i.DOWN
 			if cells.has(down):
 				_walk_v(c)
-	var side := BaseLayout.plate_rect(Vector2i(-1, 0), large).end.x
+	var side := BaseLayout.plate_rect(Vector2i(-1, 0)).end.x
 	_walk_h(side, -pad_half, 0)
 	_walk_h(pad_half, -side, 0)
 
@@ -282,18 +284,20 @@ func _draw_walkways() -> void:
 func _walk_h(x0: float, x1: float, row: int) -> void:
 	var t := tex("walk_h")
 	var h := t.get_height()
-	var y := BaseLayout.cell_center(Vector2i(0, row), large).y - h / 2.0 + 6.0
+	var y := BaseLayout.cell_center(Vector2i(0, row)).y - h / 2.0 + 6.0
 	# 끝을 칸 아래로 조금 밀어 넣어 틈이 없게
 	draw_texture_rect_region(t, Rect2(x0 - 6.0, y, x1 - x0 + 12.0, h), Rect2(12, 0, 16, h))
 
 
 func _walk_v(c: Vector2i) -> void:
 	var t := tex("walk_v")
-	var mid := (BaseLayout.cell_center(c, large) + BaseLayout.cell_center(c + Vector2i.DOWN, large)) / 2.0
-	draw_texture(t, (mid - t.get_size() / 2.0 + Vector2(0, 4)).round())
+	var w := t.get_width()
+	var y0 := BaseLayout.plate_rect(c).end.y - 2.0  # 위 칸 앞 턱(이름 글자 자리)을 덮지 않게 턱 끝에서 시작
+	var y1 := BaseLayout.plate_rect(c + Vector2i.DOWN).position.y + 6.0
+	draw_texture_rect_region(t, Rect2(BaseLayout.cell_center(c).x - w / 2.0, y0, w, y1 - y0), Rect2(0, 16, w, y1 - y0))
 
 
-## 착륙장: 고리, 위아래 유도등 줄(고리 쪽으로 차례로 켜짐), 관제탑, 연료관
+## 착륙장: 고리, 위아래 유도등 줄(고리 쪽으로 차례로 켜짐), 관제탑, 아래쪽 소품(연료관, 화물 컨테이너)
 func _draw_pad() -> void:
 	var t := tex("pad")
 	var s := t.get_size()
@@ -308,12 +312,13 @@ func _draw_pad() -> void:
 		if on:
 			draw_rect(Rect2(p + Vector2(1, 1), Vector2(2, 2)), Color("#d7fff4"))
 	_sprite(tex("tower"), TOWER_FOOT)
-	_sprite(tex("fuel"), FUEL_FOOT)
+	for prop in PAD_PROPS:
+		_sprite(tex(prop), PAD_PROPS[prop])
 
 
 func _draw_building(b: Array) -> void:
 	var t := tex(b[1])
-	var r := BaseLayout.building_rect(b[2], t.get_size(), large)
+	var r := BaseLayout.building_rect(b[2], t.get_size())
 	var id: String = b[0]
 	var lit := _is_lit(id)
 	if lit:
@@ -361,27 +366,25 @@ static func window_cells(img: Image, seed_value: int) -> Array[Vector2i]:
 func _draw_beacons() -> void:
 	for i in _beacons.size():
 		var on := launch_t >= 0.0 or _blink(2.0, i * 0.35, 0.4)
-		_sprite(tex("beacon_on" if on else "beacon_off"), _beacons[i] + Vector2(0, 2))
+		_sprite(tex("beacon_on" if on else "beacon_off"), _beacons[i] + Vector2(0, BEACON_TOP_FOOT if _beacons[i].y < 0.0 else 2.0))
 
 
-## 흐린 이름 글자 (상자 없이 건물 아래에 항상). 누르거나 마우스를 올리면 밝은 이름표. 착륙장은 항상 이름표.
+## 이름 글자 (갑판 앞 턱에 상자 없이 항상, 어두운 테두리). 누르거나 마우스를 올리면 밝게. 착륙장은 항상 이름표.
 func _draw_names() -> void:
 	if launch_t >= 0.0:
 		return
-	var font_size := 24 if large else 12
 	for b in buildings:
-		var pos := _name_pos(b[2], font_size)
-		if _is_lit(b[0]):
-			_draw_tag(b[3], pos, font_size, NAME_LIT)
-		else:
-			_draw_centered(b[3], pos, font_size, NAME_DIM)
+		_draw_centered(b[3], name_rect(b[2], b[3]).get_center(), BaseLayout.NAME_FONT_SIZE, NAME_LIT if _is_lit(b[0]) else NAME_DIM)
 	for c in empties:
-		_draw_centered("건설 예정", _name_pos(c, font_size), font_size, NAME_EMPTY)
-	_draw_tag(BaseLayout.NAMES["ship"], Vector2(0, PAD_NAME_Y), font_size, NAME_PAD)
+		_draw_centered(EMPTY_NAME, name_rect(c, EMPTY_NAME).get_center(), BaseLayout.NAME_FONT_SIZE, NAME_EMPTY)
+	_draw_tag(BaseLayout.NAMES["ship"], Vector2(0, PAD_NAME_Y), 24 if large else 12, NAME_PAD)
 
 
-func _name_pos(cell: Vector2i, font_size: int) -> Vector2:
-	return BaseLayout.cell_center(cell, large) + Vector2(0, BaseLayout.build_foot(large) + font_size / 2.0 + 1.0)
+## 이 이름을 그릴 자리 (글자 테두리 포함)
+func name_rect(cell: Vector2i, text: String) -> Rect2:
+	var font := get_theme_default_font()
+	var s := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BaseLayout.NAME_FONT_SIZE)
+	return BaseLayout.name_rect(cell, (s + Vector2.ONE * BaseLayout.NAME_OUTLINE).ceil())
 
 
 ## pos는 글자 가운데
@@ -389,7 +392,7 @@ func _draw_centered(text: String, pos: Vector2, font_size: int, color: Color) ->
 	var font := get_theme_default_font()
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	var base := pos + Vector2(-w / 2.0, font.get_ascent(font_size) - font.get_height(font_size) / 2.0)
-	draw_string_outline(font, base.round(), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, NAME_OUTLINE_SIZE, NAME_OUTLINE)  # 갑판 무늬 위에서도 읽히게
+	draw_string_outline(font, base.round(), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, BaseLayout.NAME_OUTLINE, NAME_OUTLINE)  # 갑판 무늬 위에서도 읽히게
 	draw_string(font, base.round(), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 

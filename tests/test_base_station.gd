@@ -1,12 +1,14 @@
 extends TestCase
-## 기지 정거장: 칸 배치, 건설 예정, 끌기 범위, 출격 버튼, 끌기 판정, 정수 배율, 끌어서 놓으면 안 눌림, 안내 한 번.
+## 기지 정거장: 칸 배치, 한 화면 크기, 이름 글자 겹침, 건설 예정, 끌기 범위, 출격 버튼, 끌기 판정, 정수 배율, 끌어서 놓으면 안 눌림, 안내 한 번.
 
 const MainScene := preload("res://scenes/main.tscn")
 const PC := Vector2(640, 360)
 const PHONE := Vector2(844, 390)
 
 
-func _main(hint_seen := true) -> Control:
+## busy: 임시 건물 10채 (PC 화면을 넘어 끌 수 있는 상태)
+func _main(hint_seen := true, busy := true) -> Control:
+	App.base_debug_busy = busy
 	var s := SaveData.new()
 	s.drag_hint_seen = hint_seen
 	s.save_file()
@@ -15,6 +17,10 @@ func _main(hint_seen := true) -> Control:
 	add_child(main)
 	await wait_frames()
 	return main
+
+
+func _exit_tree() -> void:
+	App.base_debug_busy = false
 
 
 func _mouse(main: Control, stage_pos: Vector2, pressed: bool) -> void:
@@ -40,36 +46,34 @@ func test_건물_칸은_겹치지_않고_착륙장_3칸을_피함() -> void:
 		assert_false(seen.has(c), "%s 칸 겹침" % id)
 		seen[c] = true
 		assert_true(c.x != 0, "%s 착륙장 자리" % id)
-	for large in [false, true]:
-		for r: int in BaseLayout.PAD_ROWS:
-			var cell := Vector2i(0, r)
-			assert_true(BaseLayout.station_cells(false).has(cell), "착륙장 %s" % cell)
-		assert_eq(BaseLayout.cell_center(Vector2i.ZERO, large), Vector2.ZERO, "착륙장 고리가 원점")
+	for r: int in BaseLayout.PAD_ROWS:
+		var cell := Vector2i(0, r)
+		assert_true(BaseLayout.station_cells(false).has(cell), "착륙장 %s" % cell)
+	assert_eq(BaseLayout.cell_center(Vector2i.ZERO), Vector2.ZERO, "착륙장 고리가 원점")
 
 
 func test_모든_건물에_칸과_누르는_자리가_있고_겹치지_않음() -> void:
-	for large in [false, true]:
-		var touch := {}
-		for id in BaseLayout.IDS:
-			touch[id] = BaseLayout.touch_rect(id, large)
-			var min_side: float = 44.0
-			assert_true(touch[id].size.x >= min_side and touch[id].size.y >= min_side, "%s 누르기 크기 %s" % [id, touch[id].size])
-		for i in BaseLayout.IDS.size():
-			for j in range(i + 1, BaseLayout.IDS.size()):
-				var a: String = BaseLayout.IDS[i]
-				var b: String = BaseLayout.IDS[j]
-				assert_false(touch[a].intersects(touch[b]), "%s %s와 %s 겹침" % [large, a, b])
+	var touch := {}
+	for id in BaseLayout.IDS:
+		touch[id] = BaseLayout.touch_rect(id)
+		var min_side: float = 44.0
+		assert_true(touch[id].size.x >= min_side and touch[id].size.y >= min_side, "%s 누르기 크기 %s" % [id, touch[id].size])
+	for i in BaseLayout.IDS.size():
+		for j in range(i + 1, BaseLayout.IDS.size()):
+			var a: String = BaseLayout.IDS[i]
+			var b: String = BaseLayout.IDS[j]
+			assert_false(touch[a].intersects(touch[b]), "%s와 %s 겹침" % [a, b])
 
 
-func test_건설_예정은_다음_2칸만이고_건물이_생기면_다음_칸() -> void:
+func test_건설_예정은_다음_1칸만이고_건물이_생기면_다음_칸() -> void:
 	var built: Array = BaseLayout.CELLS.values()
 	var slots := BaseLayout.next_slots(built)
-	assert_eq(slots.size(), 2)
+	assert_eq(slots.size(), 1)
 	assert_eq(slots[0], BaseLayout.NEXT_SLOTS[0])
 	built.append(slots[0])
 	var after := BaseLayout.next_slots(built)
 	assert_false(after.has(slots[0]), "지은 칸은 빠짐")
-	assert_eq(after[0], slots[1])
+	assert_eq(after[0], BaseLayout.NEXT_SLOTS[1])
 	# 다 채우면 빈 칸 없음
 	assert_eq(BaseLayout.next_slots(built + Array(BaseLayout.NEXT_SLOTS)).size(), 0)
 
@@ -87,11 +91,132 @@ func test_건설_예정_칸은_정거장에_이어져_있음() -> void:
 
 func test_둘레는_바깥_변만_있고_안쪽_변은_없음() -> void:
 	var cells: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0)]
-	var segs := BaseLayout.outline(cells, false)
+	var segs := BaseLayout.outline(cells)
 	assert_eq(segs.size(), 6, "두 칸이 붙으면 맞닿은 2변이 빠짐")
-	var mid := BaseLayout.cell_block(Vector2i(0, 0), false).end.x
+	var mid := BaseLayout.cell_block(Vector2i(0, 0)).end.x
 	for seg in segs:
 		assert_false(seg[0].x == mid and seg[1].x == mid, "안쪽 변")
+
+
+# ── 한 화면에 보이는 크기 ──────────────────────────────
+
+func test_건물_5채면_정거장과_꾸밈이_PC_폰_한_화면에_들어오고_끌기_없음() -> void:
+	var map := BaseLayout.map_rect(BaseLayout.station_cells(false))
+	for view: Vector2 in [PC, PHONE]:
+		var o := BaseLayout.center_origin(view)
+		assert_true(Rect2(Vector2.ZERO, view).encloses(Rect2(map.position + o, map.size)), "%s 지도 %s" % [view, map])
+		assert_false(BaseLayout.can_pan(map, view), "%s 끌기 없음" % view)
+
+
+func test_건물_5채면_소행성_가장자리와_우주가_보이고_정거장은_돌_위() -> void:
+	assert_true(BaseLayout.fits_small_ground(BaseLayout.station_cells(false)), "작은 소행성")
+	assert_false(BaseLayout.fits_small_ground(BaseLayout.station_cells(true)), "10채는 큰 소행성")
+	var img: Image = load(BaseLayout.SPRITE_DIR + "ground_small.png").get_image()
+	img.decompress()
+	assert_eq(Vector2i(img.get_size()), BaseLayout.GROUND_SMALL, "bake_base와 같은 크기")
+	var half := Vector2(img.get_size()) / 2.0
+	var solid := func(p: Vector2) -> bool:  # p: 땅 가운데 기준
+		var q := p + half
+		return Rect2(Vector2.ZERO, Vector2(img.get_size())).has_point(q) and img.get_pixelv(Vector2i(q)).a > 0.5
+	for seg in BaseLayout.outline(BaseLayout.station_cells(false)):
+		assert_true(solid.call(seg[0]), "정거장 귀퉁이 %s가 돌 위" % seg[0])
+	for view: Vector2 in [PC, PHONE]:
+		var o := BaseLayout.center_origin(view)
+		# 화면 양 끝 가운데 줄과 네 귀퉁이는 돌 밖(우주)이고, 가장자리가 화면 안에 있음
+		assert_false(solid.call(Vector2(-o.x, 0)), "%s 왼쪽 끝" % view)
+		assert_false(solid.call(Vector2(view.x - o.x - 1, 0)), "%s 오른쪽 끝" % view)
+		for c: Vector2 in [Vector2.ZERO, Vector2(view.x - 1, 0), Vector2(0, view.y - 1), view - Vector2.ONE]:
+			assert_false(solid.call(c - o), "%s 귀퉁이 %s" % [view, c])
+
+
+func test_건물_10채면_PC는_끌_수_있음() -> void:
+	assert_true(BaseLayout.can_pan(BaseLayout.map_rect(BaseLayout.station_cells(true)), PC))
+
+
+func test_다_들어오면_끌기를_시작하지_않아_살짝_움직인_누름도_열림() -> void:
+	var main: Control = await _main(true, false)
+	if BaseLayout.can_pan(main.view.map, main.stage.size):
+		main.queue_free()
+		return  # 테스트 창이 작을 때
+	_mouse(main, Vector2(200, 200), true)
+	assert_false(main.drag.down, "끌기 없음")
+	_motion(main, Vector2(260, 200))
+	_mouse(main, Vector2(260, 200), false)
+	await wait_frames()
+	main.press("research")
+	assert_true(main.panel.visible, "건물 창이 열림")
+	main.queue_free()
+
+
+# ── 이름 글자가 그림과 겹치지 않음 ──────────────────────
+
+## 그림의 불투명한 픽셀 중 rect(지도 좌표)에 들어가는 것 수
+func _overlap(t: Texture2D, at: Vector2, rect: Rect2) -> int:
+	var img := t.get_image()
+	img.decompress()
+	var n := 0
+	var r := rect.intersection(Rect2(at, t.get_size()))
+	for y in range(int(floorf(r.position.y)), int(ceilf(r.end.y))):
+		for x in range(int(floorf(r.position.x)), int(ceilf(r.end.x))):
+			var p := Vector2i(x, y) - Vector2i(at)
+			if p.x >= 0 and p.y >= 0 and p.x < img.get_width() and p.y < img.get_height() and img.get_pixelv(p).a > 0.5:
+				n += 1
+	return n
+
+
+func test_어떤_건물_화면에서도_이름이_갑판_앞_턱_안이고_그림과_안_겹침() -> void:
+	for busy in [false, true]:
+		var main: Control = await _main(true, busy)
+		var view: BaseView = main.view
+		for large in [false, true]:  # PC·폰 배치
+			view.setup(large, busy)
+			var names := []  # [이름, 자리, 칸]
+			for b in view.buildings:
+				names.append([b[3], view.name_rect(b[2], b[3]), b[2]])
+			for c in view.empties:
+				names.append([BaseView.EMPTY_NAME, view.name_rect(c, BaseView.EMPTY_NAME), c])
+			for n in names:
+				var plate := BaseLayout.plate_rect(n[2])
+				var lip := Rect2(plate.position.x, plate.end.y - 22.0, plate.size.x, 22.0)  # 앞 턱
+				assert_true(lip.encloses(n[1]), "%s %s가 앞 턱 밖 %s" % [busy, n[0], n[1]])
+				for b in view.buildings:
+					var t: Texture2D = view.tex(b[1])
+					var at := BaseLayout.building_rect(b[2], t.get_size()).position
+					assert_eq(_overlap(t, at, n[1]), 0, "%s %s 글자와 %s 그림 겹침" % [busy, n[0], b[3]])
+					if b[0] == "storage":
+						for level in range(1, BaseLife.PILE_STEPS.size() + 1):
+							var pile: Texture2D = view.tex("pile_%d" % level)
+							var foot := at + BaseView.PILE_SPOT
+							assert_eq(_overlap(pile, foot - Vector2(pile.get_width() / 2.0, pile.get_height()).round(), n[1]), 0, "%s 글자와 광물 더미 %d" % [n[0], level])
+				for other in names:
+					if other != n:
+						assert_false(n[1].intersects(other[1]), "%s와 %s 글자 겹침" % [n[0], other[0]])
+		main.queue_free()
+		await wait_frames()
+
+
+# ── 착륙장 소품 ────────────────────────────────────────
+
+func test_착륙장_소품은_착륙장_칸_아래쪽_안이고_출격_버튼과_안_겹침() -> void:
+	var main: Control = await _main(true, false)
+	var view: BaseView = main.view
+	var pad := view.tex("pad").get_size()
+	var pad_rect := Rect2(Vector2(-pad.x / 2.0, -pad.y / 2.0 + BaseView.PAD_DROP), pad)
+	for size: Vector2 in [PC, PHONE]:  # 버튼 크기가 다른 PC·폰 배치
+		main.hud.size = size
+		main.hud.relayout()
+		var button: Button = main.hud.sortie
+		var plate: Panel = button.get_node("Plate")
+		# 출격 버튼 자리: 고리 앞 (main._apply_cam과 같은 계산, 끌지 않았을 때)
+		var sortie := Rect2(Vector2(-button.size.x / 2.0, BaseLayout.RING_TOUCH.y / 2.0 + main.SORTIE_GAP) + plate.position, plate.size)
+		for prop in BaseView.PAD_PROPS:
+			var s: Vector2 = view.tex(prop).get_size()
+			var foot: Vector2 = BaseView.PAD_PROPS[prop]
+			var r := Rect2(foot - Vector2(s.x / 2.0, s.y), s)
+			assert_true(pad_rect.encloses(r), "%s가 착륙장 밖 %s" % [prop, r])
+			assert_true(r.position.y > BaseLayout.RING_TOUCH.y / 2.0, "%s는 고리 아래" % prop)
+			assert_false(r.intersects(sortie), "%s가 출격 버튼과 겹침 %s %s" % [prop, r, sortie])
+	main.queue_free()
 
 
 # ── 끌어서 둘러보기 범위 ────────────────────────────────
@@ -99,8 +224,7 @@ func test_둘레는_바깥_변만_있고_안쪽_변은_없음() -> void:
 func test_처음에는_착륙장이_가운데이고_범위_안() -> void:
 	for view: Vector2 in [PC, PHONE, Vector2(1280, 360), Vector2(683, 328)]:
 		for busy in [false, true]:
-			var large: bool = view == PHONE
-			var map := BaseLayout.map_rect(BaseLayout.station_cells(busy), large)
+			var map := BaseLayout.map_rect(BaseLayout.station_cells(busy))
 			assert_eq(BaseLayout.clamp_cam(Vector2.ZERO, map, view), Vector2.ZERO, "%s %s" % [view, busy])
 
 
@@ -153,7 +277,7 @@ func test_문턱_안의_움직임은_누름이고_넘으면_끌기() -> void:
 
 func test_끌었다_놓으면_건물_창이_안_열리고_다음_누름은_열림() -> void:
 	var main: Control = await _main()
-	var start: Vector2 = main.world.position + BaseLayout.touch_rect("research", main.view.large).get_center()
+	var start: Vector2 = main.world.position + BaseLayout.touch_rect("research").get_center()
 	_mouse(main, start, true)
 	var before: Vector2 = main.cam
 	_motion(main, start + Vector2(40, 0))
@@ -259,6 +383,34 @@ func test_안내는_처음_한_번만_끌면_사라짐() -> void:
 	await wait_frames()
 	assert_false(again.hud.hint.visible, "다시 들어와도 없음")
 	again.queue_free()
+
+
+func test_건물_5채로_다_보이면_안내_없음() -> void:
+	var main: Control = await _main(false, false)
+	if not BaseLayout.can_pan(main.view.map, main.stage.size):
+		assert_false(main.hud.hint.visible, "안내 없음")
+		assert_false(SaveData.load_file().drag_hint_seen, "넘는 화면을 처음 볼 때 뜨도록 안 본 것으로 둠")
+	main.queue_free()
+
+
+func test_안내는_갑판_착륙장_버튼을_가리지_않음() -> void:
+	var main: Control = await _main(false, true)
+	if main.stage.size != PC:
+		main.queue_free()
+		return  # 기준 화면에서만 (아주 작은 창은 비는 자리가 없다)
+	var view: BaseView = main.view
+	var hud: BaseHud = main.hud
+	var hint := Rect2(hud.hint.position, hud.hint.size)
+	assert_true(Rect2(Vector2.ZERO, main.stage.size).encloses(hint), "화면 안")
+	var o: Vector2 = main.world.position
+	var pad := view.tex("pad").get_size()
+	assert_false(hint.intersects(Rect2(o + Vector2(-pad.x / 2.0, -pad.y / 2.0 + BaseView.PAD_DROP), pad)), "착륙장")
+	for b in view.buildings:
+		var p := BaseLayout.plate_rect(b[2])
+		assert_false(hint.intersects(Rect2(p.position + o, p.size)), "%s 갑판" % b[3])
+	for c: Control in [hud.old_versions, hud.version, hud.sortie]:
+		assert_false(hint.intersects(Rect2(c.position, c.size)), c.name)
+	main.queue_free()
 
 
 func test_저장에_안내_본_기록이_남고_옛_저장은_안_본_것() -> void:

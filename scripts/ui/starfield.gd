@@ -33,6 +33,9 @@ var scroll := Vector2.ZERO:
 			scroll = value
 			queue_redraw()
 
+## 별 밝기 배율 (출격 화면 1: 가장 덜 보이게. 기지는 돌 가장자리 밖이 우주로 읽히게 올림)
+var star_gain := 1.0
+
 ## 층별 별 위치 (0~1 비율 좌표)
 var _stars: Array = []
 var _textures: Array[Texture2D] = []
@@ -79,7 +82,7 @@ func _draw() -> void:
 		var layer: Dictionary = PACK_LAYERS[i]
 		var tex := _textures[i]
 		var frame := int(_time * layer["fps"]) % int(tex.get_width() / FRAME.x)
-		var d: float = layer["dim"]
+		var d: float = layer["dim"] * star_gain
 		var origin := tile_origin(scroll * float(layer["parallax"]))
 		# 화면을 덮을 만큼 프레임을 이어 붙인다 (정수 픽셀 위치)
 		var y := origin.y
@@ -91,7 +94,7 @@ func _draw() -> void:
 			y += FRAME.y
 	for li in LAYERS.size():
 		var layer: Dictionary = LAYERS[li]
-		var b: float = layer["bright"]
+		var b: float = layer["bright"] * star_gain
 		var color := Color(b, b, minf(b + 0.1, 1.0))
 		for p in _stars[li]:
 			draw_rect(Rect2(star_position(p, size, scroll, float(layer["parallax"])).floor(), Vector2.ONE), color)

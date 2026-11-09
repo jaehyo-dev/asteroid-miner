@@ -23,8 +23,10 @@ UNIT = 1.1
 PLATE_W = round(116 * UNIT)
 BUILD_W = round(80 * UNIT)
 PAD_W = 140
-## 땅: 지도(칸 ±3열)를 다 덮는 큰 소행성 한 장. shortcut: 지도가 이보다 커지면 다시 굽는다
-GROUND_SIZE = (1400, 620)
+## 땅: 칸 ±2열 지도를 덮는 큰 소행성과, 가운데 3열 + 가장자리가 640x360에 보이는 작은 소행성
+## (게임 쪽 BaseLayout.GROUND_SMALL과 같게). shortcut: 지도가 ±2열보다 커지면 다시 굽는다
+GROUND_SIZE = (1000, 630)
+GROUND_SMALL = (620, 480)
 _near = {}
 
 
@@ -93,6 +95,13 @@ def load(rel, cols, rows):
     return im, grid_cells(im, cols, rows)
 
 
+def clear_lip(img, y0):
+    """갑판 앞 턱 가운데 쇠붙이를 옆 칸 무늬로 지워 이름 글자 자리를 비운다"""
+    a = np.array(img).copy()
+    a[y0:, 56:72] = a[y0:, 40:56]
+    return Image.fromarray(a, "RGBA")
+
+
 def stripes(colors, vertical=False):
     """가장자리 띠의 반복 칸: 색 줄 몇 개 (기둥 없이). 가로 띠는 위에서 아래로, 세로 띠는 왼쪽에서 오른쪽으로"""
     a = np.array([[(*c, 255)] for c in colors], np.uint8)
@@ -128,16 +137,18 @@ def build() -> dict[str, Image.Image]:
         pad_boxes.append((x0 + b[0], b[1], x0 + b[2], b[3]))
     pad = (pad_im, pad_boxes)
     icons = load("base_v070c/base_icons.png", 3, 3)
-    plate = sprite(square, 0, PLATE_W)
+    cargo = Image.open(os.path.join(ROOT, "assets/raw/base_v070d/cargo.png"))
+    plate = clear_lip(sprite(square, 0, PLATE_W), 60)
     out = {
         "deck": dim(plate, K_DECK),
         "deck_lit": plate,
-        "deck_empty": dim(sprite(square, 1, PLATE_W), K_EMPTY, dark=False),
+        "deck_empty": dim(clear_lip(sprite(square, 1, PLATE_W), 74), K_EMPTY, dark=False),
         "walk_h": dim(sprite(square, 2, round(44 * UNIT)), K_WALK),
         "walk_v": dim(sprite(square, 3, round(20 * UNIT)), K_WALK),
         "pad": dim(sprite(pad, 0, PAD_W), K_PAD, dark=False),
         "tower": sprite(pad, 1, 34),
         "fuel": sprite(pad, 2, 48),
+        "cargo": to_grid(cargo, content_box(cargo), 34, round(34 * (content_box(cargo)[3] - content_box(cargo)[1]) / (content_box(cargo)[2] - content_box(cargo)[0]))),
         "edge_h": stripes([BASE_DARK[3], BASE_DARK[2], BASE_DARK[1], BASE_DARK[0]]),
         "edge_v": stripes([BASE_DARK[0], BASE_DARK[2], BASE_DARK[0]], True),
         "solar": sprite(props, 2, round(36 * UNIT)),
@@ -152,6 +163,7 @@ def build() -> dict[str, Image.Image]:
     }
     ground = Image.open(os.path.join(ROOT, "assets/raw/base_v070/base_ground.png"))
     out["ground"] = dim(to_grid(ground, content_box(ground), *GROUND_SIZE), K_GROUND)
+    out["ground_small"] = dim(to_grid(ground, content_box(ground), *GROUND_SMALL), K_GROUND)
     for name, i in {"research": 0, "hangar": 1, "storage": 2, "museum": 3, "drone": 4}.items():
         out["b_" + name] = sprite(old, i, BUILD_W)
     for name, i in {"weapon": 0, "evolve": 1, "planet": 2}.items():

@@ -22,7 +22,7 @@ class BakeBaseTest(unittest.TestCase):
         self.assertGreater(bb.mean_light(self.parts["deck"]), bb.mean_light(self.parts["walk_h"]))
 
     def test_땅과_갑판은_기지_팔레트만(self):
-        for name in ("deck", "walk_h", "walk_v", "ground", "edge_h", "edge_v"):
+        for name in ("deck", "walk_h", "walk_v", "ground", "ground_small", "edge_h", "edge_v"):
             a = np.array(self.parts[name])
             colors = {tuple(p) for p in a[a[..., 3] > 0][:, :3].tolist()}
             self.assertTrue(colors <= set(bb.DARK), name)

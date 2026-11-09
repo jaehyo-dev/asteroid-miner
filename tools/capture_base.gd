@@ -42,6 +42,12 @@ func _process(_d: float) -> bool:
 	if f == 1:
 		root.get_node("App").base_debug_busy = _busy  # 자동 로드는 첫 프레임에 준비된다
 		change_scene_to_file("res://scenes/main.tscn")
+	if f == 3:
+		# 전체 화면·이전 버전 버튼은 웹에서만 보여서 데스크톱 캡처에는 빠진다. 캡처를 웹과 같게
+		var hud: BaseHud = root.get_node("Main/Stage/Hud") if root.has_node("Main/Stage/Hud") else null
+		if hud:
+			hud.fullscreen.show()
+			hud.old_versions.show()
 	if scene.begins_with("still:"):
 		if f == 20:
 			root.get_texture().get_image().save_png(scene.substr(6))
