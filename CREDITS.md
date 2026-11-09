@@ -33,6 +33,8 @@
 ## 직접 만든 것
 
 - 건물 창 시안 그림 6장 `assets/raw/base_panel/`(틀 키트, 노드·코어 키트, 노드 아이콘 9개, 정비 베이, 저장 탱크·금고 문, 진열장): Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-09. 시안 단계라 게임에 포함되지 않음. 정리본 `review/v070_fix/parts/`, 요청문 [ASSET_PROMPTS.md](ASSET_PROMPTS.md)
+- 건물 창 시안 2차 그림 3장 `assets/raw/base_panel2/`(노드 아이콘 2장, 홀로그램 받침대·정비 거치대·광석 수레): Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-09. 시안 단계라 게임에 포함되지 않음. 요청문은 ASSET_PROMPTS.md.
+- 격납고 회전 모형 시안 `review/v070_fix2/spin3d/`: Foozle Main Ship(위 CC0)의 Base·Engine을 합쳐 복셀로 만들고(수정함) 시트로 구움. 창 소리 2차 후보 `review/v070_fix/listen2/`: Kenney Impact·Sci-Fi 녹음(위 CC0) + numpy 합성. 모두 시안이라 게임에 포함되지 않음.
 
 - `tools/key_asteroid.py`: 소행성 그림에서 우주 배경을 지우는 도구 (v0.6.4, 직접 만듦)
 
