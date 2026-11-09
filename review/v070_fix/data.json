@@ -1,0 +1,305 @@
+{
+  "discovery": [
+    {
+      "id": "mineral_0",
+      "kind": "mineral",
+      "name": "일반 광물"
+    },
+    {
+      "id": "mineral_1",
+      "kind": "mineral",
+      "name": "희귀 광물"
+    },
+    {
+      "id": "mineral_2",
+      "kind": "mineral",
+      "name": "영웅 광물"
+    },
+    {
+      "id": "mineral_3",
+      "kind": "mineral",
+      "name": "전설 광물"
+    },
+    {
+      "id": "rock_0",
+      "kind": "enemy",
+      "name": "작은 운석"
+    },
+    {
+      "id": "rock_1",
+      "kind": "enemy",
+      "name": "중간 운석"
+    },
+    {
+      "id": "rock_2",
+      "kind": "enemy",
+      "name": "큰 운석"
+    },
+    {
+      "id": "golden",
+      "kind": "enemy",
+      "name": "황금 운석"
+    },
+    {
+      "id": "jelly",
+      "kind": "enemy",
+      "name": "우주 해파리"
+    },
+    {
+      "id": "bug",
+      "kind": "enemy",
+      "name": "날벌레 떼"
+    },
+    {
+      "id": "guard",
+      "kind": "enemy",
+      "name": "고대 경비선"
+    },
+    {
+      "id": "barrage",
+      "kind": "enemy",
+      "name": "??? 의 포격"
+    }
+  ],
+  "fighters": [
+    {
+      "id": "pioneer",
+      "name": "파이오니어",
+      "style": "균형형",
+      "weapon": "전방 연사"
+    }
+  ],
+  "minerals": [
+    "일반",
+    "희귀",
+    "영웅",
+    "전설"
+  ],
+  "sample": {
+    "cargo": 0,
+    "damage": 3,
+    "insurance": 1,
+    "magnet": 0,
+    "max_hp": 5,
+    "speed": 1
+  },
+  "stats": [
+    {
+      "name": "체력",
+      "ratio": 1.0,
+      "value": "150"
+    },
+    {
+      "name": "공격력",
+      "ratio": 0.866666666666667,
+      "value": "130%"
+    },
+    {
+      "name": "공격 속도",
+      "ratio": 1.0,
+      "value": "1.8발/초"
+    },
+    {
+      "name": "이동 속도",
+      "ratio": 0.84,
+      "value": "126"
+    },
+    {
+      "name": "화물칸",
+      "ratio": 0.615384615384615,
+      "value": "80칸"
+    },
+    {
+      "name": "자석 범위",
+      "ratio": 0.571428571428571,
+      "value": "48"
+    },
+    {
+      "name": "사망 보존",
+      "ratio": 0.733333333333333,
+      "value": "55%"
+    }
+  ],
+  "upgrades": {
+    "cargo": {
+      "levels": [
+        {
+          "change": "화물칸 80칸 → 90칸",
+          "cost": 120
+        },
+        {
+          "change": "화물칸 90칸 → 100칸",
+          "cost": 192
+        },
+        {
+          "change": "화물칸 100칸 → 110칸",
+          "cost": 307
+        },
+        {
+          "change": "화물칸 110칸 → 120칸",
+          "cost": 492
+        },
+        {
+          "change": "화물칸 120칸 → 130칸",
+          "cost": 786
+        },
+        {
+          "change": "화물칸 130칸",
+          "cost": 0
+        }
+      ],
+      "name": "화물칸",
+      "note": ""
+    },
+    "damage": {
+      "levels": [
+        {
+          "change": "탄 피해 100% → 110%",
+          "cost": 200
+        },
+        {
+          "change": "탄 피해 110% → 120%",
+          "cost": 320
+        },
+        {
+          "change": "탄 피해 120% → 130%",
+          "cost": 512
+        },
+        {
+          "change": "탄 피해 130% → 140%",
+          "cost": 819
+        },
+        {
+          "change": "탄 피해 140% → 150%",
+          "cost": 1311
+        },
+        {
+          "change": "탄 피해 150%",
+          "cost": 0
+        }
+      ],
+      "name": "공격력",
+      "note": ""
+    },
+    "insurance": {
+      "levels": [
+        {
+          "change": "사망 보존 50% → 55%",
+          "cost": 180
+        },
+        {
+          "change": "사망 보존 55% → 60%",
+          "cost": 288
+        },
+        {
+          "change": "사망 보존 60% → 65%",
+          "cost": 461
+        },
+        {
+          "change": "사망 보존 65% → 70%",
+          "cost": 737
+        },
+        {
+          "change": "사망 보존 70% → 75%",
+          "cost": 1180
+        },
+        {
+          "change": "사망 보존 75%",
+          "cost": 0
+        }
+      ],
+      "name": "비상 보험",
+      "note": ""
+    },
+    "magnet": {
+      "levels": [
+        {
+          "change": "자석 48 → 55",
+          "cost": 100
+        },
+        {
+          "change": "자석 55 → 62",
+          "cost": 160
+        },
+        {
+          "change": "자석 62 → 70",
+          "cost": 256
+        },
+        {
+          "change": "자석 70 → 77",
+          "cost": 410
+        },
+        {
+          "change": "자석 77 → 84",
+          "cost": 655
+        },
+        {
+          "change": "자석 84",
+          "cost": 0
+        }
+      ],
+      "name": "자석 범위",
+      "note": ""
+    },
+    "max_hp": {
+      "levels": [
+        {
+          "change": "체력 100 → 110",
+          "cost": 150
+        },
+        {
+          "change": "체력 110 → 120",
+          "cost": 240
+        },
+        {
+          "change": "체력 120 → 130",
+          "cost": 384
+        },
+        {
+          "change": "체력 130 → 140",
+          "cost": 614
+        },
+        {
+          "change": "체력 140 → 150",
+          "cost": 983
+        },
+        {
+          "change": "체력 150",
+          "cost": 0
+        }
+      ],
+      "name": "체력",
+      "note": ""
+    },
+    "speed": {
+      "levels": [
+        {
+          "change": "속도 120 → 126",
+          "cost": 150
+        },
+        {
+          "change": "속도 126 → 132",
+          "cost": 240
+        },
+        {
+          "change": "속도 132 → 138",
+          "cost": 384
+        },
+        {
+          "change": "속도 138 → 144",
+          "cost": 614
+        },
+        {
+          "change": "속도 144 → 150",
+          "cost": 983
+        },
+        {
+          "change": "속도 150",
+          "cost": 0
+        }
+      ],
+      "name": "이동 속도",
+      "note": "무거운 화물에도 효과"
+    }
+  }
+}

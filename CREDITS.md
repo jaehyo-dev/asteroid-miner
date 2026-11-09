@@ -23,6 +23,7 @@
 
 | 이름 | 라이선스 | 쓰는 곳 |
 |---|---|---|
+| Kenney Casino Audio 1.1, RPG Audio, Impact Sounds 1.0, Sci-Fi Sounds 1.0 (Kenney, www.kenney.nl) | CC0 1.0 (각 팩 License.txt에서 확인, 전문은 `review/v070_fix/listen/src/*/LICENSE.txt`) | 소리 후보 시안만 (게임에 넣지 않음). https://kenney.nl/assets/casino-audio , /rpg-audio , /impact-sounds , /sci-fi-sounds 에서 2026-11-09 받음. 쓴 파일만 `review/v070_fix/listen/src/`에 둠. `make_listen.py`가 자르고 음 높이·음색을 바꿔 후보를 만듦 |
 | Pillow 10.4.0 (Jeffrey A. Clark and contributors) | MIT-CMU (HPND) | `tools/pixelate.py` 그림 정리 도구와 그 테스트 (https://github.com/python-pillow/Pillow, CI에서 pip로 설치) |
 | NumPy 1.26 (NumPy developers), SciPy 1.13 (SciPy developers) | BSD-3-Clause | `tools/key_asteroid.py` 소행성 그림의 우주 배경 지우기(SciPy는 개발 PC에만), `tools/rotsprite.py`·`tools/build_run_sprites.py`·`tools/make_minerals.py`·`tools/clean_stars.py` 출격 화면 그림 시트와 그 테스트 (NumPy 1.26.4는 CI에서도 pip로 설치) |
 | rembg (Daniel Gatis), isnet-general-use 모델 | MIT, 모델 Apache-2.0 | `tools/pixelate.py --rembg` 배경 지우기 (개발 PC에만 설치, 필요할 때만) |
@@ -30,6 +31,8 @@
 | Python 3 표준 라이브러리 | PSF License | `tools/` 변경 기록·버전 도구 |
 
 ## 직접 만든 것
+
+- 건물 창 시안 그림 6장 `assets/raw/base_panel/`(틀 키트, 노드·코어 키트, 노드 아이콘 9개, 정비 베이, 저장 탱크·금고 문, 진열장): Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-09. 시안 단계라 게임에 포함되지 않음. 정리본 `review/v070_fix/parts/`, 요청문 [ASSET_PROMPTS.md](ASSET_PROMPTS.md)
 
 - `tools/key_asteroid.py`: 소행성 그림에서 우주 배경을 지우는 도구 (v0.6.4, 직접 만듦)
 
