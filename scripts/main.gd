@@ -44,6 +44,9 @@ var _launch_phase := WarpJump.Phase.TAKEOFF
 var _launch_done := false
 ## 점프·착륙 때 화면 전체를 덮는 흰 번쩍임
 var _white := ColorRect.new()
+## 귀환 결과 창 (착륙이 끝나면 기지 위에 뜬다)
+var result_menu := MenuPanel.new()
+var _pending_result := {}
 var _toast_time := 0.0
 ## 마지막 입력이 키보드였는지 (건물 화면을 키보드로 닫았을 때만 우주선에 포커스 테두리를 보인다)
 var _keyboard := false
@@ -97,8 +100,14 @@ func _ready() -> void:
 	_white.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_white)
 	_white.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	result_menu.ui_scale = BaseLayout.UI_PIXEL
+	result_menu.chosen.connect(_on_result_chosen)
+	add_child(result_menu)
+	result_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if App.landing:
 		App.landing = false
+		_pending_result = App.return_result
+		App.return_result = {}
 		view.start_landing()
 		Sfx.play_landing()
 	# 처음엔 포커스 테두리를 띄우지 않는다. Enter/Space는 바로 출격, 방향키를 누르면 그때부터 포커스가 생긴다 (_unhandled_input).
@@ -136,7 +145,7 @@ func refresh() -> void:
 
 ## 우주선·건물을 눌렀을 때
 func press(id: String) -> void:
-	if launching or panel.visible or view.landing_t >= 0.0:
+	if launching or panel.visible or result_menu.visible or view.landing_t >= 0.0:
 		return
 	match id:
 		"ship":
@@ -204,11 +213,27 @@ func _process(delta: float) -> void:
 		_white.modulate.a = WarpJump.land_white(view.landing_t)
 	else:
 		_white.modulate.a = 0.0
+		if not _pending_result.is_empty():
+			_show_result()
 	if _toast_time > 0.0:
 		_toast_time -= delta
 		toast.modulate.a = clampf(_toast_time / 0.4, 0.0, 1.0)
 		if _toast_time <= 0.0:
 			toast.hide()
+
+
+## 착륙이 끝나면 귀환 결과를 기지 위에 띄운다. 뒤쪽 건물은 키보드로도 못 고르게 숨긴다.
+func _show_result() -> void:
+	spots.hide()
+	result_menu.show_menu(_pending_result["title"], _pending_result["body"], ["다시 출격", "확인"])
+	_pending_result = {}
+
+
+func _on_result_chosen(index: int) -> void:
+	Sfx.play("click")
+	spots.show()
+	if index == 0:
+		launch()
 
 
 func _on_panel_closed() -> void:
@@ -238,7 +263,7 @@ func _exit_tree() -> void:
 
 ## 아무것도 고르지 않았을 때: Enter/Space → 출격, 방향키 → 우주선부터 고르기 시작
 func _unhandled_input(event: InputEvent) -> void:
-	if panel.visible or launching or get_viewport().gui_get_focus_owner() != null:
+	if panel.visible or result_menu.visible or launching or get_viewport().gui_get_focus_owner() != null:
 		return
 	if event.is_action_pressed("confirm"):
 		press("ship")

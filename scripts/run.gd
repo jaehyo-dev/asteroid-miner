@@ -38,6 +38,8 @@ var current_menu := Menu.NONE
 var save: SaveData
 ## 이번 판 결과를 저장에 더했는지 (한 판에 한 번만)
 var banked := false
+## 귀환 연출이 끝나면 기지 화면으로 넘어갈지 (테스트에서는 끈다)
+var auto_leave := true
 ## 피격·위험 표시 상태
 var alert := DangerAlert.new()
 var _shake_rng := RandomNumberGenerator.new()
@@ -187,12 +189,11 @@ func _process(delta: float) -> void:
 		elif not sim.choices.is_empty() and slowmo <= 0.0:
 			_show_level_up()
 	elif current_menu == Menu.NONE and sim.returned:
-		# 귀환 성공 연출: 우주선이 빨려 들어가고 화면이 하얗게 번쩍인 뒤 결과 화면
+		# 귀환 성공 연출: 우주선이 빨려 들어가고 화면이 하얗게 번쩍인 뒤 기지로 (착륙 → 결과 화면)
 		gate_view.step(delta, PackedStringArray())
 		hud.white = gate_view.fx.white_flash()
-		if gate_view.fx.warp_finished():
-			hud.white = 0.0
-			_show_game_over()
+		if gate_view.fx.warp_finished() and not banked:
+			_return_to_base()
 	camera.position = sim.player_pos.round()
 	# 맞았을 때 화면 흔들림 (카메라만 살짝 밀고, 배경 별은 흔들지 않음)
 	camera.offset = alert.shake_offset(_shake_rng) if current_menu == Menu.NONE and App.settings.shake else Vector2.ZERO
@@ -435,10 +436,23 @@ func _change_setting(index: int) -> void:
 	menu.buttons()[index].grab_focus()
 
 
-## 판이 끝났을 때 (귀환 성공 또는 파괴): 가져가는 광물과 위험도 배율을 곱한 최종 가치를 보여 준다.
+## 파괴됐을 때: 출격 화면 위에 결과를 보여 준다.
 func _show_game_over() -> void:
 	Sfx.stop_warp_charge()
 	Sfx.stop_gate_hum()
+	_open_menu(Menu.GAME_OVER, "우주선 파괴", result_body(), ["다시 출격", "기지로"])
+
+
+## 귀환 성공: 저장부터 하고 기지로 넘어간다. 결과는 기지가 착륙 뒤에 띄운다.
+func _return_to_base() -> void:
+	App.return_result = {"title": "귀환 성공!", "body": result_body()}
+	App.landing = true
+	if auto_leave:
+		get_tree().change_scene_to_file(MAIN_SCENE)
+
+
+## 결과 설명: 가져가는 광물과 위험도 배율을 곱한 최종 가치. 부르면 저장까지 끝난다.
+func result_body() -> String:
 	var earned := bank_result()
 	var home := sim.brought_home()
 	var kept := "화물칸 광물 100% 귀환" if sim.returned else "광물 %d%% 보존 (%d/%d개, 비싼 것부터)" % [
@@ -447,7 +461,7 @@ func _show_game_over() -> void:
 		Hud.format_time(sim.time), sim.level, sim.kills, kept, Hud.minerals_text(home),
 		RunSim.value_of(home), earned - RunSim.value_of(home), RiskBonus.percent(sim.time), earned]
 	body += "\n기지로 +%d → 보유 광물 %d" % [earned, save.credits]
-	_open_menu(Menu.GAME_OVER, "귀환 성공!" if sim.returned else "우주선 파괴", body, ["다시 출격", "기지로"])
+	return body
 
 
 ## 판이 끝나면 가져온 광물의 최종 가치를 기지 보유 광물에 더하고 저장한다 (한 판에 한 번만). 더한 값을 돌려준다.
@@ -514,7 +528,6 @@ func _on_menu_chosen(index: int) -> void:
 				App.warp_intro = true  # 다시 출격도 터널로 시작
 				get_tree().reload_current_scene()
 			else:
-				App.landing = sim.returned  # 귀환했으면 기지에 내려앉는 연출
 				get_tree().change_scene_to_file(MAIN_SCENE)
 
 

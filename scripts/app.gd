@@ -17,6 +17,8 @@ signal portrait_changed(is_portrait: bool)
 ## 다음 출격 화면이 워프 터널로 시작할지, 다음 기지 화면이 착륙으로 시작할지 (화면을 넘어가며 한 번만 쓴다)
 var warp_intro := false
 var landing := false
+## 귀환 결과 {title, body}: 기지가 착륙을 마친 뒤 띄운다 (저장은 넘어오기 전에 끝나 있다)
+var return_result := {}
 ## 플레이어 설정 (화면 흔들림, 효과음·배경음 크기, FPS 표시). 바꾸면 apply_settings()로 적용하고 save_file()로 저장한다.
 var settings := GameSettings.load_file()
 

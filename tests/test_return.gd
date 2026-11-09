@@ -256,8 +256,14 @@ func test_워프_소리가_만들어져_있다() -> void:
 		assert_true(s.data.size() > 1000)
 
 
-func test_귀환하면_귀환_성공_메뉴() -> void:
+func test_귀환하면_저장하고_기지로_넘길_결과를_만든다() -> void:
+	var old_path := SaveData.path
+	SaveData.path = "user://test_return_flow_save.json"
+	var saved := SaveData.new()
+	saved.credits = 100
+	saved.save_file()
 	var run: Node = RunScene.instantiate()
+	run.auto_leave = false
 	add_child(run)
 	await wait_frames(2)
 	run.sim.cargo.counts = PackedInt32Array([2, 0, 1, 0])
@@ -269,22 +275,31 @@ func test_귀환하면_귀환_성공_메뉴() -> void:
 	run.sim.player_pos = run.sim.gate.pos
 	await wait_frames(3)
 	assert_true(run.sim.returned)
-	assert_false(run.menu.visible, "빨려 들어가는 연출 동안은 결과 화면을 띄우지 않음")
+	assert_false(run.banked, "빨려 들어가는 연출 동안은 아직 안 넘어감")
 	var white_seen := false
 	for i in 300:  # 연출(약 1.2초)이 끝날 때까지
 		await wait_frames(1)
 		white_seen = white_seen or run.hud.white > 0.5
-		if run.menu.visible:
+		if run.banked:
 			break
 	assert_true(white_seen, "화면이 하얗게 번쩍임")
-	assert_eq(run.hud.white, 0.0, "결과 화면에서는 번쩍임이 꺼짐")
-	assert_true(run.menu.visible)
-	assert_eq(run.menu.title_text(), "귀환 성공!")
-	assert_true(run.menu.body_text().contains("100% 귀환"), run.menu.body_text())
-	assert_true(run.menu.body_text().contains("광물 가치 22"), run.menu.body_text())
+	assert_false(run.menu.visible, "결과 화면은 출격 화면에 뜨지 않음")
+	assert_true(App.landing, "기지가 착륙으로 시작")
+	assert_eq(App.return_result["title"], "귀환 성공!")
+	var body: String = App.return_result["body"]
+	assert_true(body.contains("100% 귀환"), body)
+	assert_true(body.contains("광물 가치 22"), body)
+	var earned: int = run.sim.final_value()
+	assert_eq(SaveData.load_file().credits, 100 + earned, "기지로 넘어가기 전에 저장됨")
+	await wait_frames(5)
+	assert_eq(SaveData.load_file().credits, 100 + earned, "두 번 더하지 않음")
 	run.pause()
-	assert_eq(run.menu.title_text(), "귀환 성공!", "귀환 뒤에는 일시 정지 안 됨")
+	assert_false(run.menu.visible, "귀환 뒤에는 일시 정지 안 됨")
 	run.queue_free()
+	App.landing = false
+	App.return_result = {}
+	DirAccess.remove_absolute(SaveData.path)
+	SaveData.path = old_path
 
 
 func test_파괴되면_보존_정보가_나온다() -> void:

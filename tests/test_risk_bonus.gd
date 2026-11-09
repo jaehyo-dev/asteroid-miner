@@ -123,7 +123,7 @@ func test_결과_화면_보너스_계산이_맞아_보임() -> void:
 	run.sim.cargo.counts = PackedInt32Array([0, 0, 50, 0])  # 영웅 50개 = 1000
 	run.sim.time = _time_for(24.95)  # 보너스 24.95%: 내림 24%, 최종 1249.5 → 반올림
 	run.sim.returned = true
-	run._show_game_over()
+	var body: String = run.result_body()
 	var earned: int = run.sim.final_value()
-	assert_true(run.menu.body_text().contains("광물 가치 1000 + 보너스 %d (+24%%) = %d" % [earned - 1000, earned]), run.menu.body_text())
+	assert_true(body.contains("광물 가치 1000 + 보너스 %d (+24%%) = %d" % [earned - 1000, earned]), body)
 	run.queue_free()

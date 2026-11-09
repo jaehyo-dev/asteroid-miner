@@ -43,6 +43,12 @@ func test_웹_페이지는_노치와_홈_바_안쪽에만_그림() -> void:
 	assert_false(str(presets.get_value("preset.0.options", "html/custom_html_shell", "")).contains("viewport-fit"), "custom_html_shell")
 
 
+func test_소수_DPR_폰에서_캔버스가_흐려지지_않게_함() -> void:
+	var presets := ConfigFile.new()
+	presets.load("res://export_presets.cfg")
+	assert_true(str(presets.get_value("preset.0.options", "html/head_include", "")).contains("image-rendering:pixelated"))
+
+
 func test_내보내기_결과물_폴더는_리소스로_가져오지_않음() -> void:
 	# build/ 안의 이전 빌드(그림 등)가 다음 빌드에 섞여 들어가지 않게 한다.
 	assert_true(FileAccess.file_exists("res://build/.gdignore"), "build/.gdignore")

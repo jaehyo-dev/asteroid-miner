@@ -16,6 +16,7 @@ func _use_test_save(seen := false) -> void:
 	s.save_file()
 	App.warp_intro = false
 	App.landing = false
+	App.return_result = {}
 
 
 func _restore() -> void:
@@ -23,6 +24,7 @@ func _restore() -> void:
 	DirAccess.remove_absolute(SAVE)
 	App.warp_intro = false
 	App.landing = false
+	App.return_result = {}
 
 
 func _start_run(seen := false) -> Node:
@@ -189,6 +191,75 @@ func test_귀환하면_기지에_착륙하고_그동안_건물을_못_누름() -
 	main.press("research")
 	assert_true(main.panel.visible)
 	main.queue_free()
+	_restore()
+
+
+## 착륙 중인 기지 화면을 만든다 (귀환 결과를 들고)
+func _landing_main() -> Node:
+	_use_test_save(true)
+	App.landing = true
+	App.return_result = {"title": "귀환 성공!", "body": "결과 내용"}
+	var main := MainScene.instantiate()
+	main.auto_start = false
+	add_child(main)
+	await wait_frames(1)
+	return main
+
+
+func _finish_landing(main: Node) -> void:
+	main.view.landing_t = Juice.WARP_LAND_TIME - 0.001
+	await wait_frames(3)
+
+
+func test_결과_화면은_착륙이_끝나야_기지_위에_뜬다() -> void:
+	var main: Node = await _landing_main()
+	assert_true(App.return_result.is_empty(), "한 번만 씀")
+	assert_false(main.result_menu.visible, "착륙 중에는 안 뜸")
+	await _finish_landing(main)
+	assert_true(main.result_menu.visible)
+	assert_eq(main.result_menu.title_text(), "귀환 성공!")
+	assert_eq(main.result_menu.body_text(), "결과 내용")
+	assert_true(main.result_menu.size == main.size, "기지 화면 전체를 덮음")
+	main.queue_free()
+	_restore()
+
+
+func test_결과_화면이_떠_있으면_건물과_출격을_못_누름() -> void:
+	var main: Node = await _landing_main()
+	await _finish_landing(main)
+	main.press("research")
+	assert_false(main.panel.visible)
+	main.press("ship")
+	assert_false(main.launching)
+	assert_false(main.spots.visible, "키보드로도 못 고르게 숨김")
+	main.result_menu.buttons()[1].pressed.emit()  # 확인
+	assert_false(main.result_menu.visible)
+	assert_true(main.spots.visible)
+	assert_false(main.launching, "확인은 기지에 머문다")
+	main.press("research")
+	assert_true(main.panel.visible, "닫으면 기지를 다시 쓸 수 있음")
+	main.queue_free()
+	_restore()
+
+
+func test_결과_화면에서_다시_출격하면_이륙한다() -> void:
+	var main: Node = await _landing_main()
+	await _finish_landing(main)
+	main.result_menu.buttons()[0].pressed.emit()
+	assert_false(main.result_menu.visible)
+	assert_true(main.launching)
+	main.queue_free()
+	_restore()
+
+
+func test_파괴되면_착륙도_결과도_넘기지_않음() -> void:
+	var run := await _start_run(true)
+	run.sim.alive = false
+	run._show_game_over()
+	assert_eq(run.current_menu, run.Menu.GAME_OVER)
+	assert_false(App.landing)
+	assert_true(App.return_result.is_empty())
+	run.queue_free()
 	_restore()
 
 

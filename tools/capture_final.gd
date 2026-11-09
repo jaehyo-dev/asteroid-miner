@@ -38,8 +38,10 @@ func _process(_delta: float) -> bool:
 		_mark("launch")
 	elif current_scene != null and current_scene.has_method("bank_result"):
 		_step_run()
-	elif marks.has("base"):
-		return frame > int(marks["base"]) + 45
+	elif marks.has("play"):  # 귀환하면 출격 화면이 스스로 기지로 넘어간다 (착륙 → 결과)
+		_mark("base")
+		_save_marks()
+		return frame > int(marks["base"]) + 70
 	return false
 
 
@@ -61,12 +63,6 @@ func _step_run() -> void:
 		_mark("card")
 		if run.cards.state == run.cards.State.READY and frame >= int(marks["card"]) + 75:
 			run.cards.choose(BalanceBot.best_choice(sim.choices))
-	elif run.current_menu == run.Menu.GAME_OVER:
-		_mark("result")
-		if frame == int(marks["result"]) + 45:
-			_mark("base")
-			_save_marks()
-			run._on_menu_chosen(1)
 	elif not sim.is_over():
 		run.joystick.vector = _move(sim)
 		if sim.events.has("hit"):

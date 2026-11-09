@@ -1,7 +1,7 @@
 extends SceneTree
 ## 워프 점프 확인용 캡처 도구 (게임에는 쓰지 않음). 창을 띄워 Godot 무비 모드로 프레임을 저장한다.
 ##   godot --path . --resolution 1280x720 --fixed-fps 30 --write-movie <폴더>/f.png -s res://tools/capture_warp.gd -- launch
-##   장면: launch(기지 출격 → 터널 → 도착), return(게이트 충전 → 점프 → 결과 → 기지 착륙), gate(게이트 등장·닫히기 직전)
+##   장면: launch(기지 출격 → 터널 → 도착), return(게이트 충전 → 점프 → 기지 착륙 → 결과), gate(게이트 등장·닫히기 직전)
 
 var scene := ""
 var frame := 0
@@ -57,12 +57,9 @@ func _return() -> bool:
 		var run := _run()
 		if run.current_menu == run.Menu.PAUSE:
 			run._close_menu()
-		if run.current_menu == run.Menu.GAME_OVER and frame % 200 > 0 and not run.has_meta("seen"):
-			run.set_meta("seen", frame)
-		if run.has_meta("seen") and frame == int(run.get_meta("seen")) + 20:
-			run._on_menu_chosen(1)  # 기지로
-			set_meta("base_at", frame)
-	return has_meta("base_at") and frame > int(get_meta("base_at")) + 50
+	elif frame > 3 and not has_meta("base_at"):
+		set_meta("base_at", frame)  # 귀환하면 출격 화면이 스스로 기지로 넘어간다 (착륙 → 결과)
+	return has_meta("base_at") and frame > int(get_meta("base_at")) + 70
 
 
 func _gate() -> bool:
