@@ -455,7 +455,7 @@ BREAKS = {
 ## 고른 후보 (사용자가 다른 것을 고르면 여기만 바꾸고 다시 실행)
 CHOICE = {"barrage": barrage_a, "levelup": lambda: levelup2("a"), "pickup": pickup_c, "jelly": jelly_a, "bug": bug_b}
 ## 고른 카드 소리 후보 (review/v070_step5/listen/). 사용자가 다른 것을 고르면 여기만 바꾸고 다시 실행
-CARD_CHOICE = {"pick": "d2", "show": "d2"}
+CARD_CHOICE = {"pick": "e2", "show": "d2"}
 ## 그대로 wav로 바꾸는 Kenney 소리: 게임 이름 → 원본
 COPY = {
     "shoot_0": "kenney_sci-fi/laserSmall_000", "shoot_1": "kenney_sci-fi/laserSmall_002",
@@ -626,11 +626,50 @@ def pick_d(key: str) -> np.ndarray:
     lock_at = 0.06
     cheol = stereo(layered([(0.0, click(61, 0.012, "highpass=f=1800,lowpass=f=7000", -4.0)), (0.0, ring([2700.0, 3900.0], 0.04, 140.0) * 0.5)]) * 0.5, -0.25)
     keok = stereo(layered([(0.0, click(62, 0.012, "highpass=f=1000,lowpass=f=6500", -2.0)), (0.0, sweep(380.0, 190.0, 0.09, 30.0, 0.001) * 0.6), (0.0, ring([2150.0, 2890.0, 3870.0], 0.085, 62.0) * 1.1)]), 0.1)
-    # 금속 울림: F5를 바닥으로 정수배가 아닌 음들. 0.25초 안에 사라진다
+    dry = mix_st([(0.0, cheol), (lock_at, keok), (lock_at, pick_tail(st))])
+    return card_finish(room(dry, 0.42 * st["room"], st["wet"] * 1.5, 63), 0.06)
+
+
+def pick_tail(st: dict) -> np.ndarray:
+    """선택 소리 뒤 금속 울림(F5를 바닥으로 정수배가 아닌 음들, 0.25초 안에 사라짐) + 확정 화음"""
     metal = stereo(ring([F5, F5 * 1.52, F5 * 2.24, F5 * 3.17, F5 * 4.6, F5 * 6.1], 0.28, 17.0) * 0.95 * st["metal"], 0.2)
     harmony = chord(st["pick_chord"], 0.32, 0.006, 11.0, st["open"], st["spread"], 0.004) * 0.34 * st["chord"]
-    dry = mix_st([(0.0, cheol), (lock_at, keok), (lock_at, metal), (lock_at + 0.004, harmony)])
-    return card_finish(room(dry, 0.42 * st["room"], st["wet"] * 1.5, 63), 0.06)
+    return mix_st([(0.0, metal), (0.004, harmony)])
+
+
+## 권총 슬라이드: 뒤로 "척"에서 앞으로 "컥"까지 (초). 사용자 요청 0.06~0.1초
+RACK_GAP = 0.08
+## e3 원본: zer0_sol "Handgun Reload Sound Effect" (CC0). 게임에는 들어가지 않아 review 아래에 둔다
+RACK_RECORDING = os.path.join(ROOT, "review/v070_step5/listen/src/reload.wav")
+RACK_RECORDING_FROM = 1.098  # 원본에서 슬라이드를 당기는 순간 (앞은 탄창 소리)
+RACK_RECORDING_TO = 1.5
+
+
+def rack_parts() -> list[tuple[float, np.ndarray]]:
+    """합성 장전: 당기는 "척" → 레일 쇳소리·스프링 떨림 → 잠기는 "컥" """
+    pull = layered([(0.0, click(81, 0.014, "highpass=f=1200,lowpass=f=7500", -3.0)), (0.0, ring([1780.0, 3050.0, 4300.0], 0.05, 95.0) * 0.55), (0.0, sweep(620.0, 330.0, 0.035, 60.0, 0.001) * 0.35)])
+    t = np.arange(int(SR * RACK_GAP)) / SR
+    scrape = peak(noise_burst(RACK_GAP, 0.0, "highpass=f=2500,lowpass=f=7000", 82), -14.0) * np.minimum(t / 0.006, 1.0) * np.minimum((RACK_GAP - t) / 0.01, 1.0)
+    spring = ring([2950.0, 3120.0, 4480.0], RACK_GAP, 38.0) * (1.0 + 0.5 * np.sin(2 * np.pi * 95.0 * t)) * 0.1
+    lock = layered([(0.0, click(83, 0.012, "highpass=f=900,lowpass=f=7000", -1.0)), (0.0, sweep(560.0, 240.0, 0.05, 48.0, 0.001) * 0.75), (0.0, ring([1420.0, 2230.0, 3180.0, 4720.0], 0.11, 48.0) * 0.8)])
+    return [(0.0, stereo(pull * 0.8, -0.18)), (0.008, stereo((scrape + spring).astype(np.float32), 0.0)), (RACK_GAP, stereo(lock, 0.1))]
+
+
+def pick_e(key: str) -> np.ndarray:
+    """권총 장전 "철컥" 후보. e1 합성 장전만, e2 합성 장전 + d2 화음 꼬리, e3 실제 녹음(CC0) 다듬음"""
+    if key == "e1":
+        return card_finish(room(mix_st(rack_parts()), 0.12, 0.18, 84), 0.03)
+    if key == "e2":
+        st = CARD_STYLES["d2"]
+        dry = mix_st([*rack_parts(), (RACK_GAP, pick_tail(st) * 0.8)])
+        return card_finish(room(dry, 0.42 * st["room"], st["wet"] * 1.5, 63), 0.06)
+    a = decode(RACK_RECORDING, 2)[int(RACK_RECORDING_FROM * SR):int(RACK_RECORDING_TO * SR)]
+    # 녹음은 얇고 아주 밝아서(무게중심 약 6kHz) 몸통을 올리고 높은 쪽을 깎는다
+    eq = "equalizer=f=450:t=q:w=1.2:g=12,equalizer=f=1200:t=q:w=1:g=5,highshelf=f=6500:g=-11:t=q:w=0.7,lowpass=f=12000"
+    a = np.stack([ffx(a[:, ch], eq)[:len(a)] for ch in (0, 1)], axis=1)
+    a = a / max(float(np.abs(a).max()), 1e-9)
+    a[:int(0.003 * SR)] *= np.linspace(0.0, 1.0, int(0.003 * SR))[:, None]  # 잘라 낸 자리의 튐 방지
+    return card_finish(a.astype(np.float32), 0.08)
 
 
 def show_d(key: str) -> dict[str, np.ndarray]:
@@ -692,6 +731,13 @@ def listen5() -> None:
         save(show_demo(show_d(key)), f"{out}/card_show_{key}.ogg", quality=6)
 
 
+def listen6() -> None:
+    gap = stereo(silence(0.5))
+    for key in ("e1", "e2", "e3"):
+        a = pick_e(key) * 10 ** (CARD_PICK_DB / 20.0)
+        save(np.concatenate([a, gap, a, gap, a]), os.path.join(ROOT, f"review/v070_step5/listen/card_pick_{key}.ogg"), quality=6)
+
+
 def gate_sounds() -> dict[str, np.ndarray]:
     return {
         "gate_assemble": layered([(0.0, clank(1.4)), (0.15, clank(1.2)), (0.3, clank(1.0))]),
@@ -723,7 +769,7 @@ def game_sounds() -> dict[str, np.ndarray]:
     for grade, s in enumerate(CHOICE["pickup"]()):
         out[f"pickup_{grade}"] = s
     out.update(gate_sounds())
-    out["card_pick"] = pick_d(CARD_CHOICE["pick"])
+    out["card_pick"] = pick_e(CARD_CHOICE["pick"])
     out.update(show_d(CARD_CHOICE["show"]))
     return out
 
@@ -737,6 +783,8 @@ if __name__ == "__main__":
     if "--listen" in sys.argv:
         listen()
         print("후보 → review/v070_step4c/listen/")
+    elif "--listen6" in sys.argv:
+        listen6()
     elif "--listen5" in sys.argv:
         listen5()
         print("카드 소리 후보 → review/v070_step5/listen/")

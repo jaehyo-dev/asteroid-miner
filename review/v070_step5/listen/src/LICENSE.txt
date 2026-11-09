@@ -1,0 +1,6 @@
+reload.wav (Handgun Reload Sound Effect)
+만든 사람: zer0_sol
+출처: https://opengameart.org/content/handgun-reload-sound-effect
+라이선스: CC0 1.0 Universal (퍼블릭 도메인), https://creativecommons.org/publicdomain/zero/1.0/
+출처 페이지 표기(2026-11-09 확인): License(s): CC0 / "No attribution required. If you want to that's great, but it's not important to me."
+SHA-256: 091399145b174ac3b2e0df245b4712a13ce85df072e37256b0fc32658718be53

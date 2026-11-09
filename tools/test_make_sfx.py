@@ -46,6 +46,24 @@ class MakeSfxTest(unittest.TestCase):
             self.assertTrue(np.array_equal(a, ms.pick_d(key)), "같은 결과")
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
+    def test_권총_장전은_두_번_이어지고_또렷함(self):
+        for key in ("e1", "e2", "e3"):
+            a = ms.pick_e(key)
+            self.assertLess(self._share(a, 0, 80), 0.005, f"{key} 80Hz 아래 없음")
+            self.assertLess(self._share(a, 9000, ms.SR / 2), 0.01, f"{key} 9kHz 위 부드럽게")
+            self.assertGreater(self._share(a, 2000, 5000), 0.1, f"{key} 금속 또렷함")
+            self.assertGreater(self._centroid(a), 900, f"{key} 둔탁하지 않게")
+            e = np.abs(a).max(axis=1)
+            head = e[:int(0.03 * ms.SR)].max()
+            self.assertGreater(head, e.max() * 0.3, f"{key} 앞의 척이 들림")
+            # 척 뒤 조용해졌다가 0.06~0.1초에 컥이 다시 올라옴
+            start, end = int(0.06 * ms.SR), int(0.1 * ms.SR)
+            lock = start + int(np.argmax(e[start:end] > e.max() * 0.3))
+            self.assertGreater(e[start:end].max(), e.max() * 0.3, f"{key} 컥 위치")
+            self.assertLess(e[int(0.045 * ms.SR):lock - 44].max(initial=0.0), e[lock:lock + 441].max(), f"{key} 사이가 더 작음")
+            self.assertTrue(np.array_equal(a, ms.pick_e(key)), "같은 결과")
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
     def test_카드_등장은_등급이_오를수록_몸통과_잔향이_커짐(self):
         for key in ms.CARD_STYLES:
             s = ms.show_d(key)
