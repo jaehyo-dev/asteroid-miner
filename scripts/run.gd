@@ -70,6 +70,7 @@ func _ready() -> void:
 	sim.apply_base(Research.run_levels(save))
 	sim.apply_codex(save)
 	world.sim = sim
+	world.ship_sheet = "ship_gold" if Discovery.gold_paint(save) else "ship"
 	gate_view.sim = sim
 	world.gate_fx = gate_view.fx
 	hud.sim = sim
@@ -449,7 +450,7 @@ func _return_to_base() -> void:
 	App.return_result = {"title": "귀환 성공!", "body": result_body()}
 	App.landing = true
 	if auto_leave:
-		get_tree().change_scene_to_file(MAIN_SCENE)
+		App.shutter.close_to(MAIN_SCENE)
 
 
 ## 결과 설명: 가져가는 광물과 위험도 배율을 곱한 최종 가치. 부르면 저장까지 끝난다.
@@ -523,13 +524,13 @@ func _on_menu_chosen(index: int) -> void:
 			elif index >= PAUSE_SHAKE and index <= PAUSE_MUSIC:
 				_change_setting(index)
 			else:
-				get_tree().change_scene_to_file(MAIN_SCENE)
+				App.shutter.close_to(MAIN_SCENE)
 		Menu.GAME_OVER:
 			if index == 0:
 				App.warp_intro = true  # 다시 출격도 터널로 시작
 				get_tree().reload_current_scene()
 			else:
-				get_tree().change_scene_to_file(MAIN_SCENE)
+				App.shutter.close_to(MAIN_SCENE)
 
 
 func _on_card_chosen(index: int) -> void:

@@ -101,10 +101,6 @@ static func hud_in(t: float) -> float:
 	return 1.0 - left * left * left
 
 
-## 착륙 시작의 흰색이 빠지는 정도
-static func land_white(t: float) -> float:
-	return clampf(1.0 - t / Juice.WARP_LAND_WHITE, 0.0, 1.0)
-
 
 ## 건너뛰기로 치는 누름: 터치, 마우스, 키 (키 반복은 제외)
 static func is_skip_press(event: InputEvent) -> bool:

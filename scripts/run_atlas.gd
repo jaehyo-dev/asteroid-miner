@@ -79,8 +79,9 @@ const ENTRIES := {
 	"ship": [0, 1734, 514, 192, 384],
 	"ship_cannon": [0, 514, 1028, 336, 384],
 	"ship_engine": [0, 1932, 0, 48, 384],
-	"ship_flame_idle": [0, 852, 1028, 144, 384],
+	"ship_flame_idle": [0, 1046, 1028, 144, 384],
 	"ship_flame_power": [0, 1734, 900, 192, 384],
+	"ship_gold": [0, 852, 1028, 192, 384],
 	"white": [0, 1990, 954, 4, 4],
 }
 const MAX_RADIUS := 24

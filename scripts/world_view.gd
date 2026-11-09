@@ -82,6 +82,8 @@ var moving := false
 var levelup_light := 0.0
 ## 워프 도착 때 우주선 그림이 밀려 들어오는 위치 (실제 위치는 그대로)
 var ship_offset := Vector2.ZERO
+## 우주선 시트 이름: 도감 보상 금빛 도색을 받았으면 "ship_gold"
+var ship_sheet := "ship"
 
 ## 파편 효과: [위치, 속도, 남은 시간, 색, 크기(픽셀)]
 var _debris: Array = []
@@ -624,8 +626,8 @@ func _draw_ship_warp() -> void:
 		var ghost := WarpJump.ghost_alpha(k, i)
 		if ghost > 0.0:
 			var g := WarpJump.ghost_progress(k, i)
-			RunSprites.draw(self, "ship", stage, dir, start.lerp(target, g * g), Color(0.6, 0.95, 1.0, ghost * fade))
-	RunSprites.draw(self, "ship", stage, dir, pos, Color(1, 1, 1, fade))
+			RunSprites.draw(self, ship_sheet, stage, dir, start.lerp(target, g * g), Color(0.6, 0.95, 1.0, ghost * fade))
+	RunSprites.draw(self, ship_sheet, stage, dir, pos, Color(1, 1, 1, fade))
 
 
 ## 내 우주선 (팩 Main Ship): 엔진 불꽃(빠르면 출력, 느리면 대기) → 엔진 → 자동 포(쏠 때 총구 불꽃) → 몸(피해 단계).
@@ -657,7 +659,7 @@ func _draw_ship() -> void:
 	RunSprites.draw(self, "ship_flame_power" if power else "ship_flame_idle", frame, dir, center)
 	RunSprites.draw(self, "ship_engine", 0, dir, center, tint)
 	RunSprites.draw(self, "ship_cannon", cannon_frame(_cannon_t), dir, center, tint)
-	RunSprites.draw(self, "ship", damage_stage(sim.hp, sim.max_hp), dir, center, tint)
+	RunSprites.draw(self, ship_sheet, damage_stage(sim.hp, sim.max_hp), dir, center, tint)
 
 
 ## 무거운 엔진 연기: 두 엔진 뒤로 회색 점이 커지며 흐려진다 (위치는 시간으로만 정해 따로 상태가 없음)

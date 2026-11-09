@@ -36,10 +36,6 @@ signal launched
 @onready var hud: BaseHud = %Hud
 @onready var starfield: Starfield = %Starfield
 @onready var panel: BaseWindow = %Panel
-## 강화 시험에서 넣어 주는 광물
-const TEST_CREDITS := 50000
-var _upgrade_i := 0
-var _max_i := 0
 @onready var toast: Label = %Toast
 
 var save: SaveData
@@ -131,12 +127,22 @@ func _ready() -> void:
 	result_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if App.landing:
 		App.landing = false
-		_pending_result = App.return_result
+		var result := App.return_result
 		App.return_result = {}
-		view.start_landing()
-		Sfx.play_landing()
+		if App.shutter.busy():  # 셔터가 열린 뒤에 내려온다 (그동안 우주선은 위에 떠서 기다림, 입력도 막힘)
+			view.start_landing(true)
+			App.shutter.opened.connect(_begin_landing.bind(result), CONNECT_ONE_SHOT)
+		else:
+			_begin_landing(result)
 	_show_hint_once()
 	# 처음엔 포커스 테두리를 띄우지 않는다. Enter/Space는 바로 출격, 방향키를 누르면 그때부터 포커스가 생긴다 (_unhandled_input).
+
+
+## 귀환 착륙 시작. 결과 창은 착륙이 끝난 뒤 뜬다 (_process)
+func _begin_landing(result: Dictionary) -> void:
+	_pending_result = result
+	view.start_landing()  # 기다림을 풀고 처음부터 내려온다
+	Sfx.play_landing()
 
 
 ## 게임 버전 (project.godot의 application/config/version)
@@ -154,8 +160,6 @@ func _setup_stage() -> void:
 	stage.theme.default_font = font
 	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("base10"):
 		App.base_debug_busy = true
-	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("upgradetest"):
-		call_deferred("enable_upgrade_test")
 
 
 ## 창 크기가 바뀔 때: 정수 배율을 다시 맞추고 배치·버튼·카메라를 다시 잡는다.
@@ -213,6 +217,7 @@ func refresh() -> void:
 	hud.refresh_text()
 	view.levels = save.upgrades
 	view.credits = save.credits
+	view.gold = Discovery.gold_paint(save)
 
 
 ## 우주선·건물을 눌렀을 때
@@ -292,11 +297,9 @@ func _process(delta: float) -> void:
 		_cam_exact = _cam_exact.lerp(Vector2.ZERO, minf(delta * Juice.BASE_CAM_RETURN, 1.0))  # 끌어 둔 화면이 착륙장으로 돌아온다
 		_apply_cam(_cam_exact)
 		_step_launch()
-	elif view.landing_t >= 0.0:
-		_white.modulate.a = WarpJump.land_white(view.landing_t)
 	else:
-		_white.modulate.a = 0.0
-		if not _pending_result.is_empty():
+		_white.modulate.a = 0.0  # 착륙은 셔터가 열린 뒤라 흰 번쩍임 없이 내려온다
+		if not _pending_result.is_empty() and view.landing_t < 0.0:
 			_show_result()
 	if _toast_time > 0.0:
 		_toast_time -= delta
@@ -319,37 +322,6 @@ func _on_result_chosen(index: int) -> void:
 	hud.sortie.show()
 	if index == 0:
 		launch()
-
-
-## 강화 소리 시험: 강화·만렙 후보를 각각 차례로 바꾸고(그 소리와 이름), 광물을 넉넉히 넣는다
-func enable_upgrade_test() -> void:
-	hud.add_test_button("강화 소리").pressed.connect(next_upgrade_sound)
-	hud.add_test_button("만렙 소리").pressed.connect(next_max_sound)
-	hud.add_test_button("광물 +5만").pressed.connect(add_test_credits)
-	show_toast("강화 시험: 오른쪽 아래 버튼으로 후보를 바꿔요")
-
-
-func next_upgrade_sound() -> void:
-	_upgrade_i = (_upgrade_i + 1) % Sfx.UPGRADE_SOUNDS.size()
-	var s: Dictionary = Sfx.UPGRADE_SOUNDS[_upgrade_i]
-	Sfx.use_sound("upgrade", s["file"])
-	Sfx.play("upgrade")
-	show_toast("강화 소리: %s" % s["name"])
-
-
-func next_max_sound() -> void:
-	_max_i = (_max_i + 1) % Sfx.MAX_SOUNDS.size()
-	var s: Dictionary = Sfx.MAX_SOUNDS[_max_i]
-	Sfx.use_sound("upgrade_max", s["file"])
-	Sfx.play("upgrade_max")
-	show_toast("만렙 소리: %s" % s["name"])
-
-
-func add_test_credits() -> void:
-	save.credits += TEST_CREDITS
-	save.save_file()
-	refresh()
-	show_toast("광물 +%s" % Hud.thousands(TEST_CREDITS))
 
 
 ## 창이 열리면 위쪽 띠가 위로 들어간다 (ratio 1 = 다 보임)
@@ -407,7 +379,7 @@ func _clear_drag() -> void:
 
 func _can_drag(pos: Vector2) -> bool:
 	# 정거장이 화면 안에 다 들어오면 끌기를 켜지 않는다 (손이 조금 움직인 누름이 끌기로 먹히지 않게)
-	return BaseLayout.can_pan(view.map, stage.size) and not (launching or panel.visible or result_menu.visible or view.landing_t >= 0.0 or App.portrait or hud.hits_button(pos))
+	return BaseLayout.can_pan(view.map, stage.size) and not (launching or panel.visible or result_menu.visible or view.landing_t >= 0.0 or App.portrait or App.shutter.busy() or hud.hits_button(pos))
 
 
 ## 끌기가 시작되면 누른 건물의 번쩍임·이름표를 끄고, 안내를 거둔다.

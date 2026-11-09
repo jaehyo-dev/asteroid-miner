@@ -62,6 +62,10 @@ const METEOR_BAND := 90.0
 ## 진행 상황 (연구 단계·보유 광물로 기지 모습이 바뀜)
 var levels: Dictionary = {}
 var credits := 0
+## 도감 보상 금빛 도색을 받았는지 (main.refresh가 맞춤)
+var gold := false
+## 착륙 시작 높이에서 멈춰 기다리는 중인지 (start_landing)
+var landing_hold := false
 ## 지난 시간 (깜빡임·움직임)
 var time := 0.0
 ## 이륙 연출 진행 시간 (-1이면 이륙 전)
@@ -152,8 +156,10 @@ func start_launch() -> void:
 
 
 ## 귀환해서 내려오는 착륙 연출을 시작한다.
-func start_landing() -> void:
+## hold면 착륙 시작 높이에 떠서 기다린다 (귀환 셔터가 열릴 때까지, 착륙장에 먼저 서 있지 않게)
+func start_landing(hold := false) -> void:
 	landing_t = 0.0
+	landing_hold = hold
 
 
 ## 누른 순간 더 밝게 번쩍인다 (main.gd가 버튼을 누를 때 부름)
@@ -167,7 +173,7 @@ func _process(delta: float) -> void:
 	press_time = maxf(press_time - delta, 0.0)
 	if launch_t >= 0.0:
 		launch_t += delta
-	if landing_t >= 0.0:
+	if landing_t >= 0.0 and not landing_hold:
 		landing_t = landing_t + delta if landing_t + delta < Juice.WARP_LAND_TIME else -1.0
 	# 가끔 하늘을 가로지르는 운석
 	_meteor_timer -= delta
@@ -455,7 +461,7 @@ func _draw_pile(r: Rect2) -> void:
 # ── 우주선, 조종사, 이륙 ────────────────────────────
 
 func _draw_ship_and_pilot() -> void:
-	var ship := tex("ship")
+	var ship := tex("ship_gold" if gold else "ship")
 	var pilot := tex("pilot")
 	var ship_foot := SHIP_FOOT
 	var pilot_foot := PILOT_FOOT

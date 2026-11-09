@@ -16,16 +16,10 @@ const BEAM_HALF := 34  # 기둥 반폭: 윗면 고리 바로 안쪽
 const BEAM_FRONT := 16  # 윗면 타원 앞쪽 깊이: 기둥 아래가 이 호를 따라 끝난다
 const BEAM_NARROW := 0.18  # 맨 위에서 반폭이 이 비율만큼 좁아짐
 const BEAM_DOME := 0.16  # 가장자리일수록 일찍 끝나 띠 경계와 윗끝이 둥글다
-## 진하기 후보: 표는 [이 높이까지(0 = 받침 면, 1 = 맨 위), 색], 아래부터.
+## 빛기둥 색 (진하기 2번 "보통" 확정): 표는 [이 높이까지(0 = 받침 면, 1 = 맨 위), 색], 아래부터.
 ## 채운 띠는 아래쪽에만 두고 위는 배경이 비친다 (가장자리 선·빛줄기만 더 올라가 둥글게 사라짐)
-const BEAM_STYLES := [
-	{"name": "옅게", "bands": [[0.12, "#125952"], [0.26, "#355148"], [0.4, "#3c3544"]],
-		"edge": [[0.25, "#1da775"], [0.55, "#125952"], [0.8, "#355148"]], "streak": [[0.35, "#125952"], [0.7, "#355148"]]},
-	{"name": "보통", "bands": [[0.16, "#125952"], [0.34, "#355148"], [0.52, "#3c3544"]],
-		"edge": [[0.35, "#30e1b9"], [0.62, "#1da775"], [0.85, "#125952"]], "streak": [[0.45, "#1da775"], [0.75, "#125952"]]},
-	{"name": "진하게", "bands": [[0.1, "#1da775"], [0.24, "#125952"], [0.42, "#355148"], [0.6, "#3c3544"]],
-		"edge": [[0.45, "#30e1b9"], [0.72, "#1da775"], [0.9, "#125952"]], "streak": [[0.5, "#1da775"], [0.82, "#125952"]]},
-]
+const BEAM := {"bands": [[0.16, "#125952"], [0.34, "#355148"], [0.52, "#3c3544"]],
+	"edge": [[0.35, "#30e1b9"], [0.62, "#1da775"], [0.85, "#125952"]], "streak": [[0.45, "#1da775"], [0.75, "#125952"]]}
 const BEAM_STREAKS := [-0.5, 0.14, 0.6]  # 세로 빛줄기 자리 (반폭 비율)
 const SCAN_PERIOD := 5.0  # 주사선이 받침에서 위까지 가는 시간
 const SCAN_TOP := 0.85
@@ -37,9 +31,8 @@ const GRAIN_COLORS := [[0.3, "#99e9e6"], [0.55, "#30e1b9"], [1.0, "#1da775"]]
 var _t := 0.0
 var _stats: Array = []
 var _fighter: Dictionary
-var beam_style := 1  # BEAM_STYLES 번호 (시안 비교용)
 var _beam: ImageTexture
-var _beam_key := Vector3i.ZERO
+var _beam_key := Vector2i.ZERO
 
 
 func setup() -> void:
@@ -105,7 +98,7 @@ func _draw_stage(x: int, y: int, w: int, h: int) -> void:
 	var sh := SPIN.y * ship_k
 	var bob := int(round(sin(_t * TAU / 4.0) * 3.0))
 	var lift := (LIFT_SMALL if win.compact else LIFT)
-	draw_texture_rect_region(WindowArt.tex("spin"), Rect2(cx - sw / 2, mid - lift - sh / 2 + bob, sw, sh), src)
+	draw_texture_rect_region(WindowArt.tex("spin_gold" if Discovery.gold_paint(win.save) else "spin"), Rect2(cx - sw / 2, mid - lift - sh / 2 + bob, sw, sh), src)
 
 
 ## 표에서 높이 s의 색 (넘으면 투명)
@@ -127,9 +120,9 @@ static func beam_s(t: float, dx: float, hw: float) -> float:
 	return t + BEAM_DOME * (1.0 - sqrt(1.0 - u * u))
 
 
-## 받침 위 빛기둥 그림을 칸 단위로 굽는다 (style = BEAM_STYLES 번호)
-static func bake_beam(half: int, above: int, front: int, style := 1) -> Image:
-	var st: Dictionary = BEAM_STYLES[style]
+## 받침 위 빛기둥 그림을 칸 단위로 굽는다
+static func bake_beam(half: int, above: int, front: int) -> Image:
+	var st: Dictionary = BEAM
 	var bands: Array = st["bands"]
 	var w := half * 2
 	var img := Image.create(w, above + front, false, Image.FORMAT_RGBA8)
@@ -168,14 +161,14 @@ func _draw_beam(cx: int, mid: int, top: int, k: int) -> void:
 	var above := (mid - top) / k
 	if above <= 0:
 		return  # 레이아웃이 잡히기 전
-	var key := Vector3i(k, above, beam_style)
+	var key := Vector2i(k, above)
 	if key != _beam_key:
 		_beam_key = key
-		_beam = ImageTexture.create_from_image(bake_beam(BEAM_HALF, above, BEAM_FRONT, beam_style))
+		_beam = ImageTexture.create_from_image(bake_beam(BEAM_HALF, above, BEAM_FRONT))
 	var half := BEAM_HALF * k
 	var left := cx - half
 	draw_texture_rect(_beam, Rect2(left, top, half * 2, (above + BEAM_FRONT) * k), false)
-	var st: Dictionary = BEAM_STYLES[beam_style]
+	var st: Dictionary = BEAM
 	# 주사선 1줄: 받침에서 천천히 올라가며 띠처럼 옅어진다
 	var t := fposmod(_t / SCAN_PERIOD, 1.0) * SCAN_TOP
 	var row := mid - int(t * above) * k
@@ -231,7 +224,7 @@ func _draw_slot(x: int, y: int, w: int, h: int, fighter: Dictionary, chosen: boo
 	var locked := fighter.has("locked")
 	var tx := x + 8
 	if not win.compact:  # 폰은 칸이 좁아 글자만
-		var ship := load("res://assets/sprites/station/ship.png") as Texture2D
+		var ship := load("res://assets/sprites/station/ship_gold.png" if Discovery.gold_paint(win.save) else "res://assets/sprites/station/ship.png") as Texture2D
 		draw_texture(ship, Vector2(tx, y + (h - ship.get_height()) / 2 - 1), Color.BLACK if locked else Color.WHITE)
 		tx += ship.get_width() + 6
 	var ty := y + (h - 28) / 2 - 1

@@ -33,6 +33,17 @@ func test_웹_내보내기는_스레드_없이_설정됨() -> void:
 	var excluded := str(presets.get_value(web_section, "exclude_filter", ""))
 	for folder in ["tests/*", "tools/*", "build/*", "_site/*"]:
 		assert_true(excluded.contains(folder), "내보내기 제외: " + folder)
+	# 효과음: 쓰는 파일은 빠지지 않고, assets/sfx/game의 안 쓰는 옛 파일은 모두 빠짐
+	var used := {}
+	for sound: Dictionary in Sfx.SOUNDS.values():
+		for f: String in sound["files"]:
+			used[f] = true
+	for f: String in Sfx.WARP_SOUND_DB:
+		used[f] = true
+	for file in DirAccess.get_files_at(Sfx.SFX_DIR):
+		if file.ends_with(".wav"):
+			var name := file.get_basename()
+			assert_eq(excluded.contains("assets/sfx/game/" + file), not used.has(name), "내보내기 제외 여부: " + name)
 
 
 func test_웹_페이지는_노치와_홈_바_안쪽에만_그림() -> void:

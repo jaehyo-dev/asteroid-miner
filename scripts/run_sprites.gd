@@ -9,7 +9,7 @@ extends RefCounted
 const DIR := "res://assets/sprites/run/"
 ## 시트 이름 → 칸 한 변 (픽셀)
 const CELL := {
-	"ship": 48, "ship_engine": 48, "ship_flame_idle": 48, "ship_flame_power": 48, "ship_cannon": 48, "bullet": 32, "drone": 16,
+	"ship": 48, "ship_gold": 48, "ship_engine": 48, "ship_flame_idle": 48, "ship_flame_power": 48, "ship_cannon": 48, "bullet": 32, "drone": 16,
 	"jelly": 64, "jelly_engine": 64, "jelly_boom": 64,
 	"bug": 64, "bug_engine": 64, "bug_boom": 64,
 	"guard": 64, "guard_engine": 64, "guard_boom": 64,

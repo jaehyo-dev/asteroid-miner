@@ -29,6 +29,8 @@ const ROTATE_TEXT := "폰을 가로로 돌려주세요"
 var _rotate_layer: CanvasLayer
 var _rotate_label: Label
 var _rotate_icon: RotateIcon
+## 기지로 돌아갈 때의 충격 셔터 (장면이 바뀌어도 남도록 여기 둔다, 세로 안내보다 아래)
+var shutter := Shutter.new()
 
 ## 웹: 전체 화면에 들어가면 가로 고정을 시도하고, 나오면 푼다. 지원하지 않거나 거절돼도 오류 없이 넘어간다.
 const LOCK_LANDSCAPE_JS := """
@@ -59,6 +61,10 @@ func _ready() -> void:
 	register_actions()
 	apply_settings()
 	_build_rotate_overlay()
+	var layer := CanvasLayer.new()
+	layer.layer = 90
+	layer.add_child(shutter)
+	add_child(layer)
 	get_tree().root.size_changed.connect(fit_screen)
 	fit_screen()
 	if OS.has_feature("web"):

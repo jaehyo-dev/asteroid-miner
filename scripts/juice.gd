@@ -121,13 +121,18 @@ const WARP_GHOST_ALPHA := 0.65
 const WARP_SUCK_LINES := 18
 const WARP_SUCK_LINE_LEN := 34.0
 const WARP_SUCK_OVERSHOOT := 70.0
-## 귀환 후 기지 착륙: 시간(출격보다 훨씬 짧게), 흰 번쩍임이 사라지는 시간, 내려오는 높이(그림 칸)
+## 귀환 후 기지 착륙 (셔터가 열린 뒤): 시간(출격보다 훨씬 짧게), 내려오는 높이(그림 칸)
 const WARP_LAND_TIME := 0.9
-const WARP_LAND_WHITE := 0.25
 const WARP_LAND_CELLS := 70.0
 ## 도착 충격 흔들림 (시간, 세기 픽셀)
 const WARP_ARRIVE_SHAKE_TIME := 0.25
 const WARP_ARRIVE_SHAKE := 2.0
+## 기지로 돌아갈 때 충격 셔터: 위아래에서 닫히는 시간(쿵 소리의 가장 큰 순간과 같게) → 쿵 흔들림(칸, 0.03초씩) → 닫힌 채 기다림 → 열림 (초)
+const SHUTTER_CLOSE := 0.18
+const SHUTTER_SHAKE := [2, -1, 1, 0]
+const SHUTTER_SHAKE_STEP := 0.03
+const SHUTTER_HOLD := 0.12
+const SHUTTER_OPEN := 0.24
 
 # ── 레벨업과 화면 ─────────────────────
 ## 레벨업 순간 슬로모션: 실제 시간, 시뮬레이션 배율. 그동안 우주선 둘레에 빛이 퍼진다

@@ -42,6 +42,11 @@ static func claim(save: SaveData, reward_id: String) -> bool:
 	return true
 
 
+## 도감을 다 채워 금빛 도색을 받았는지 (우주선 그림을 *_gold로 바꿔 그린다)
+static func gold_paint(save: SaveData) -> bool:
+	return bonus(save, "paint") > 0.0
+
+
 ## 받은 보상 중 kind 값의 합 (이동 속도, 사망 보존)
 static func bonus(save: SaveData, kind: String) -> float:
 	var total := 0.0
