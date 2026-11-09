@@ -168,6 +168,19 @@ func test_끌었다_놓으면_건물_창이_안_열리고_다음_누름은_열�
 	main.queue_free()
 
 
+func test_아주_작은_움직임도_쌓여서_화면이_움직임() -> void:
+	var main: Control = await _main()
+	var start := Vector2(320, 340)
+	_mouse(main, start, true)
+	_motion(main, start + Vector2(-20, 0))  # 문턱 넘기
+	var before: Vector2 = main.cam
+	for i in 20:
+		_motion(main, start + Vector2(-20.0 - 0.4 * (i + 1), 0))  # 한 번에 0.4칸
+	assert_eq(main.cam.x, before.x - 8.0, "0.4칸씩 20번 = 8칸")
+	_mouse(main, start, false)
+	main.queue_free()
+
+
 func test_창이_열려_있으면_안_끌림() -> void:
 	var main: Control = await _main()
 	main.press("research")

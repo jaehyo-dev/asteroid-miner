@@ -60,8 +60,8 @@ var _keyboard := false
 ## 첫 화면에서 끌어 옮긴 양 (그림 픽셀), 끌기 판정
 var cam := Vector2.ZERO
 var drag := BaseDrag.new()
-## 착륙장으로 돌아가는 중에 쓰는 소수 위치 (이륙 때)
-var _cam_smooth := Vector2.ZERO
+## 반올림 전 카메라 위치: 끌기의 작은 움직임이 쌓이고, 이륙 때 부드럽게 돌아오게 한다
+var _cam_exact := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -224,7 +224,7 @@ func launch() -> void:
 	if launching:
 		return
 	launching = true
-	_cam_smooth = cam
+	_cam_exact = cam
 	toast.hide()
 	view.start_launch()
 	Sfx.play_takeoff()
@@ -273,8 +273,8 @@ func show_toast(text: String) -> void:
 
 func _process(delta: float) -> void:
 	if launching and not _launch_done:
-		_cam_smooth = _cam_smooth.lerp(Vector2.ZERO, minf(delta * Juice.BASE_CAM_RETURN, 1.0))  # 끌어 둔 화면이 착륙장으로 돌아온다
-		_apply_cam(_cam_smooth)
+		_cam_exact = _cam_exact.lerp(Vector2.ZERO, minf(delta * Juice.BASE_CAM_RETURN, 1.0))  # 끌어 둔 화면이 착륙장으로 돌아온다
+		_apply_cam(_cam_exact)
 		_step_launch()
 	elif view.landing_t >= 0.0:
 		_white.modulate.a = WarpJump.land_white(view.landing_t)
@@ -337,13 +337,16 @@ func _drag_input(event: InputEvent) -> void:
 		else:
 			drag.release()
 			_clear_drag.call_deferred()  # 버튼의 pressed가 먼저 막힌 뒤에 푼다
-	elif event is InputEventMouseMotion and drag.down:
+	elif event is InputEventMouseMotion and drag.down and not launching:
 		var was := drag.dragged
 		var d := drag.move(event.position / stage.scale)
 		if drag.dragged and not was:
+			_cam_exact = cam
 			_on_drag_started()
 		if d != Vector2.ZERO:
-			_apply_cam(cam + d)
+			_cam_exact += d
+			_apply_cam(_cam_exact)
+			_cam_exact = _cam_exact.clamp(cam - Vector2(0.5, 0.5), cam + Vector2(0.5, 0.5))  # 지도 끝에서 되돌릴 때 바로 움직이게
 
 
 func _clear_drag() -> void:

@@ -76,8 +76,8 @@ var _outline: Array = []
 ## 건물 목록: [id(임시 건물은 ""), 그림 이름, 칸, 이름]. 위 칸부터
 var buildings: Array = []
 var empties: Array[Vector2i] = []
-## 건물·꾸밈 자리 (그릴 때마다 계산하지 않게): id → 그림 자리
-var rects: Dictionary = {}
+## 경고등 자리: 정거장 네 귀퉁이
+var _beacons: Array[Vector2] = []
 ## 지금 화면에 보이는 지도 영역 (지나가는 운석이 나오는 자리)
 var visible_rect := Rect2()
 ## 지나가는 운석: [위치, 속도]
@@ -129,10 +129,13 @@ func setup(is_large: bool, is_busy: bool) -> void:
 		built.append_array(BaseLayout.DEBUG_EXTRA.values())
 	buildings.sort_custom(func(a: Array, b: Array) -> bool: return a[2].y < b[2].y)
 	empties = BaseLayout.next_slots(built)
-	rects.clear()
-	for b in buildings:
-		if b[0] != "":
-			rects[b[0]] = BaseLayout.building_rect(b[2], tex(b[1]).get_size(), large)
+	var corners: Array[Vector2] = []
+	for seg in _outline:
+		corners.append(seg[0])
+		corners.append(seg[1])
+	var sums := corners.map(func(v: Vector2) -> float: return v.x + v.y)
+	var diffs := corners.map(func(v: Vector2) -> float: return v.x - v.y)
+	_beacons = [corners[sums.find(sums.min())], corners[sums.find(sums.max())], corners[diffs.find(diffs.min())], corners[diffs.find(diffs.max())]]
 	queue_redraw()
 
 
@@ -266,7 +269,7 @@ func _draw_walkways() -> void:
 	for c in cells:
 		if c.x != 0:
 			var right := c + Vector2i.RIGHT
-			if c.x > 0 and cells.has(right) or c.x == -2 and cells.has(right):
+			if c.x != -1 and cells.has(right):
 				_walk_h(BaseLayout.plate_rect(c, large).end.x, BaseLayout.plate_rect(right, large).position.x, c.y)
 			var down := c + Vector2i.DOWN
 			if cells.has(down):
@@ -356,16 +359,9 @@ static func window_cells(img: Image, seed_value: int) -> Array[Vector2i]:
 
 ## 정거장 네 귀퉁이 칸의 경고등 (깜빡임)
 func _draw_beacons() -> void:
-	var corners: Array[Vector2] = []
-	for seg in _outline:
-		corners.append(seg[0])
-		corners.append(seg[1])
-	var sums := corners.map(func(v: Vector2) -> float: return v.x + v.y)
-	var diffs := corners.map(func(v: Vector2) -> float: return v.x - v.y)
-	var picks := [corners[sums.find(sums.min())], corners[sums.find(sums.max())], corners[diffs.find(diffs.min())], corners[diffs.find(diffs.max())]]
-	for i in picks.size():
+	for i in _beacons.size():
 		var on := launch_t >= 0.0 or _blink(2.0, i * 0.35, 0.4)
-		_sprite(tex("beacon_on" if on else "beacon_off"), picks[i] + Vector2(0, 2))
+		_sprite(tex("beacon_on" if on else "beacon_off"), _beacons[i] + Vector2(0, 2))
 
 
 ## 흐린 이름 글자 (상자 없이 건물 아래에 항상). 누르거나 마우스를 올리면 밝은 이름표. 착륙장은 항상 이름표.
