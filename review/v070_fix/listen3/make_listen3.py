@@ -1,6 +1,6 @@
 """창 열기·닫기 3차 후보: 화면 패널이 켜지며 밀려 들어오는 가벼운 SF 인터페이스 소리 5짝. 합성 + Kenney CC0 녹음만.
 열기 0.25초 안쪽(창이 멈추는 0.18초에 끝 소리), 닫기는 더 짧고 낮게(창이 사라지는 0.14초 안쪽).
-실행: 저장소 맨 위에서 python3 review/v070_fix/listen3/make_listen3.py → 여기 *.ogg, listen.md의 측정 표, assets/sfx/game/window_N_*.wav"""
+실행: 저장소 맨 위에서 python3 review/v070_fix/listen3/make_listen3.py → 여기 *.ogg, 측정 표, 고른 2번은 assets/sfx/game/window_open·close.wav"""
 import os
 import sys
 
@@ -126,8 +126,9 @@ def main():
         save(stereo(c), f"{HERE}window_{n}_close.ogg", quality=6)
         gap = silence(0.7)
         save(stereo(np.concatenate([o, gap, c, silence(1.0), o, gap, c])), f"{HERE}window_{n}_pair.ogg", quality=5)
-        save(stereo(o), f"{GAME}window_{n}_open.wav")
-        save(stereo(c), f"{GAME}window_{n}_close.wav")
+        if n == 2:  # 사용자가 고른 후보만 게임 파일로
+            save(stereo(o), f"{GAME}window_open.wav")
+            save(stereo(c), f"{GAME}window_close.wav")
         rows.append(f"| {n} {name} | {len(o) / SR:.2f}초 | {len(c) / SR:.2f}초 | {so['c']:.0f}Hz | {sc['c']:.0f}Hz | {game_o:.1f}dB |")
     table = "\n".join(["| 후보 | 열기 길이 | 닫기 길이 | 열기 무게중심 | 닫기 무게중심 | 열기 게임 크기(-12dB 재생, 가장 큰 50ms) |", "|---|---|---|---|---|---|", *rows])
     stc, stp = stats(card), stats(pick)

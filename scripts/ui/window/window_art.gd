@@ -105,6 +105,14 @@ static func discovery_icon(id: String) -> Texture2D:
 	return PixelArt.barrage_icon()
 
 
+## 키보드로 고른 버튼 표시: 양옆 금빛 눈금 (마우스·터치로 누르면 숨은 포커스라 나오지 않는다)
+static func focus_mark(c: Control) -> void:
+	if c.has_focus(true):
+		var mid := int(c.size.y) / 2 - 3
+		c.draw_rect(Rect2(2, mid, 2, 6), GOLD)
+		c.draw_rect(Rect2(int(c.size.x) - 4, mid, 2, 6), GOLD)
+
+
 ## 단계 점: 찍은 만큼 밝게
 static func pips(ci: CanvasItem, pos: Vector2i, lv: int, total: int, branch: String, sz := 5, gap := 1) -> void:
 	var light: Color = BRANCH[branch][1]

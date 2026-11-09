@@ -101,8 +101,7 @@ class CloseButton extends Button:
 		for i in range(-4, 5):
 			draw_rect(Rect2(mid + Vector2(i, i) - Vector2.ONE, Vector2(2, 2)), WindowArt.INK)
 			draw_rect(Rect2(mid + Vector2(i, -i) - Vector2.ONE, Vector2(2, 2)), WindowArt.INK)
-		if has_focus():
-			draw_rect(Rect2(Vector2.ZERO, t.get_size()), WindowArt.INK, false, 1.0)
+		WindowArt.focus_mark(self)
 
 
 func _ready() -> void:
@@ -196,11 +195,11 @@ func open(new_kind: String) -> void:
 	_build()
 	_closing = false
 	_t = 0.0
-	Sfx.play_window(true)
+	Sfx.play("open")
 	show()
 	set_process(true)
 	_apply(0.0)
-	close_button.grab_focus()
+	close_button.grab_focus(true)  # 표시는 키보드로 움직일 때만
 
 
 ## 위쪽 띠·어둡기·창 위치. ratio 0 = 닫힘, 1 = 열림
@@ -228,7 +227,7 @@ func _process(delta: float) -> void:
 func close() -> void:
 	if not visible or _closing:
 		return
-	Sfx.play_window(false)
+	Sfx.play("close")
 	_closing = true
 	_t = 0.0
 	set_process(true)

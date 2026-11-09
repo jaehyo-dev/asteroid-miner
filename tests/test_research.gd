@@ -427,26 +427,54 @@ func test_폰에서_고른_칸이_띠_위로_보임() -> void:
 	main.queue_free()
 
 
-# ── 창 소리 시험 ─────────────────────────────────
+# ── 버튼 소리 시험, focus 표시, 빛기둥 ─────────────
 
-func test_창_소리_후보는_평소_버튼이_없고_시험에서_차례로_돎() -> void:
+func test_버튼_소리_후보는_평소_버튼이_없고_시험에서_차례로_돎() -> void:
 	var main: Control = load("res://scenes/main.tscn").instantiate()
 	main.auto_start = false
 	add_child(main)
 	await wait_frames()
-	assert_true(main.hud.door_test == null, "정식 화면에는 없음")
-	main.enable_door_test()
-	assert_not_null(main.hud.door_test)
-	assert_eq(main._door_i, 0, "후보 1부터")
-	assert_true(main.toast.text.contains(Sfx.WINDOW_SOUNDS[0]["name"]))
-	for i in Sfx.WINDOW_SOUNDS.size() - 1:
-		main.hud.door_test.pressed.emit()
-	assert_true(main.toast.text.contains("door2 A"), "마지막은 지금 소리")
-	main.hud.door_test.pressed.emit()
-	assert_eq(main._door_i, 0, "다시 처음으로")
-	assert_true(main.hud.hits_button(main.hud.door_test.position + Vector2.ONE), "눌러도 끌기가 아님")
-	for s: Dictionary in Sfx.WINDOW_SOUNDS:
-		assert_not_null(load(Sfx.SFX_DIR + s["open"] + ".wav"), s["name"])
-		assert_not_null(load(Sfx.SFX_DIR + s["close"] + ".wav"), s["name"])
-	Sfx.use_window_sound(Sfx.WINDOW_SOUNDS.size() - 1)  # 다른 테스트에 영향 없게 원래 소리로
+	assert_true(main.hud.click_test == null, "정식 화면에는 없음")
+	main.enable_click_test()
+	assert_not_null(main.hud.click_test)
+	assert_eq(main._click_i, 0, "후보 1부터")
+	assert_true(main.toast.text.contains(Sfx.CLICK_SOUNDS[0]["name"]))
+	for i in Sfx.CLICK_SOUNDS.size() - 1:
+		main.hud.click_test.pressed.emit()
+	assert_true(main.toast.text.contains("지금 소리"), "마지막은 지금 소리")
+	main.hud.click_test.pressed.emit()
+	assert_eq(main._click_i, 0, "다시 처음으로")
+	assert_true(main.hud.hits_button(main.hud.click_test.position + Vector2.ONE), "눌러도 끌기가 아님")
+	for s: Dictionary in Sfx.CLICK_SOUNDS:
+		var click: AudioStreamWAV = load(Sfx.SFX_DIR + s["click"] + ".wav")
+		assert_not_null(click, s["name"])
+		assert_not_null(load(Sfx.SFX_DIR + s["up"] + ".wav"), s["name"])
+		if s["name"] != "지금 소리":
+			assert_true(click.get_length() <= 0.081, "%s 0.08초 안쪽" % s["name"])
+	Sfx.use_click_sound(Sfx.CLICK_SOUNDS.size() - 1)  # 다른 테스트에 영향 없게 원래 소리로
 	main.queue_free()
+
+
+func test_모든_버튼의_focus_테두리가_비어_있음() -> void:
+	var b := Button.new()
+	add_child(b)
+	assert_true(b.get_theme_stylebox("focus") is StyleBoxEmpty)
+	b.queue_free()
+
+
+func test_빛기둥은_아래가_촘촘하고_위로_성기며_팔레트만_씀() -> void:
+	var img := HangarView.bake_beam(34, 100, 16)
+	var palette := [Color.TRANSPARENT, HangarView.BEAM_DARK, HangarView.BEAM_MID, HangarView.BEAM_LIGHT]
+	var inside := func(y0: int, y1: int) -> int:
+		var n := 0
+		for y in range(y0, y1):
+			for x in range(1, img.get_width() - 1):  # 양옆 세로선 빼고 안쪽
+				var c := img.get_pixel(x, y)
+				assert_true(palette.any(func(p: Color) -> bool: return p.is_equal_approx(c)), "void32 색만")
+				n += 1 if c.a > 0.0 else 0
+		return n
+	assert_true(inside.call(0, 8) < 10, "맨 위는 거의 사라짐")
+	assert_true(inside.call(25, 50) * 2 < inside.call(50, 75), "위로 갈수록 성김")
+	assert_true(inside.call(50, 75) < inside.call(75, 100), "받침 쪽이 가장 촘촘함")
+	assert_true(img.get_pixel(0, 95).is_equal_approx(HangarView.BEAM_LIGHT), "가장자리는 밝은 세로선")
+	assert_true(img.get_pixel(1, 115).a == 0.0, "아래는 타원 호 따라 끝남")

@@ -35,6 +35,7 @@ pointing/emulate_touch_from_mouse=true
 
 [gui]
 
+theme/custom="res://assets/ui_theme.tres"
 theme/custom_font="res://assets/fonts/galmuri/Galmuri11.ttf"
 
 [rendering]

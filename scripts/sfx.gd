@@ -47,9 +47,11 @@ const SOUNDS := {
 	"card_gather": {"files": ["card_a_gather"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_pick": {"files": ["card_pick"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
-	# 건물 창 열기·닫기 door2 A "철컹"·"쿵-철컥" (창 소리와 카드 소리를 완전히 나눈다)
-	"open": {"files": ["window_open"], "db": -5.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"close": {"files": ["window_close"], "db": -5.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	# 연구소 강화 성공
+	"click_up": {"files": ["pickup_2"], "db": -11.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
+	# 건물 창 열기·닫기: 3차 후보 2번 "공기압 슉 + 딸깍" (창 소리와 카드 소리를 완전히 나눈다)
+	"open": {"files": ["window_open"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"close": {"files": ["window_close"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"cargo_heavy": {"files": ["cargo_heavy"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},
 	# 심연의 포격: 예고(붉은 조준선이 보일 때, 낮게 웅웅) → 에너지 구체 발사. 높은 소리를 깎아 낮고 둔탁하게, 예전보다 작게
 	# 전역 견인 비콘: 레벨업 카드 소리를 낮게
@@ -58,14 +60,13 @@ const SOUNDS := {
 	"barrage_fire": {"files": ["barrage_fire"], "db": -10.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
 }
 
-## 창 소리 시험 (웹 주소 ?doortest): 고르면 나머지를 지운다. db는 재생 크기
-const WINDOW_SOUNDS := [
-	{"name": "1 홀로그램 화면 켜짐", "open": "window_1_open", "close": "window_1_close", "db": -12.0},
-	{"name": "2 공기압 슉 + 딸깍", "open": "window_2_open", "close": "window_2_close", "db": -12.0},
-	{"name": "3 금속 패널 스륵-탁", "open": "window_3_open", "close": "window_3_close", "db": -12.0},
-	{"name": "4 단말기 삐빅", "open": "window_4_open", "close": "window_4_close", "db": -12.0},
-	{"name": "5 클릭 + 은은한 울림", "open": "window_5_open", "close": "window_5_close", "db": -12.0},
-	{"name": "지금 door2 A", "open": "window_open", "close": "window_close", "db": -5.0},
+## 버튼 소리 시험 (웹 주소 ?clicktest): 고르면 나머지를 지운다. 후보 파일은 표의 크기(click, click_up)로 틀도록 맞춰 있음
+const CLICK_SOUNDS := [
+	{"name": "1 부드러운 톡", "click": "click_1", "up": "click_1_up"},
+	{"name": "2 작은 공기 톡", "click": "click_2", "up": "click_2_up"},
+	{"name": "3 낮은 딸깍", "click": "click_3", "up": "click_3_up"},
+	{"name": "4 짧은 홀로그램 톡", "click": "click_4", "up": "click_4_up"},
+	{"name": "지금 소리", "click": "click", "up": "pickup_2"},
 ]
 
 ## 체력 낮음 경고음: 높낮이를 두 번 오가는 경보
@@ -99,7 +100,6 @@ var _warp_charge_player: AudioStreamPlayer
 var _warp_done_player: AudioStreamPlayer
 var _raid_player: AudioStreamPlayer
 var _warning_player: AudioStreamPlayer
-var _window_db := 0.0
 
 
 func _ready() -> void:
@@ -182,17 +182,11 @@ func play_card_gather() -> void:
 	play("card_gather")
 
 
-## 창 소리 시험: 후보를 바꾼다 (이후 "open"·"close" 재생에 쓰임)
-func use_window_sound(index: int) -> void:
-	var s: Dictionary = WINDOW_SOUNDS[index]
-	_streams["open"] = [load(SFX_DIR + s["open"] + ".wav")]
-	_streams["close"] = [load(SFX_DIR + s["close"] + ".wav")]
-	_window_db = float(s["db"]) - float(SOUNDS["open"]["db"])
-
-
-## 건물 창을 열고 닫는 소리 (시험 중이면 그 후보로)
-func play_window(opening: bool) -> void:
-	play("open" if opening else "close", -1.0, 1.0, _window_db)
+## 버튼 소리 시험: 후보를 바꾼다 (이후 "click"·"click_up" 재생에 쓰임)
+func use_click_sound(index: int) -> void:
+	var s: Dictionary = CLICK_SOUNDS[index]
+	_streams["click"] = [load(SFX_DIR + s["click"] + ".wav")]
+	_streams["click_up"] = [load(SFX_DIR + s["up"] + ".wav")]
 
 
 ## 실드가 공격을 막았을 때

@@ -287,7 +287,7 @@ func act() -> void:
 	if not done:
 		return
 	win.save.save_file()
-	Sfx.play("pickup_2" if not swapped else "click")
+	Sfx.play("click_up" if not swapped else "click")
 	win.bought.emit(selected)
 	win.refresh_head()
 	_refresh()
@@ -488,8 +488,7 @@ class TabButton extends Button:
 		draw_rect(Rect2(bar_x0 + 1, bar_y + 1, bar_x1 - bar_x0 - 1, 3), WindowArt.GREY)
 		if pr[0] > 0:
 			draw_rect(Rect2(bar_x0 + 1, bar_y + 1, maxi(1, (bar_x1 - bar_x0 - 1) * pr[0] / pr[1]), 3), light if on else main)
-		if on or has_focus():
-			draw_rect(Rect2(out, 0, w - 1, h - 1), main if on else WindowArt.INK, false, 1.0)
+		WindowArt.focus_mark(self)
 
 
 # ── 판 ─────────────────────────────────────────

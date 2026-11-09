@@ -40,5 +40,4 @@ func _draw() -> void:
 		x += WindowArt.width(label) + 6
 		draw_texture(ore, Vector2(x, ty + (WindowArt.FONT_SIZE - ore.get_height()) / 2 + 2))
 		WindowArt.text(self, Vector2i(x + 14, ty), s, color)
-	if has_focus():
-		draw_rect(Rect2(0, 0, size.x, size.y), WindowArt.INK, false, 1.0)
+	WindowArt.focus_mark(self)

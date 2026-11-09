@@ -9,10 +9,24 @@ const STAT_COLOR := {"체력": "hull", "사망 보존": "hull", "공격력": "we
 const PLAY := {"pioneer": "무엇이든 무난하게 해내는 전투기."}
 const WEAPON := {"name": "펄스 연사포", "desc": "가까운 거리에서 빠른 연사로 앞을 쓸어 버립니다."}
 const RING_TOP := 8
+const LIFT := 62  # 받침 면에서 우주선 그림 가운데까지 (그림자와 떨어지게)
+const LIFT_SMALL := 40
+# 빛기둥 (받침 그림 한 칸 기준)
+const BEAM_HALF := 34  # 기둥 반폭: 윗면 고리 바로 안쪽
+const BEAM_FRONT := 16  # 윗면 타원 앞쪽 깊이: 기둥 아래가 이 호를 따라 끝난다
+const BEAM_DARK := Color("#125952")
+const BEAM_MID := Color("#1da775")
+const BEAM_LIGHT := Color("#30e1b9")
+const BEAM_SPARK := Color("#99e9e6")
+const SCAN_PERIOD := 6.0  # 주사선이 아래에서 위까지 가는 시간 (둘이 반 주기 어긋나게)
+const GRAINS := 7
+const GRAIN_PERIOD := 3.0
 
 var _t := 0.0
 var _stats: Array = []
 var _fighter: Dictionary
+var _beam: Array[ImageTexture] = []  # [평소, 깜빡임]
+var _beam_key := Vector2i.ZERO
 
 
 func setup() -> void:
@@ -66,27 +80,75 @@ func _draw_stage(x: int, y: int, w: int, h: int) -> void:
 	var mid := py + (RING_TOP + 17) * k  # 윗면 타원 가운데
 	var i := int(_t * SPIN_FPS) % FRAMES
 	var ship_k := 2 if win.compact else 3
-	# 빛기둥: 점 줄무늬가 위로 사라진다
-	var half0 := pw / 2 - 12 * k
-	var yy := mid + 6 * k
-	while yy > y + 6:
-		var ratio := clampf(float(mid - yy) / float(maxi(mid - y - 6, 1)), 0.0, 1.0)
-		var half := int(half0 * (1.0 - 0.25 * ratio))
-		var step := 2 + int(ratio * 7)
-		var off := (i + yy) % step
-		var col := Color("#1da775") if ratio < 0.5 else Color("#125952")
-		var xx := cx - half + off
-		while xx < cx + half:
-			draw_rect(Rect2(xx, yy, 1, 1), col)
-			xx += step
-		yy -= 3
+	var top := y + 2
+	_draw_beam(cx, mid, top, k)
 	var src := Rect2(i % 8 * SPIN.x, i / 8 * SPIN.y, SPIN.x, SPIN.y)
+	# 그림자는 받침과 같은 배율로 윗면 타원 안에만 놓고, 기둥 위·우주선 아래에 그린다
+	var shw := SPIN.x * k
+	var shh := SPIN.y * k
+	draw_texture_rect_region(WindowArt.tex("spin_shadow"), Rect2(cx - shw / 2, mid - shh / 2, shw, shh), src)
 	var sw := SPIN.x * ship_k
 	var sh := SPIN.y * ship_k
-	draw_texture_rect_region(WindowArt.tex("spin_shadow"), Rect2(cx - sw / 2, mid - sh / 2 + 2, sw, sh), src)
 	var bob := int(round(sin(_t * TAU / 4.0) * 3.0))
-	var lift := (34 if not win.compact else 22)
-	draw_texture_rect_region(WindowArt.tex("spin"), Rect2(cx - sw / 2, maxi(y, mid - lift - sh / 2 + bob), sw, sh), src)
+	var lift := (LIFT_SMALL if win.compact else LIFT)
+	draw_texture_rect_region(WindowArt.tex("spin"), Rect2(cx - sw / 2, mid - lift - sh / 2 + bob, sw, sh), src)
+
+
+## 받침 위 빛기둥 그림을 칸 단위로 굽는다. flicker면 조금 옅게.
+## 밝기 = 높이(아래 진함) × 가로(가장자리 밝음) → 잡음 디더로 색을 고르므로 위로 갈수록 성기게 사라진다
+static func bake_beam(half: int, above: int, front: int, flicker := false) -> Image:
+	var w := half * 2
+	var img := Image.create(w, above + front, false, Image.FORMAT_RGBA8)
+	var ramp: Array[Color] = [Color.TRANSPARENT, BEAM_DARK, BEAM_MID, BEAM_LIGHT]
+	var dim := 0.86 if flicker else 1.0
+	for cy in img.get_height():
+		var t := clampf(1.0 - float(cy) / float(above), 0.0, 1.0)  # 0 = 받침 면, 1 = 맨 위
+		for cx in w:
+			var u := absf((cx + 0.5) / half - 1.0)  # 0 = 가운데, 1 = 가장자리
+			if cy >= above and float(cy - above) >= front * sqrt(1.0 - u * u):
+				continue  # 윗면 타원 앞쪽 호 바깥
+			var level: float
+			if cx == 0 or cx == w - 1:
+				level = 3.4 * pow(1.0 - t, 0.9)  # 양옆 밝은 세로선, 위에서 흩어지며 사라짐
+			else:
+				level = 3.4 * pow(1.0 - t, 1.5) * (0.46 + 0.22 * pow(u, 5.0))
+			# 줄무늬가 보이지 않게, 고른 잡음과 무작위 잡음을 반씩 섞어 디더링
+			var ign := fposmod(52.9829189 * fposmod(0.06711056 * cx + 0.00583715 * cy, 1.0), 1.0)
+			var noise := (ign + fposmod(sin(cx * 12.9898 + cy * 78.233) * 43758.5453, 1.0)) * 0.5
+			img.set_pixel(cx, cy, ramp[clampi(int(level * dim + noise), 0, 3)])
+	return img
+
+
+func _draw_beam(cx: int, mid: int, top: int, k: int) -> void:
+	var above := (mid - top) / k
+	if above <= 0:
+		return  # 레이아웃이 잡히기 전
+	var key := Vector2i(k, above)
+	if key != _beam_key:
+		_beam_key = key
+		_beam.clear()
+		for f in [false, true]:
+			_beam.append(ImageTexture.create_from_image(bake_beam(BEAM_HALF, above, BEAM_FRONT, f)))
+	# 아주 약한 깜빡임: 0.1초 칸마다 정해진 무작위로 드물게
+	var blink := fposmod(sin(floorf(_t * 10.0) * 12.9898) * 43758.5453, 1.0) < 0.07
+	var half := BEAM_HALF * k
+	draw_texture_rect(_beam[1 if blink else 0], Rect2(cx - half, top, half * 2, (above + BEAM_FRONT) * k), false)
+	var height := mid - top
+	# 주사선 2줄: 받침에서 올라가며 옅어지고 끊어진다
+	for n in 2:
+		var t := fposmod(_t / SCAN_PERIOD + n * 0.5, 1.0)
+		var row := mid - int(t * height) / k * k
+		var col := BEAM_LIGHT if t < 0.4 else (BEAM_MID if t < 0.7 else BEAM_DARK)
+		var gap := 1 + int(t * t * 4.0)  # 위로 갈수록 성기게
+		for c in range(1, BEAM_HALF * 2 - 1, gap):
+			draw_rect(Rect2(cx - half + c * k, row, k, k), col)
+	# 떠오르는 빛 알갱이: 자리·속도는 번호로 고정
+	for n in GRAINS:
+		var h := fposmod(sin(n * 78.233) * 43758.5453, 1.0)
+		var t := fposmod(_t / (GRAIN_PERIOD * (1.0 + h)) + h, 1.0)
+		var gx := cx - half + (2 + int(h * (BEAM_HALF * 2 - 4)) ) * k
+		var gy := mid - int(t * height * 0.8) / k * k
+		draw_rect(Rect2(gx, gy, k, k), BEAM_SPARK if t < 0.5 else (BEAM_LIGHT if t < 0.8 else BEAM_MID))
 
 
 func _draw_desc(x: int, y: int, w: int, h: int) -> void:

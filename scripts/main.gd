@@ -36,7 +36,7 @@ signal launched
 @onready var hud: BaseHud = %Hud
 @onready var starfield: Starfield = %Starfield
 @onready var panel: BaseWindow = %Panel
-var _door_i := -1
+var _click_i := -1
 @onready var toast: Label = %Toast
 
 var save: SaveData
@@ -151,8 +151,8 @@ func _setup_stage() -> void:
 	stage.theme.default_font = font
 	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("base10"):
 		App.base_debug_busy = true
-	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("doortest"):
-		call_deferred("enable_door_test")
+	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("clicktest"):
+		call_deferred("enable_click_test")
 
 
 ## 창 크기가 바뀔 때: 정수 배율을 다시 맞추고 배치·버튼·카메라를 다시 잡는다.
@@ -318,16 +318,17 @@ func _on_result_chosen(index: int) -> void:
 		launch()
 
 
-## 창 소리 시험: 버튼을 누를 때마다 다음 후보, 이름이 잠깐 뜬다. 첫 후보로 시작
-func enable_door_test() -> void:
-	hud.add_door_test().pressed.connect(next_door_sound)
-	next_door_sound()
+## 버튼 소리 시험: 버튼을 누를 때마다 다음 후보를 들려주고 이름이 잠깐 뜬다. 첫 후보로 시작
+func enable_click_test() -> void:
+	hud.add_click_test().pressed.connect(next_click_sound)
+	next_click_sound()
 
 
-func next_door_sound() -> void:
-	_door_i = (_door_i + 1) % Sfx.WINDOW_SOUNDS.size()
-	Sfx.use_window_sound(_door_i)
-	show_toast("창 소리: %s" % Sfx.WINDOW_SOUNDS[_door_i]["name"])
+func next_click_sound() -> void:
+	_click_i = (_click_i + 1) % Sfx.CLICK_SOUNDS.size()
+	Sfx.use_click_sound(_click_i)
+	Sfx.play("click")
+	show_toast("버튼 소리: %s" % Sfx.CLICK_SOUNDS[_click_i]["name"])
 
 
 ## 창이 열리면 위쪽 띠가 위로 들어간다 (ratio 1 = 다 보임)
