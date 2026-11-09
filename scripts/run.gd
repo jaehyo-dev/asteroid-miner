@@ -68,6 +68,7 @@ func _ready() -> void:
 	sim = RunSim.new()
 	save = SaveData.load_file()
 	sim.apply_base(save.upgrades)
+	sim.apply_codex(save)
 	world.sim = sim
 	gate_view.sim = sim
 	world.gate_fx = gate_view.fx
@@ -456,7 +457,7 @@ func result_body() -> String:
 	var earned := bank_result()
 	var home := sim.brought_home()
 	var kept := "화물칸 광물 100% 귀환" if sim.returned else "광물 %d%% 보존 (%d/%d개, 비싼 것부터)" % [
-		roundi(Cargo.keep_ratio(sim.insurance_level) * 100.0), Cargo.total(home), sim.cargo.size()]
+		roundi(sim.keep_ratio() * 100.0), Cargo.total(home), sim.cargo.size()]
 	var body := "버틴 시간 %s · 레벨 %d · 부순 적 %d개\n%s\n(%s)\n광물 가치 %d + 보너스 %d (+%d%%) = %d" % [
 		Hud.format_time(sim.time), sim.level, sim.kills, kept, Hud.minerals_text(home),
 		RunSim.value_of(home), earned - RunSim.value_of(home), RiskBonus.percent(sim.time), earned]

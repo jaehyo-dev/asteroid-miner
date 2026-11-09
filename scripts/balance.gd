@@ -381,12 +381,12 @@ const DEATH_KEEP_MAX := 0.75
 ## 비용 = cost × BASE_COST_GROWTH^(현재 단계) (반올림). 한 판 수익(보통 300~1000)으로 2~3판마다 하나씩 살 수 있게 맞췄다.
 ## (채굴 드론은 v0.8.0에서 추가)
 const BASE_UPGRADES := [
-	{"id": "damage", "name": "공격력", "max": 5, "cost": 200},
-	{"id": "max_hp", "name": "체력", "max": 5, "cost": 150},
-	{"id": "speed", "name": "이동 속도", "max": 5, "cost": 150},
-	{"id": "cargo", "name": "화물칸", "max": 5, "cost": 120},
-	{"id": "insurance", "name": "비상 보험", "max": 5, "cost": 180},
-	{"id": "magnet", "name": "자석 범위", "max": 5, "cost": 100},
+	{"id": "damage", "name": "펄스 증폭기", "max": 5, "cost": 200},
+	{"id": "max_hp", "name": "격벽 보강", "max": 5, "cost": 150},
+	{"id": "speed", "name": "분사 노즐 개조", "max": 5, "cost": 150},
+	{"id": "cargo", "name": "화물 베이 확장", "max": 5, "cost": 120},
+	{"id": "insurance", "name": "화물 회수 신호기", "max": 5, "cost": 180},
+	{"id": "magnet", "name": "자기장 포집기", "max": 5, "cost": 100},
 ]
 const BASE_COST_GROWTH := 1.6
 ## 단계당 효과
@@ -395,7 +395,17 @@ const BASE_MAX_HP_ADD := 10.0  ## 최대 체력 +10
 const BASE_SPEED_ADD := 0.05  ## 이동 속도 +5% (기본값 기준, 레벨업 강화와 더함)
 const BASE_CARGO_ADD := 10  ## 화물칸 +10칸
 const BASE_MAGNET_ADD := 0.15  ## 자석 범위 +15% (기본값 기준, 레벨업 강화와 더함)
-## 비상 보험은 단계마다 사망 보존 +DEATH_KEEP_PER_LEVEL (위 귀환 항목)
+## 화물 회수 신호기는 단계마다 사망 보존 +DEATH_KEEP_PER_LEVEL (위 귀환 항목)
+
+# ── 전시관 도감 보상 ─────────────────────────────
+## 발견 수가 at에 닿으면 받을 수 있다 (at 0 = 전부). id는 저장 키라 바꾸지 않는다. kind: credits 광물, speed 이동 속도, keep 사망 보존, paint 금빛 도색
+const CODEX_REWARDS := [
+	{"id": "at3", "at": 3, "kind": "credits", "value": 150},
+	{"id": "at6", "at": 6, "kind": "speed", "value": 0.02},
+	{"id": "at9", "at": 9, "kind": "credits", "value": 400},
+	{"id": "at12", "at": 12, "kind": "keep", "value": 0.03},
+	{"id": "all", "at": 0, "kind": "paint", "value": 1},
+]
 
 # ── 격납고 (전투기) ─────────────────────────────────
 ## 고를 수 있는 전투기 목록. 7단계에서 스카우트·홀러·드릴러를 여기에 추가하면 격납고에 나온다.

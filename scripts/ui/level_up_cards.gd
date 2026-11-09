@@ -15,7 +15,7 @@ const OFF_COLOR := Color("#5c5164")
 const OFF_MODULATE := Color(0.55, 0.55, 0.55)
 
 ## 등급별로 뒤집힘 위에 쌓는 소리 (노멀은 뒤집힘만)
-const CARD_GRADE_SOUND: Array[String] = ["", "card_rare", "card_epic", "card_unique", "card_legendary"]
+const CARD_GRADE_SOUND: Array[String] = ["card_normal", "card_normal", "card_epic", "card_unique", "card_legendary"]
 
 var state := State.CLOSED
 var cards: Array[LevelCard] = []
@@ -30,6 +30,8 @@ var _guard_until := 0
 var _picked := -1
 var _is_reroll := false
 var _sounded: Array[bool] = []
+## 등장 소리를 이미 튼 카드 (빛보다 CARD_SOUND_LEAD만큼 먼저)
+var _voiced: Array[bool] = []
 var _gathered: Array[bool] = []
 ## 카드별 등장 시작 시각과 빛이 모이는 시간
 var _starts: Array[float] = []
@@ -85,6 +87,9 @@ func show_cards(choices: Array, levels: Dictionary, rerolls: int, is_reroll: boo
 	_sounded.clear()
 	_sounded.resize(choices.size())
 	_sounded.fill(false)
+	_voiced.clear()
+	_voiced.resize(choices.size())
+	_voiced.fill(false)
 	_gathered.clear()
 	_gathered.resize(choices.size())
 	_gathered.fill(false)
@@ -189,12 +194,21 @@ func _step_reveal() -> void:
 		if wait == 0.0 and _choices[i]["grade"] >= Upgrades.UNIQUE and ct >= 0.0 and not _gathered[i]:
 			_gathered[i] = true
 			Sfx.play("card_swell")
-		if ct >= Juice.CARD_DROP_TIME + wait + Juice.CARD_FLIP_TIME * 0.5:
+		var show_at := Juice.CARD_DROP_TIME + wait + Juice.CARD_FLIP_TIME * 0.5
+		if ct >= show_at - Juice.CARD_SOUND_LEAD:
+			_voice(i)
+		if ct >= show_at:
 			_play_show(i)
 
 
 func _card_rect(i: int) -> Rect2:
 	return Rect2(cards[i].home, cards[i].size)
+
+
+func _voice(i: int) -> void:
+	if not _voiced[i]:
+		_voiced[i] = true
+		Sfx.play(CARD_GRADE_SOUND[_choices[i]["grade"]])
 
 
 ## 앞면이 보이는 순간: 등급만큼 소리와 빛. 유니크부터 빛 기둥과 약한 흔들림
@@ -203,9 +217,7 @@ func _play_show(i: int, strength := 1.0) -> void:
 		return
 	_sounded[i] = true
 	var grade: int = _choices[i]["grade"]
-	Sfx.play("card_flip")
-	if CARD_GRADE_SOUND[grade] != "":
-		Sfx.play(CARD_GRADE_SOUND[grade])
+	_voice(i)  # 건너뛰기로 바로 온 카드
 	_fx.burst(_card_rect(i), grade, strength)
 	_fx.add_halo(i, _card_rect(i), grade)
 	if Juice.CARD_SHAKE[grade] > 0.0 and App.settings.shake:

@@ -142,6 +142,8 @@ const CARD_STAGGER := 0.28
 const CARD_DROP_TIME := 0.12
 const CARD_DROP_DISTANCE := 60.0
 const CARD_FLIP_TIME := 0.08
+## 등장 소리 A는 시작 0.1초 뒤가 가장 세다: 앞면이 보이는 순간에 맞게 이만큼 먼저 튼다
+const CARD_SOUND_LEAD := 0.1
 const CARD_FLASH_TIME := 0.25
 ## 다시 뽑을 때는 짧게 (어두워짐 없음)
 const CARD_REROLL_STAGGER := 0.08

@@ -145,7 +145,7 @@ func close() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if visible and event.is_action_pressed("pause"):
-		Sfx.play("click")
+		Sfx.play("close")
 		close()
 		get_viewport().set_input_as_handled()
 
@@ -168,7 +168,7 @@ func _rebuild() -> void:
 	close_button.custom_minimum_size = Vector2(P * 40, P * 18)
 	MenuPanel.add_press_feel(close_button, P)
 	close_button.pressed.connect(func() -> void:
-		Sfx.play("click")
+		Sfx.play("close")
 		close())
 	header.add_child(close_button)
 	_content.add_child(header)
@@ -266,7 +266,7 @@ func _build_hangar() -> void:
 	var stats := VBoxContainer.new()
 	stats.add_theme_constant_override("separation", 0)
 	stats.add_child(_label("지금 우주선 능력치 (업그레이드 반영)", COLOR_DIM))
-	for s in Hangar.stats(save.upgrades):
+	for s in Hangar.stats(save.upgrades, save):
 		var row := HBoxContainer.new()
 		var name_label := _label(s["name"])
 		name_label.custom_minimum_size = Vector2(P * 56, 0)

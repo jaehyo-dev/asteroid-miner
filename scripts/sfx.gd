@@ -38,16 +38,18 @@ const SOUNDS := {
 	# 레벨업: 마림바 도-미-솔-도, 마지막 음은 첫 음으로 돌아와 작게 줄어듦
 	"levelup": {"files": ["levelup"], "db": -9.5, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	# 카드 전용 소리 (tools/make_sfx.py의 CARD_SOUND_DB와 같은 크기)
-	"card_flip": {"files": ["card_flip"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_rare": {"files": ["card_rare"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_epic": {"files": ["card_epic"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_unique": {"files": ["card_unique"], "db": -9.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_swell": {"files": ["card_swell"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_gather": {"files": ["card_gather"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_legendary": {"files": ["card_legendary"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	# 카드 등장 A "금속 위 스윽-탁" (tools/make_fix_sfx.py). 파일에 음량이 이미 맞춰져 있어 0dB, 레어는 노멀과 같은 소리
+	"card_normal": {"files": ["card_a_normal"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_epic": {"files": ["card_a_epic"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_unique": {"files": ["card_a_unique"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_legendary": {"files": ["card_a_legend"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_swell": {"files": ["card_a_swell"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_gather": {"files": ["card_a_gather"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_pick": {"files": ["card_pick"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
-	"open": {"files": ["card_show"], "db": -14.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
+	# 건물 창 열기·닫기 door2 A "철컹"·"쿵-철컥" (창 소리와 카드 소리를 완전히 나눈다)
+	"open": {"files": ["window_open"], "db": -5.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"close": {"files": ["window_close"], "db": -5.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"cargo_heavy": {"files": ["cargo_heavy"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},
 	# 심연의 포격: 예고(붉은 조준선이 보일 때, 낮게 웅웅) → 에너지 구체 발사. 높은 소리를 깎아 낮고 둔탁하게, 예전보다 작게
 	# 전역 견인 비콘: 레벨업 카드 소리를 낮게

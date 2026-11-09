@@ -15,7 +15,7 @@ const OLD_SPRITE_DIR := "res://assets/sprites/base/"
 ## 우주선 착륙장과 건물 id
 const IDS := ["research", "hangar", "drone", "ship", "storage", "museum"]
 ## 건물 이름표
-const NAMES := {"ship": "착륙장", "research": "연구소", "hangar": "격납고", "storage": "광물 창고", "museum": "전시관", "drone": "드론 공장"}
+const NAMES := {"ship": "착륙장", "research": "연구소", "hangar": "격납고", "storage": "광물 금고", "museum": "전시관", "drone": "드론 공장"}
 ## 건물 ↔ 칸 (열, 행). 착륙장은 0열 위아래 3칸을 차지한다
 const CELLS := {"research": Vector2i(-1, -1), "hangar": Vector2i(1, -1), "drone": Vector2i(-1, 0), "museum": Vector2i(1, 0), "storage": Vector2i(-1, 1)}
 const PAD_ROWS := [-1, 0, 1]
@@ -25,7 +25,7 @@ const NEXT_SLOTS: Array[Vector2i] = [Vector2i(1, 1), Vector2i(2, 0), Vector2i(-2
 const EMPTY_SHOWN := 1
 ## 임시 건물 5채를 더한 디버그 모습 (App.base_debug_busy, 웹 주소 ?base10). 8종뿐이라 2채는 연구소·창고 그림을 다시 쓴다
 const DEBUG_EXTRA := {"weapon": Vector2i(1, 1), "planet": Vector2i(2, -1), "evolve": Vector2i(2, 0), "research": Vector2i(-2, -1), "storage": Vector2i(-2, 0)}
-const DEBUG_NAMES := {"weapon": "보조 무기 연구소", "planet": "행성 관제소", "evolve": "진화 도감 실험실", "research": "연구소", "storage": "광물 창고"}
+const DEBUG_NAMES := {"weapon": "보조 무기 연구소", "planet": "행성 관제소", "evolve": "진화 도감 실험실", "research": "연구소", "storage": "광물 금고"}
 
 ## 칸 간격: 착륙장 + 둘레 6칸 + 양옆 소행성 가장자리가 640x360 한 화면에 들어온다
 const PITCH := Vector2i(148, 105)

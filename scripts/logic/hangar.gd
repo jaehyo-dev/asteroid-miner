@@ -13,9 +13,11 @@ static func slots() -> Array:
 
 ## 지금 우주선 능력치 [{name, value(글자), ratio(0~1: 기지 업그레이드를 모두 올렸을 때 대비)}]
 ## 출격 규칙(RunSim.apply_base)으로 계산해서 실제 출격과 같다.
-static func stats(levels: Dictionary) -> Array:
+static func stats(levels: Dictionary, save: SaveData = null) -> Array:
 	var now := RunSim.new(1)
 	now.apply_base(levels)
+	if save != null:
+		now.apply_codex(save)
 	var top := RunSim.new(1)
 	var maxed := {}
 	for u in Balance.BASE_UPGRADES:
@@ -28,7 +30,7 @@ static func stats(levels: Dictionary) -> Array:
 		["이동 속도", now.move_speed, top.move_speed, "%d"],
 		["화물칸", now.cargo.capacity, top.cargo.capacity, "%d칸"],
 		["자석 범위", now.magnet_radius, top.magnet_radius, "%d"],
-		["사망 보존", Cargo.keep_ratio(now.insurance_level) * 100.0, Cargo.keep_ratio(top.insurance_level) * 100.0, "%d%%"],
+		["사망 보존", now.keep_ratio() * 100.0, top.keep_ratio() * 100.0, "%d%%"],
 	]
 	var result := []
 	for r in rows:

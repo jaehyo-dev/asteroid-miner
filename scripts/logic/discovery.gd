@@ -19,6 +19,38 @@ const ENTRIES := [
 ]
 
 
+## 보상을 받을 수 있는 발견 수
+static func reward_needs(reward: Dictionary) -> int:
+	return ENTRIES.size() if int(reward["at"]) == 0 else int(reward["at"])
+
+
+static func reward_info(reward_id: String) -> Dictionary:
+	for r in Balance.CODEX_REWARDS:
+		if r["id"] == reward_id:
+			return r
+	return {}
+
+
+## 보상 받기. 조건이 안 되거나 이미 받았으면 false (두 번 받지 않는다). 광물은 여기서 더하고, 나머지는 받은 목록으로 출격 때 적용한다.
+static func claim(save: SaveData, reward_id: String) -> bool:
+	var r := reward_info(reward_id)
+	if r.is_empty() or save.codex_claimed.has(reward_id) or save.seen.size() < reward_needs(r):
+		return false
+	save.codex_claimed[reward_id] = true
+	if r["kind"] == "credits":
+		save.add_credits(int(r["value"]))
+	return true
+
+
+## 받은 보상 중 kind 값의 합 (이동 속도, 사망 보존)
+static func bonus(save: SaveData, kind: String) -> float:
+	var total := 0.0
+	for r in Balance.CODEX_REWARDS:
+		if r["kind"] == kind and save.codex_claimed.has(r["id"]):
+			total += float(r["value"])
+	return total
+
+
 static func has(id: String) -> bool:
 	return ENTRIES.any(func(e): return e["id"] == id)
 

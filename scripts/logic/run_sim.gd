@@ -168,6 +168,9 @@ var chain_matrix := false
 var overload := false
 var tractor_beacon := false
 var drones: Array[Drone] = []
+## 도감 보상: 이동 속도 더하기, 사망 보존 더하기
+var codex_speed := 0.0
+var keep_bonus := 0.0
 ## 편향 실드: 간격(0이면 없음)과 지금까지 충전한 시간
 var shield_interval := 0.0
 var shield_charge := 0.0
@@ -849,6 +852,13 @@ func current_speed() -> float:
 
 
 ## 출격 전에 기지 공용 업그레이드를 적용한다: 능력치를 다시 계산하고 체력을 가득 채운다.
+## 도감 보상을 출격 능력치에 넣는다 (apply_base와 따로: 기지 업그레이드 단계가 아니라 저장의 받은 목록에서 온다)
+func apply_codex(save: SaveData) -> void:
+	codex_speed = Discovery.bonus(save, "speed")
+	keep_bonus = Discovery.bonus(save, "keep")
+	apply_upgrades()
+
+
 func apply_base(levels: Dictionary) -> void:
 	base_levels = levels.duplicate()
 	var blv := func(id: String) -> int: return int(base_levels.get(id, 0))
@@ -866,7 +876,7 @@ func apply_upgrades() -> void:
 	bullet_count = Balance.BULLET_COUNT + int(up.call("multishot"))
 	bullet_damage = (Balance.BULLET_DAMAGE + up.call("damage")) * (1.0 + up.call("multishot_damage")) * (1.0 + Balance.BASE_DAMAGE_MULT_ADD * blv.call("damage"))
 	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + up.call("magnet") + Balance.BASE_MAGNET_ADD * blv.call("magnet"))
-	move_speed = Balance.SHIP_SPEED * (1.0 + up.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed"))
+	move_speed = Balance.SHIP_SPEED * (1.0 + up.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed") + codex_speed)
 	max_hp = Balance.SHIP_MAX_HP + up.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp")
 	fire_range = Balance.FIRE_RANGE * (1.0 + up.call("range"))
 	hp = minf(hp, max_hp)
@@ -935,11 +945,16 @@ func is_over() -> bool:
 	return not alive or returned
 
 
+## 사망 보존 비율: 신호기 단계(최대까지) + 도감 보상
+func keep_ratio() -> float:
+	return minf(Cargo.keep_ratio(insurance_level) + keep_bonus, 1.0)
+
+
 ## 가져가는 광물 (등급별 개수): 귀환·진행 중이면 화물칸 전부, 파괴되면 보존 비율만큼 비싼 것부터
 func brought_home() -> PackedInt32Array:
 	if alive:
 		return cargo.counts.duplicate()
-	return Cargo.preserved(cargo.counts, Cargo.keep_ratio(insurance_level))
+	return Cargo.preserved(cargo.counts, keep_ratio())
 
 
 ## 가져가는 광물의 최종 가치 = 가치 × 지금 위험도 배율 (반올림)

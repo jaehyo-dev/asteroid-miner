@@ -120,8 +120,8 @@ func test_카드_화면이_레전드리까지_오류_없이_그려짐() -> void:
 func test_카드_소리는_등급마다_전용이고_빌려_쓰지_않음() -> void:
 	assert_eq(LevelUpCards.CARD_GRADE_SOUND.size(), 5)
 	for sound in LevelUpCards.CARD_GRADE_SOUND:
-		assert_true(sound == "" or Sfx.SOUNDS.has(sound), sound)
-	assert_true(Sfx.SOUNDS.has("card_flip") and Sfx.SOUNDS.has("card_gather") and Sfx.SOUNDS.has("card_pick"))
+		assert_true(Sfx.SOUNDS.has(sound), sound)
+	assert_true(Sfx.SOUNDS.has("card_normal") and Sfx.SOUNDS.has("card_gather") and Sfx.SOUNDS.has("card_pick"))
 	assert_false(Sfx.SOUNDS.has("card_show"), "옛 등장 소리는 카드에서 뺌")
 
 

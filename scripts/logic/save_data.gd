@@ -23,6 +23,8 @@ var drag_hint_seen := false
 var hauled := PackedInt32Array([0, 0, 0, 0])
 ## 도감: 처음 본 것 id → true (Discovery.ENTRIES의 id)
 var seen: Dictionary = {}
+## 도감 보상: 받은 보상 id → true (Balance.CODEX_REWARDS의 id). 지점별로 남겨 두 번 받지 않는다
+var codex_claimed: Dictionary = {}
 
 
 func level_of(id: String) -> int:
@@ -36,7 +38,7 @@ func add_credits(amount: int) -> void:
 
 func to_dict() -> Dictionary:
 	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen, "warp_seen": warp_seen, "drag_hint_seen": drag_hint_seen,
-		"hauled": Array(hauled), "seen": seen.keys()}
+		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys()}
 
 
 ## 판에서 가져온 광물(등급별 개수)을 누적한다
@@ -68,6 +70,11 @@ static func from_dict(d: Variant) -> SaveData:
 		for id in seen:
 			if typeof(id) == TYPE_STRING:
 				s.discover(id)  # 모르는 id는 버린다
+	var claimed: Variant = d.get("codex_claimed", [])
+	if typeof(claimed) == TYPE_ARRAY:
+		for id in claimed:
+			if typeof(id) == TYPE_STRING and not Discovery.reward_info(id).is_empty():  # 모르는 id는 버린다
+				s.codex_claimed[id] = true
 	var tip: Variant = d.get("risk_tip_seen", false)
 	s.risk_tip_seen = typeof(tip) == TYPE_BOOL and tip  # 참/거짓이 아니면 안 본 것으로
 	var warp: Variant = d.get("warp_seen", false)
