@@ -67,7 +67,7 @@ var _arrived := false
 func _ready() -> void:
 	sim = RunSim.new()
 	save = SaveData.load_file()
-	sim.apply_base(save.upgrades)
+	sim.apply_base(Research.run_levels(save))
 	sim.apply_codex(save)
 	world.sim = sim
 	gate_view.sim = sim

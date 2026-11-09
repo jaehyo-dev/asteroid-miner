@@ -171,6 +171,12 @@ var drones: Array[Drone] = []
 ## 도감 보상: 이동 속도 더하기, 사망 보존 더하기
 var codex_speed := 0.0
 var keep_bonus := 0.0
+## 연구소 새 칸: 실드 막기 남은 횟수와 충전 시간, 과부하 탄두 발사 수, 긴급 수리 남은 횟수
+var blocks_left := 0
+var blocks_top := 0
+var _bolt_timer := 0.0
+var _shots_fired := 0
+var repairs_left := 0
 ## 편향 실드: 간격(0이면 없음)과 지금까지 충전한 시간
 var shield_interval := 0.0
 var shield_charge := 0.0
@@ -252,7 +258,7 @@ func update(delta: float, move: Vector2) -> void:
 	while _golden_timer <= 0.0:
 		if golden_count() < Balance.GOLDEN_MAX and enemies.size() < Balance.MAX_ENEMIES:
 			spawn_golden()
-		_golden_timer += golden_interval(time)
+		_golden_timer += next_golden_gap()
 
 	_update_barrages(delta)
 	_move_enemies(delta)
@@ -391,9 +397,17 @@ func damage_player(amount: float) -> bool:
 		invuln = Balance.SHIELD_BLOCK_INVULN
 		events.append("shield_block")
 		return true  # 피해만 막는다 (부딪힌 운석·맞은 탄은 맞았을 때처럼 사라짐)
+	if blocks_left > 0:  # 편향 실드: 판마다 정해진 횟수
+		blocks_left -= 1
+		invuln = Balance.SHIELD_BLOCK_INVULN
+		events.append("shield_block")
+		return true
 	hp = maxf(hp - amount, 0.0)
-	invuln = Balance.SHIP_INVULN_TIME
+	invuln = Balance.SHIP_INVULN_TIME + (Balance.RES_DODGE_INVULN if _base("dodge") else 0.0)
 	events.append("hit")
+	if repairs_left > 0 and hp > 0.0 and hp < max_hp * Balance.RES_REPAIR_AT:  # 긴급 수리: 죽기 직전이 아니라 위험할 때 한 번
+		repairs_left -= 1
+		hp = minf(hp + max_hp * Balance.RES_REPAIR_HEAL, max_hp)
 	if hp <= 0.0:
 		alive = false
 		events.append("dead")
@@ -581,8 +595,10 @@ func _auto_fire(delta: float) -> void:
 	# 움직이는 운석이 탄과 만날 지점을 노린다.
 	var base_angle := intercept_angle(player_pos, target.pos, target.vel, Balance.BULLET_SPEED)
 	var life := fire_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR
+	_shots_fired += 1
+	var shot_damage := bullet_damage * (Balance.RES_OVER_MULT if _base("over") and _shots_fired % Balance.RES_OVER_EVERY == 0 else 1.0)
 	for shot in shot_pattern(base_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG), Balance.PARALLEL_SHOT_GAP):
-		_fire_bullet(player_pos + shot.offset, shot.angle, life, bullet_damage)
+		_fire_bullet(player_pos + shot.offset, shot.angle, life, shot_damage)
 	# 프레임 사이에 넘친 시간은 다음 발사에 반영해 프레임 속도와 관계없이 간격을 지킨다.
 	_fire_timer = maxf(_fire_timer + current_fire_interval(), 0.0)
 	events.append("shoot")
@@ -646,6 +662,11 @@ func _update_drones(delta: float) -> void:
 
 ## 편향 실드 충전
 func _update_shield(delta: float) -> void:
+	if _base("bolt"):  # 실드 충전: 정해진 시간마다 막기 1번 (실드 칸이 없어도 1번까지)
+		_bolt_timer += delta
+		if _bolt_timer >= Balance.RES_BOLT_INTERVAL:
+			_bolt_timer = 0.0
+			blocks_left = mini(blocks_left + 1, maxi(blocks_top, 1))
 	shield_charge = minf(shield_charge + delta, shield_interval)
 
 
@@ -788,10 +809,22 @@ func _on_enemy_destroyed(a: Enemy) -> void:
 			if extra > 0:
 				count += extra
 				fx.append({"type": "drop_extra", "pos": a.pos})
+		if a.kind == ROCK and _base("drill") and rng.randf() < Balance.RES_DRILL_CHANCE:
+			count += 1
+			fx.append({"type": "drop_extra", "pos": a.pos})
 		for i in count:
-			var m := drop_mineral(a.pos, int(drop["grade"]))
+			var m := drop_mineral(a.pos, rolled_grade(int(drop["grade"])))
 			# 운석 자리에서 사방으로 튕겨 나가 감속하며 멈춘다 (멈출 때까지 가는 거리 = 속도 / 감속)
 			m.vel = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(Juice.MINERAL_POP_MIN, Juice.MINERAL_POP_MAX) * Juice.MINERAL_POP_DAMP
+
+
+## 탐지기·심부 스캔: 떨어지는 광물이 확률로 한 등급 오른다
+func rolled_grade(grade: int) -> int:
+	if grade == 0 and _base("radar") and rng.randf() < Balance.RES_RADAR_STEP * int(base_levels["radar"]):  # 칸이 없으면 난수를 쓰지 않아 기존 판이 그대로
+		return 1
+	if grade in [1, 2] and _base("deep") and rng.randf() < Balance.RES_DEEP_CHANCE:
+		return grade + 1
+	return grade
 
 
 ## 경험치를 얻는다. 필요한 만큼 모이면 레벨업하고 강화 선택지를 연다.
@@ -808,7 +841,9 @@ func gain_xp(amount: int) -> void:
 
 ## 지금 시각과 보정 상태로 카드를 뽑는다
 func _roll_choices() -> void:
-	choices = Upgrades.roll_choices(rng, upgrade_levels, Balance.UPGRADE_CHOICE_COUNT, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO)
+	var count: int = Balance.UPGRADE_CHOICE_COUNT + (1 if _base("luck") and rng.randf() < Balance.RES_LUCK_CHANCE else 0)
+	var epic_bonus := Balance.RES_CHIP_EPIC if _base("chip") else 0.0
+	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus)
 
 
 ## 다시 뽑기: 3장을 한꺼번에 새로 뽑는다. 남은 횟수가 없거나 고를 카드가 없으면 false.
@@ -859,10 +894,24 @@ func apply_codex(save: SaveData) -> void:
 	apply_upgrades()
 
 
+## 다음 황금 운석까지 (광역 스캔이면 짧게)
+func next_golden_gap() -> float:
+	return golden_interval(time) * (1.0 - Balance.RES_SCAN_GOLDEN if _base("wide_scan") else 1.0)
+
+
+## 기지에서 켠 칸인지 (연구소 새 칸의 효과 판단)
+func _base(id: String) -> bool:
+	return int(base_levels.get(id, 0)) > 0
+
+
 func apply_base(levels: Dictionary) -> void:
 	base_levels = levels.duplicate()
 	var blv := func(id: String) -> int: return int(base_levels.get(id, 0))
 	insurance_level = blv.call("insurance")
+	rerolls_left = Balance.REROLLS_PER_RUN + blv.call("reroll")
+	blocks_top = blv.call("shield")
+	blocks_left = blocks_top
+	repairs_left = blv.call("repair")
 	cargo.capacity = Balance.CARGO_CAPACITY + Balance.BASE_CARGO_ADD * blv.call("cargo")
 	apply_upgrades()
 	hp = max_hp
@@ -872,12 +921,14 @@ func apply_base(levels: Dictionary) -> void:
 func apply_upgrades() -> void:
 	var up := func(id: String) -> float: return float(upgrade_bonus.get(id, 0.0))
 	var blv := func(id: String) -> int: return int(base_levels.get(id, 0))
-	fire_interval = Balance.FIRE_INTERVAL / (1.0 + up.call("fire_rate"))
+	var rate_style: float = (Balance.RES_RAPID_RATE if blv.call("rapid") else 0.0) + (Balance.RES_HEAVY_RATE if blv.call("heavy") else 0.0)
+	var damage_style: float = (Balance.RES_RAPID_DAMAGE if blv.call("rapid") else 0.0) + (Balance.RES_HEAVY_DAMAGE if blv.call("heavy") else 0.0)
+	fire_interval = Balance.FIRE_INTERVAL / ((1.0 + up.call("fire_rate")) * (1.0 + rate_style))
 	bullet_count = Balance.BULLET_COUNT + int(up.call("multishot"))
-	bullet_damage = (Balance.BULLET_DAMAGE + up.call("damage")) * (1.0 + up.call("multishot_damage")) * (1.0 + Balance.BASE_DAMAGE_MULT_ADD * blv.call("damage"))
-	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + up.call("magnet") + Balance.BASE_MAGNET_ADD * blv.call("magnet"))
-	move_speed = Balance.SHIP_SPEED * (1.0 + up.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed") + codex_speed)
-	max_hp = Balance.SHIP_MAX_HP + up.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp")
+	bullet_damage = (Balance.BULLET_DAMAGE + up.call("damage")) * (1.0 + up.call("multishot_damage")) * (1.0 + Balance.BASE_DAMAGE_MULT_ADD * blv.call("damage")) * (1.0 + damage_style)
+	magnet_radius = Balance.MAGNET_RADIUS * (1.0 + up.call("magnet") + Balance.BASE_MAGNET_ADD * blv.call("magnet") + (Balance.RES_WIDE_MAGNET if blv.call("wide") else 0.0))
+	move_speed = Balance.SHIP_SPEED * (1.0 + up.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed") + codex_speed + (Balance.RES_THICK_SPEED if blv.call("thick") else 0.0))
+	max_hp = Balance.SHIP_MAX_HP + up.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp") + (Balance.RES_THICK_HP if blv.call("thick") else 0.0)
 	fire_range = Balance.FIRE_RANGE * (1.0 + up.call("range"))
 	hp = minf(hp, max_hp)
 	pierce_count = int(up.call("pierce"))
@@ -921,7 +972,7 @@ func _update_minerals(delta: float) -> void:
 			m.attracted = true
 		if m.attracted:
 			m.vel = Vector2.ZERO
-			m.pos = m.pos.move_toward(player_pos, magnet_speed(dist, magnet_radius) * delta)
+			m.pos = m.pos.move_toward(player_pos, magnet_speed(dist, magnet_radius) * (1.0 + Balance.RES_FAST_PULL if _base("fast") else 1.0) * delta)
 			dist = m.pos.distance_to(player_pos)
 		if dist <= Balance.PICKUP_RADIUS:
 			picked.append({"pos": m.pos, "grade": m.grade, "gain": collect(m.grade)})
@@ -959,7 +1010,7 @@ func brought_home() -> PackedInt32Array:
 
 ## 가져가는 광물의 최종 가치 = 가치 × 지금 위험도 배율 (반올림)
 func final_value() -> int:
-	return roundi(value_of(brought_home()) * risk_mult(time))
+	return roundi(value_of(brought_home()) * risk_mult(time) * (1.0 + Balance.RES_APPRAISE_STEP * int(base_levels.get("appraise", 0))))
 
 
 ## 우주선과 부딪힌 운석: 무적이 아니면 데미지를 주고 부서진다. 무적 중에는 그냥 지나간다.

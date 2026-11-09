@@ -25,6 +25,9 @@ var hauled := PackedInt32Array([0, 0, 0, 0])
 var seen: Dictionary = {}
 ## 도감 보상: 받은 보상 id → true (Balance.CODEX_REWARDS의 id). 지점별로 남겨 두 번 받지 않는다
 var codex_claimed: Dictionary = {}
+## 갈림길: 갈림길 id → 해금한 쪽("a", "b", "ab") / 사용 중인 쪽("a", "b")
+var forks_owned: Dictionary = {}
+var forks_on: Dictionary = {}
 
 
 func level_of(id: String) -> int:
@@ -38,7 +41,7 @@ func add_credits(amount: int) -> void:
 
 func to_dict() -> Dictionary:
 	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen, "warp_seen": warp_seen, "drag_hint_seen": drag_hint_seen,
-		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys()}
+		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys(), "forks_owned": forks_owned.duplicate(), "forks_on": forks_on.duplicate()}
 
 
 ## 판에서 가져온 광물(등급별 개수)을 누적한다
@@ -83,11 +86,30 @@ static func from_dict(d: Variant) -> SaveData:
 	s.drag_hint_seen = typeof(hint) == TYPE_BOOL and hint
 	var ups: Variant = d.get("upgrades", {})
 	if typeof(ups) == TYPE_DICTIONARY:
-		for u in Balance.BASE_UPGRADES:
-			var lv := clampi(_to_int(ups.get(u["id"], 0)), 0, int(u["max"]))
-			if lv > 0:
-				s.upgrades[u["id"]] = lv
+		for list in [Balance.BASE_UPGRADES, Balance.RESEARCH_NODES]:
+			for u in list:
+				var lv := clampi(_to_int(ups.get(u["id"], 0)), 0, int(u["max"]))
+				if lv > 0:
+					s.upgrades[u["id"]] = lv
+	s._read_forks(d.get("forks_owned", {}), d.get("forks_on", {}))
 	return s
+
+
+## 갈림길 저장값 고치기: 모르는 갈림길·이상한 값은 버리고, 사용 중인 쪽은 해금한 쪽이어야 한다 (없으면 처음 쪽)
+func _read_forks(own: Variant, on: Variant) -> void:
+	if typeof(own) != TYPE_DICTIONARY:
+		return
+	for branch in Balance.RESEARCH_TREE:
+		for node in Balance.RESEARCH_TREE[branch]:
+			if typeof(node) != TYPE_DICTIONARY:
+				continue
+			var key := "%s_%s" % [node["a"], node["b"]]
+			var sides: Variant = own.get(key, "")
+			if not sides in ["a", "b", "ab"]:
+				continue
+			forks_owned[key] = sides
+			var pick: Variant = on.get(key, "") if typeof(on) == TYPE_DICTIONARY else ""
+			forks_on[key] = pick if pick in ["a", "b"] and sides.contains(pick) else sides.substr(0, 1)
 
 
 ## JSON 숫자는 float로 읽히므로 int로 바꾼다. 숫자가 아니면 0.

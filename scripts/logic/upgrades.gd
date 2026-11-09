@@ -80,17 +80,23 @@ static func _num(v: float) -> String:
 
 
 ## 시간에 따른 등급 확률: RISK_RAMP_TIME까지 직선으로 오르고 그 뒤로는 고정
-static func grade_weights(time: float) -> PackedFloat32Array:
+## epic_bonus: 고급 회로. 합의 이 비율만큼을 노멀에서 에픽으로 옮긴다
+static func grade_weights(time: float, epic_bonus := 0.0) -> PackedFloat32Array:
 	var k := clampf(time / Balance.RISK_RAMP_TIME, 0.0, 1.0)
 	var result := PackedFloat32Array()
+	var total := 0.0
 	for i in Balance.GRADE_WEIGHTS_START.size():
 		result.append(lerpf(Balance.GRADE_WEIGHTS_START[i], Balance.GRADE_WEIGHTS_END[i], k))
+		total += result[i]
+	var moved := minf(total * epic_bonus, result[NORMAL])
+	result[NORMAL] -= moved
+	result[EPIC] += moved
 	return result
 
 
 ## 등급 하나 뽑기
-static func roll_grade(random: RandomNumberGenerator, time: float) -> int:
-	return random.rand_weighted(grade_weights(time))
+static func roll_grade(random: RandomNumberGenerator, time: float, epic_bonus := 0.0) -> int:
+	return random.rand_weighted(grade_weights(time, epic_bonus))
 
 
 ## 목록 중 아직 최대 단계가 아닌 강화 id
@@ -116,7 +122,7 @@ static func _take(random: RandomNumberGenerator, pool: PackedStringArray) -> Str
 ## effects_on이 꺼져 있으면 효과·레전드리는 나오지 않고, 레전드리로 뽑힌 칸은 유니크가 된다.
 ## force_effect: 화면에 효과 카드가 없으면 레전드리가 아닌 한 장을 에픽 효과로 바꾼다 (효과 카드 보정).
 ## repair_on: 수리를 뽑기에 넣을지 (체력이 넉넉할 때 빈칸이 되지 않게). 다른 수치 강화가 다 찼으면 그래도 나온다.
-static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true) -> Array:
+static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true, epic_bonus := 0.0) -> Array:
 	var stats := available_in(Balance.UPGRADES, levels)
 	if not repair_on and stats.size() > 1:
 		stats.remove_at(stats.find(REPAIR))
@@ -125,7 +131,7 @@ static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, coun
 	var result: Array = []
 	var has_legend := false
 	for i in count:
-		var grade := roll_grade(random, time)
+		var grade := roll_grade(random, time, epic_bonus)
 		if grade == LEGENDARY and (has_legend or legends.is_empty()):
 			grade = UNIQUE  # 레전드리는 한 화면에 1장까지
 		if grade == LEGENDARY:

@@ -389,6 +389,62 @@ const BASE_UPGRADES := [
 	{"id": "magnet", "name": "자기장 포집기", "max": 5, "cost": 100},
 ]
 const BASE_COST_GROWTH := 1.6
+
+# ── 연구소 나무 ─────────────────────────────────
+## 아래부터 위로 가는 순서. 글자는 기존·새 칸 id, Dictionary는 갈림길(a·b를 각각 cost로 해금).
+const RESEARCH_BRANCHES := ["weapon", "hull", "mine", "elec", "survey"]
+const RESEARCH_TREE := {
+	"weapon": ["damage", "sub", {"a": "rapid", "b": "heavy", "cost": 500}, "over"],
+	"hull": ["max_hp", "insurance", {"a": "thick", "b": "dodge", "cost": 500}, "repair"],
+	"mine": ["magnet", "cargo", "speed", {"a": "wide", "b": "fast", "cost": 500}, "drill"],
+	"elec": ["shield", "reroll", {"a": "chip", "b": "bolt", "cost": 500}, "luck"],
+	"survey": ["appraise", "radar", {"a": "deep", "b": "wide_scan", "cost": 500}, "planet"],
+}
+## 새 칸 (임시, 나중에 밸런스 조정). effect: 효과 글. step이 있으면 단계마다 값 %d 또는 %.0f에 넣는다. soon: 기능이 아직 없어 잠김.
+const RESEARCH_NODES := [
+	{"id": "sub", "name": "보조 무기 해금", "max": 1, "cost": 300, "effect": "보조 무기 칸 1개", "soon": true},
+	{"id": "over", "name": "과부하 탄두", "max": 1, "cost": 800, "effect": "5발마다 공격력 2배 탄"},
+	{"id": "repair", "name": "긴급 수리", "max": 1, "cost": 800, "effect": "판마다 1번 체력 30% 회복"},
+	{"id": "drill", "name": "정밀 드릴", "max": 1, "cost": 800, "effect": "10% 확률로 광물 +1개"},
+	{"id": "shield", "name": "편향 실드", "max": 5, "cost": 200, "effect": "피해 막기 +%.0f번", "step": 1},
+	{"id": "reroll", "name": "재추첨 회로", "max": 5, "cost": 250, "effect": "다시 뽑기 +%.0f번", "step": 1},
+	{"id": "luck", "name": "행운 코어", "max": 1, "cost": 800, "effect": "10% 확률로 카드 1장 더"},
+	{"id": "appraise", "name": "광물 감정기", "max": 5, "cost": 200, "effect": "광물 가치 +%.0f%%", "step": 3},
+	{"id": "radar", "name": "희귀 탐지기", "max": 5, "cost": 250, "effect": "희귀 이상 확률 +%.0f%%", "step": 1},
+	{"id": "planet", "name": "항로 개척", "max": 1, "cost": 800, "effect": "행성 좌표 해금", "soon": true},
+	{"id": "rapid", "name": "연사형", "max": 1, "cost": 0, "effect": "공격 속도 +15%, 공격력 -5%"},
+	{"id": "heavy", "name": "한 방형", "max": 1, "cost": 0, "effect": "공격력 +25%, 공격 속도 -15%"},
+	{"id": "thick", "name": "중장갑", "max": 1, "cost": 0, "effect": "체력 +30, 이동 속도 -5%"},
+	{"id": "dodge", "name": "회피형", "max": 1, "cost": 0, "effect": "피격 뒤 무적 +0.3초"},
+	{"id": "wide", "name": "넓게 끌기", "max": 1, "cost": 0, "effect": "자석 범위 +40%"},
+	{"id": "fast", "name": "빨리 나르기", "max": 1, "cost": 0, "effect": "끌려오는 속도 +60%"},
+	{"id": "chip", "name": "고급 회로", "max": 1, "cost": 0, "effect": "에픽 이상 확률 +3%"},
+	{"id": "bolt", "name": "실드 충전", "max": 1, "cost": 0, "effect": "60초마다 실드 1번 충전"},
+	{"id": "deep", "name": "심부 스캔", "max": 1, "cost": 0, "effect": "영웅·전설 확률 +2%"},
+	{"id": "wide_scan", "name": "광역 스캔", "max": 1, "cost": 0, "effect": "황금 운석 등장 간격 -20%"},
+]
+## 새 칸 효과 수치 (임시, 나중에 밸런스 조정)
+const RES_RAPID_RATE := 0.15
+const RES_RAPID_DAMAGE := -0.05
+const RES_HEAVY_DAMAGE := 0.25
+const RES_HEAVY_RATE := -0.15
+const RES_OVER_EVERY := 5
+const RES_OVER_MULT := 2.0
+const RES_THICK_HP := 30.0
+const RES_THICK_SPEED := -0.05
+const RES_DODGE_INVULN := 0.3
+const RES_REPAIR_AT := 0.3  ## 체력이 이 비율 밑으로 떨어지면
+const RES_REPAIR_HEAL := 0.3  ## 최대 체력의 이만큼 회복
+const RES_WIDE_MAGNET := 0.4
+const RES_FAST_PULL := 0.6
+const RES_DRILL_CHANCE := 0.1
+const RES_LUCK_CHANCE := 0.1
+const RES_CHIP_EPIC := 0.03  ## 에픽 이상 확률 더하기 (일반 몫에서 옮긴다)
+const RES_BOLT_INTERVAL := 60.0
+const RES_APPRAISE_STEP := 0.03
+const RES_RADAR_STEP := 0.01  ## 일반 광물이 희귀로 오를 확률 (단계마다)
+const RES_DEEP_CHANCE := 0.02  ## 희귀·영웅 광물이 한 등급 오를 확률
+const RES_SCAN_GOLDEN := 0.2  ## 황금 운석 등장 간격 줄임
 ## 단계당 효과
 const BASE_DAMAGE_MULT_ADD := 0.1  ## 탄 피해 +10% (레벨업 강화까지 합친 값에 곱함)
 const BASE_MAX_HP_ADD := 10.0  ## 최대 체력 +10

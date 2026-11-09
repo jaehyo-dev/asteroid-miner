@@ -6,9 +6,10 @@ extends RefCounted
 
 ## id → Balance.BASE_UPGRADES의 항목. 없으면 빈 Dictionary.
 static func info(id: String) -> Dictionary:
-	for u in Balance.BASE_UPGRADES:
-		if u["id"] == id:
-			return u
+	for list in [Balance.BASE_UPGRADES, Balance.RESEARCH_NODES]:
+		for u in list:
+			if u["id"] == id:
+				return u
 	return {}
 
 
