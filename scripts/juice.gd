@@ -140,7 +140,6 @@ const CARD_REROLL_DROP_DISTANCE := 24.0
 ## 등급별(노멀~레전드리) 앞면 번쩍임 세기(흰색 섞는 비율), 더 퍼지는 빛 고리 폭(칸), 등장 소리 크기(dB)
 const CARD_FLASH_STRENGTH := [0.25, 0.4, 0.55, 0.7, 0.85]
 const CARD_FLASH_RING := [0, 3, 6, 10, 16]
-const CARD_SHOW_DB := [-5.0, -3.0, -1.0, 1.0, 3.0]
 ## 레전드리: 뒤집히기 전에 빛이 모이는 시간과 모이는 알갱이 수
 const CARD_LEGEND_GATHER := 0.3
 const CARD_GATHER_PARTS := 48
@@ -152,6 +151,17 @@ const CARD_BURST_SPEED := [40.0, 60.0, 80.0, 110.0, 170.0]
 const CARD_BURST_TIME := [0.35, 0.45, 0.55, 0.7, 0.9]
 ## 유니크부터: 빛 기둥 시간, 약한 흔들림 세기(픽셀, 등급별)와 시간
 const CARD_PILLAR_TIME := 0.6
+## 높은 등급 카드 뒤 후광: 등급별 가장 안쪽 진하기(0이면 없음), 계단 띠 수, 띠 두께(작은 카드 기준 픽셀)
+const CARD_HALO_ALPHA := [0.0, 0.0, 0.2, 0.32, 0.5]
+const CARD_HALO_BANDS := [0, 0, 2, 3, 4]
+const CARD_HALO_BAND_PX := 3
+## 빛줄기가 터진 뒤 후광이 나오기까지, 나타나는 시간, 숨 쉬는 주기, 어두울 때 밝기 비율
+const CARD_HALO_DELAY := 0.25
+const CARD_HALO_FADE := 0.5
+const CARD_HALO_PERIOD := 2.0
+const CARD_HALO_LOW := 0.35
+## 레전드리 후광의 색이 한 칸 넘어가는 시간
+const CARD_HALO_RAINBOW_STEP := 0.25
 const CARD_SHAKE := [0.0, 0.0, 0.0, 1.0, 2.0]
 const CARD_SHAKE_TIME := 0.25
 ## 등장 효과 파티클 총량 상한, 건너뛸 때 가장 높은 등급 연출의 세기

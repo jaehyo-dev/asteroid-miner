@@ -14,7 +14,31 @@ def high_ratio(a: np.ndarray) -> float:
     return float(s[f > 3000].sum() / s.sum())
 
 
+def over4k(a: np.ndarray) -> float:
+    s = np.abs(np.fft.rfft(a)) ** 2
+    f = np.fft.rfftfreq(len(a), 1 / ms.SR)
+    return float(s[f > 4000].sum() / s.sum())
+
+
 class MakeSfxTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
+    def test_카드_선택_소리는_짧고_4kHz_위가_깎임(self):
+        for fn in (ms.pick_a, ms.pick_b):
+            a = fn()
+            self.assertLessEqual(len(a) / ms.SR, 0.25)
+            self.assertLess(over4k(a), 0.01)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
+    def test_카드_등장_세트는_6개이고_4kHz_위가_깎이며_같은_결과(self):
+        for key in "ab":
+            sounds = ms.show_set(key)
+            self.assertEqual(set(sounds), set(ms.CARD_SOUND_DB))
+            for name, a in sounds.items():
+                self.assertLess(over4k(a), 0.01, name)
+            self.assertAlmostEqual(len(sounds["card_gather"]) / ms.SR, 0.3, places=2)
+            self.assertTrue(np.array_equal(sounds["card_flip"], ms.show_set(key)["card_flip"]))
+        self.assertFalse(np.array_equal(ms.show_set("a")["card_epic"], ms.show_set("b")["card_epic"]))
+
     def test_꼬리를_자르면_길이가_맞고_끝이_0(self):
         a = np.ones(ms.SR, np.float32)
         t = ms.trim(a, 0.3, 0.1)

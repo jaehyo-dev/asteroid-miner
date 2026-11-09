@@ -14,6 +14,9 @@ const COUNT_COLOR := Color("#f6ce50")
 const OFF_COLOR := Color("#5c5164")
 const OFF_MODULATE := Color(0.55, 0.55, 0.55)
 
+## 등급별로 뒤집힘 위에 쌓는 소리 (노멀은 뒤집힘만)
+const CARD_GRADE_SOUND: Array[String] = ["", "card_rare", "card_epic", "card_unique", "card_legendary"]
+
 var state := State.CLOSED
 var cards: Array[LevelCard] = []
 var reroll_button: Button
@@ -196,10 +199,11 @@ func _play_show(i: int, strength := 1.0) -> void:
 		return
 	_sounded[i] = true
 	var grade: int = _choices[i]["grade"]
-	Sfx.play("card_show", -1.0, 1.0, Juice.CARD_SHOW_DB[grade])
-	if grade >= Upgrades.UNIQUE:
-		Sfx.play("break_big", -1.0, 1.0, -9.0 if grade == Upgrades.UNIQUE else -5.0)  # 쿵 하는 낮은 소리
+	Sfx.play("card_flip")
+	if CARD_GRADE_SOUND[grade] != "":
+		Sfx.play(CARD_GRADE_SOUND[grade])
 	_fx.burst(_card_rect(i), grade, strength)
+	_fx.add_halo(i, _card_rect(i), grade)
 	if Juice.CARD_SHAKE[grade] > 0.0 and App.settings.shake:
 		_shake_left = Juice.CARD_SHAKE_TIME
 		_shake_power = Juice.CARD_SHAKE[grade]
@@ -249,6 +253,9 @@ func skip() -> void:
 	_finish_reveal()
 	if best >= 0:
 		_play_show(best, Juice.CARD_SKIP_BURST)
+	for i in cards.size():  # 건너뛴 나머지 카드도 소리·폭발 없이 후광은 남긴다
+		if not _sounded[i]:
+			_fx.add_halo(i, _card_rect(i), _choices[i]["grade"])
 	_sounded.fill(true)
 	state = State.GUARD
 	_guard_until = Time.get_ticks_msec() + int(Juice.CARD_SKIP_GUARD * 1000.0)
@@ -305,6 +312,7 @@ func choose(index: int) -> void:
 	_picked = index
 	_set_input_open(false)
 	Sfx.play("card_pick")
+	_fx.clear_halos()
 	for i in cards.size():
 		cards[i].play_pick(i == index)
 	var t := create_tween()
@@ -335,6 +343,7 @@ func _apply_layout() -> void:
 		var id: String = _choices[i]["id"]
 		cards[i].home = Vector2(x0 + i * (w + gap), top)
 		cards[i].setup(_choices[i], int(_levels.get(id, 0)) + 1, lay)
+		_fx.move_halo(i, _card_rect(i))
 		if state != State.REVEAL:
 			cards[i].settle()
 	_build_button(lay, top + int(lay["h"]) + int(lay["btn_gap"]), int(view.x))

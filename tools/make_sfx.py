@@ -6,6 +6,7 @@
 - --listen: 사용자가 들어 보고 고를 후보를 review/v070_step4c/listen/*.ogg로 만든다.
 - --listen2: 2차 후보(적 소리, 레벨업)를 만든다. 배경음은 tools/make_music.py가 만든다.
 - --listen3: 업그레이드 창 소리 후보를 만든다.
+- --listen4: 카드 선택·등장 소리 후보를 review/v070_step5/listen/에 만든다.
 
 다시 만들기: python3 tools/make_sfx.py   (후보: python3 tools/make_sfx.py --listen, --listen2)
 """
@@ -453,13 +454,15 @@ BREAKS = {
 }
 ## 고른 후보 (사용자가 다른 것을 고르면 여기만 바꾸고 다시 실행)
 CHOICE = {"barrage": barrage_a, "levelup": lambda: levelup2("a"), "pickup": pickup_c, "jelly": jelly_a, "bug": bug_b}
+## 고른 카드 소리 후보 (review/v070_step5/listen/). 사용자가 다른 것을 고르면 여기만 바꾸고 다시 실행
+CARD_CHOICE = {"pick": lambda: pick_a(), "show": "a"}
 ## 그대로 wav로 바꾸는 Kenney 소리: 게임 이름 → 원본
 COPY = {
     "shoot_0": "kenney_sci-fi/laserSmall_000", "shoot_1": "kenney_sci-fi/laserSmall_002",
     "hit_rock_0": "kenney_impact/impactMining_000", "hit_rock_1": "kenney_impact/impactMining_001",
     "player_hit": "kenney_impact/impactMetal_heavy_000",
     "shield_block": "kenney_sci-fi/forceField_000",
-    "card_pick": "kenney_interface/select_002", "click": "kenney_interface/click_002",
+    "click": "kenney_interface/click_002",
     "cargo_heavy": "kenney_impact/impactSoft_heavy_000",
 }
 
@@ -504,6 +507,110 @@ def whoosh(dur: float, seed: int) -> np.ndarray:
     return tail_fade(peak(((low * (1 - k) + high * k) * env).astype(np.float32) + 0.5 * sweep(180.0, 1400.0, dur, 2.0, 0.02)), 0.08)
 
 
+# ── 레벨업 카드 소리 (계획서 31번): 배경음과 같은 F 단조, 높은 음은 4kHz 위를 깎아 귀를 찌르지 않게 ──
+F2, C3, F3, AB3, C4, EB4, F4, AB4, C5_, EB5, F5, AB5 = 87.31, 130.81, 174.61, 207.65, 261.63, 311.13, 349.23, 415.30, 523.25, 622.25, 698.46, 830.61
+## 게임 크기(dB), scripts/sfx.gd의 SOUNDS와 같게
+CARD_SOUND_DB = {"card_flip": -12.0, "card_rare": -17.0, "card_epic": -14.0, "card_unique": -9.0, "card_gather": -13.0, "card_legendary": -10.0}
+LEGEND_REVEAL_GAP = 0.34  # 모임이 시작되고 앞면이 보일 때까지 (Juice.CARD_LEGEND_GATHER + 뒤집기 절반)
+
+
+def under4k(a: np.ndarray) -> np.ndarray:
+    return ffx(a, "lowpass=f=3600,lowpass=f=3600,lowpass=f=3600")
+
+
+def soft_note(freq: float, dur: float, attack: float, decay: float) -> np.ndarray:
+    """배음이 적은 부드러운 음"""
+    t = np.arange(int(SR * dur)) / SR
+    env = np.minimum(t / attack, 1.0) * np.exp(-decay * t)
+    return ((np.sin(2 * np.pi * freq * t) + 0.25 * np.sin(4 * np.pi * freq * t) + 0.08 * np.sin(6 * np.pi * freq * t)) * env).astype(np.float32)
+
+
+def ring(freqs: list[float], dur: float, decay: float) -> np.ndarray:
+    """얇은 금속판: 정수배가 아닌 음들이 빨리 사라짐"""
+    t = np.arange(int(SR * dur)) / SR
+    return (sum(np.sin(2 * np.pi * f * t) / (i + 1) for i, f in enumerate(freqs)) * np.exp(-decay * t)).astype(np.float32)
+
+
+def flip_sound(seed: int, plate: list[float], plate_amp: float, band: str) -> np.ndarray:
+    """"스윽" 뒤집힘: 살짝 커졌다 사라지는 바람 + 끝에 얇은 금속판 튕김"""
+    t = np.arange(int(SR * 0.17)) / SR
+    air = peak(noise_burst(0.17, 0.0, band, seed), 0.0) * (np.minimum(t / 0.06, 1.0) ** 2 * np.exp(-16.0 * np.maximum(t - 0.06, 0.0)))
+    return tail_fade(peak(under4k(layered([(0.0, air), (0.055, ring(plate, 0.11, 42.0) * plate_amp)]))), 0.03)
+
+
+def pick_a() -> np.ndarray:
+    """합성 "철컥": 작은 금속 걸쇠("철") 뒤에 무거운 잠김("컥")"""
+    latch = layered([(0.0, peak(noise_burst(0.012, 200.0, "highpass=f=1200,lowpass=f=3400", 41), -6.0)), (0.0, ring([1180.0, 1760.0], 0.05, 90.0) * 0.5)])
+    lock = layered([(0.0, sweep(210.0, 105.0, 0.12, 34.0)), (0.0, ring([620.0, 960.0, 1490.0], 0.09, 70.0) * 0.55), (0.0, peak(noise_burst(0.01, 300.0, "highpass=f=700,lowpass=f=3000", 42), -8.0))])
+    return tail_fade(peak(under4k(layered([(0.0, latch * 0.65), (0.052, lock)]))), 0.03)
+
+
+def pick_b() -> np.ndarray:
+    """Kenney 금속 충돌음을 낮춰 두 번 짧게 겹친 "철컥": 합성보다 실제 금속 질감"""
+    light = trim(pitch(load("kenney_sci-fi/impactMetal_002"), 1.1), 0.05, 0.03)
+    heavy = trim(pitch(load("kenney_impact/impactMetal_heavy_000"), 0.9), 0.13, 0.07)
+    return tail_fade(peak(under4k(ffx(layered([(0.0, light * 0.5), (0.05, heavy)]), "highpass=f=160"))), 0.03)
+
+
+def show_set(key: str) -> dict[str, np.ndarray]:
+    """등장 소리 세트. a: 부드럽고 어두운 쪽(F 단조 화음), b: 금속 튕김이 또렷하고 밝은 쪽(Ab 장조 화음, F 단조의 나란한조)"""
+    if key == "a":
+        flip = flip_sound(51, [1240.0, 1870.0], 0.28, "highpass=f=300,lowpass=f=1900")
+        rare = [(0.0, F5), (0.07, AB5)]
+        epic, attack = [F3, C4, AB4], 0.03
+        unique_top = C3
+        bloom, step = [F4, AB4, C5_, F5], 0.06
+    else:
+        flip = flip_sound(52, [1560.0, 2340.0, 3010.0], 0.5, "highpass=f=450,lowpass=f=2600")
+        rare = [(0.0, AB5), (0.06, EB5 * 2)]
+        epic, attack = [AB3, EB4, C5_], 0.015
+        unique_top = F3
+        bloom, step = [AB4, C5_, EB5, AB5], 0.05
+    sparkle = layered([(d, soft_note(f, 0.32, 0.004, 13.0)) for d, f in rare])
+    swell = np.minimum(np.arange(int(SR * 1.1)) / SR / 0.06, 1.0) * np.exp(-2.8 * np.arange(int(SR * 1.1)) / SR)
+    t = np.arange(len(swell)) / SR
+    # 폰 스피커는 87Hz가 잘 안 나서 위 배음을 함께 넣는다
+    drone = (np.sin(2 * np.pi * (F2 * (1.06 - 0.06 * np.minimum(t / 0.25, 1.0))) * t) + 0.55 * np.sin(4 * np.pi * F2 * t) + 0.35 * np.sin(2 * np.pi * unique_top * t)) * swell
+    return {
+        "card_flip": flip,
+        "card_rare": tail_fade(peak(under4k(sparkle)), 0.05),
+        "card_epic": tail_fade(peak(under4k(sum(soft_note(f, 0.75, attack, 4.2) for f in epic))), 0.12),
+        "card_unique": tail_fade(peak(under4k(drone.astype(np.float32))), 0.2),
+        "card_gather": tail_fade(peak(under4k(layered([(0.0, rising(F3, F5, 0.3, 0.3)), (0.0, peak(noise_burst(0.3, 0.0, "highpass=f=500,lowpass=f=2600", 53), -8.0) * (np.arange(int(SR * 0.3)) / (SR * 0.3)) ** 2)]))), 0.03),
+        "card_legendary": tail_fade(peak(under4k(layered([(i * step, soft_note(f, 1.1, 0.008, 3.4)) for i, f in enumerate(bloom)] + [(0.0, soft_note(F3, 1.1, 0.02, 3.0) * 0.8)]))), 0.2),
+    }
+
+
+def show_demo(sounds: dict[str, np.ndarray]) -> np.ndarray:
+    """게임 크기로 노멀 → 레어 → 에픽 → 유니크 → 레전드리 순서로 이어 붙인다"""
+    g = {name: sounds[name] * 10 ** (db / 20.0) for name, db in CARD_SOUND_DB.items()}
+    flip = g["card_flip"]
+    gap = silence(0.75)
+
+    def mix(*parts: tuple[float, np.ndarray]) -> np.ndarray:  # layered와 달리 크기를 다시 맞추지 않는다
+        out = np.zeros(max(int(SR * d) + len(a) for d, a in parts), np.float32)
+        for d, a in parts:
+            out[int(SR * d):int(SR * d) + len(a)] += a
+        return out
+
+    scenes = [flip, mix((0.0, flip), (0.0, g["card_rare"])), mix((0.0, flip), (0.0, g["card_epic"])), mix((0.0, flip), (0.0, g["card_unique"])),
+              mix((0.0, g["card_gather"]), (LEGEND_REVEAL_GAP, flip), (LEGEND_REVEAL_GAP, g["card_legendary"]))]
+    parts: list[np.ndarray] = []
+    for scene in scenes:
+        parts += [scene, gap]
+    return np.concatenate(parts)
+
+
+def listen4() -> None:
+    out = os.path.join(ROOT, "review/v070_step5/listen")
+    gap = silence(0.6)
+    for key, fn in {"a": pick_a, "b": pick_b}.items():
+        a = fn() * 10 ** (-7.0 / 20.0)
+        save(np.concatenate([a, gap, a, gap, a]), f"{out}/card_pick_{key}.ogg")
+    for key in "ab":
+        save(show_demo(show_set(key)), f"{out}/card_show_{key}.ogg")
+
+
 def gate_sounds() -> dict[str, np.ndarray]:
     return {
         "gate_assemble": layered([(0.0, clank(1.4)), (0.15, clank(1.2)), (0.3, clank(1.0))]),
@@ -535,6 +642,8 @@ def game_sounds() -> dict[str, np.ndarray]:
     for grade, s in enumerate(CHOICE["pickup"]()):
         out[f"pickup_{grade}"] = s
     out.update(gate_sounds())
+    out["card_pick"] = CARD_CHOICE["pick"]()
+    out.update(show_set(CARD_CHOICE["show"]))
     return out
 
 
@@ -547,6 +656,9 @@ if __name__ == "__main__":
     if "--listen" in sys.argv:
         listen()
         print("후보 → review/v070_step4c/listen/")
+    elif "--listen4" in sys.argv:
+        listen4()
+        print("카드 소리 후보 → review/v070_step5/listen/")
     elif "--listen3" in sys.argv:
         listen3()
         print("창 소리 후보 → review/v070_step4c/listen/card2_*.ogg")

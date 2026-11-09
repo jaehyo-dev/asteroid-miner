@@ -14,6 +14,8 @@ var parts: Array = []
 var rays: Array[Dictionary] = []
 var pillars: Array[Dictionary] = []
 var rings: Array[Dictionary] = []
+## 카드 뒤에 남는 후광: 카드 번호 → {rect, grade, t}. 고를 때까지 유지된다
+var halos: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 
 
@@ -33,7 +35,32 @@ func clear() -> void:
 	rays.clear()
 	pillars.clear()
 	rings.clear()
+	halos.clear()
 	_redraw()
+
+
+## 빛줄기가 터진 뒤 남는 후광을 건다 (에픽부터)
+func add_halo(index: int, rect: Rect2, grade: int) -> void:
+	if Juice.CARD_HALO_BANDS[grade] > 0:
+		halos[index] = {"rect": rect, "grade": grade, "t": 0.0}
+
+
+func clear_halos() -> void:
+	halos.clear()
+	queue_redraw()
+
+
+## 화면 크기가 바뀌면 카드 자리를 따라간다
+func move_halo(index: int, rect: Rect2) -> void:
+	if halos.has(index):
+		halos[index]["rect"] = rect
+
+
+## 후광의 밝기 (0~1): 터진 뒤 천천히 나타나고, 그 뒤로 주기마다 숨 쉬듯 밝아졌다 어두워진다.
+static func halo_light(t: float) -> float:
+	var fade := clampf((t - Juice.CARD_HALO_DELAY) / Juice.CARD_HALO_FADE, 0.0, 1.0)
+	var breath := 0.5 - 0.5 * cos(TAU * maxf(t - Juice.CARD_HALO_DELAY, 0.0) / Juice.CARD_HALO_PERIOD)
+	return fade * lerpf(1.0, Juice.CARD_HALO_LOW, breath)
 
 
 ## 카드 앞면이 나오는 순간의 폭발. strength: 건너뛸 때처럼 짧게 보여 줄 때 줄이는 배율.
@@ -77,6 +104,10 @@ func busy() -> bool:
 
 
 func _process(delta: float) -> void:
+	for h: Dictionary in halos.values():
+		h["t"] += delta
+	if not halos.is_empty():
+		queue_redraw()
 	if not busy():
 		return
 	var kept: Array = []
@@ -106,8 +137,44 @@ func _redraw() -> void:
 	front.queue_redraw()
 
 
-## 카드 뒤: 빛 기둥(화면 위아래로 뻗고 폭이 줄어듦, 계단 3겹) + 뻗어 나갔다 사라지는 빛줄기
+## 후광 한 장: 안쪽 띠부터 바깥으로 계단처럼 넓어지고 흐려진다. 카드 뒤에 그리므로 글자를 가리지 않는다.
+func _draw_halo(h: Dictionary) -> void:
+	var rect: Rect2 = h["rect"]
+	var grade: int = h["grade"]
+	var unit := maxi(roundi(rect.size.x / float(LevelCard.CARD_W_SMALL)), 1)
+	var band_px: int = Juice.CARD_HALO_BAND_PX * unit
+	var bands: int = Juice.CARD_HALO_BANDS[grade]
+	var light := halo_light(h["t"])
+	draw_rect(rect, Color(_halo_color(h, 0), Juice.CARD_HALO_ALPHA[grade] * light))  # 카드 둥근 모서리 틈까지
+	for band in bands:
+		var color := _halo_color(h, band)
+		color.a = Juice.CARD_HALO_ALPHA[grade] * light * (1.0 - float(band) / bands)  # 바깥 띠일수록 흐리게
+		_draw_halo_ring(rect.grow(band_px * (band + 1)), band_px, color)
+
+
+## 겹치지 않는 고리 하나: 네 변 + 모서리 안쪽 한 칸 (모서리가 계단처럼 깎인다)
+func _draw_halo_ring(outer: Rect2, px: int, color: Color) -> void:
+	var inner_w := outer.size.x - px * 2
+	var inner_h := outer.size.y - px * 2
+	draw_rect(Rect2(outer.position + Vector2(px, 0), Vector2(inner_w, px)), color)
+	draw_rect(Rect2(outer.position + Vector2(px, outer.size.y - px), Vector2(inner_w, px)), color)
+	draw_rect(Rect2(outer.position + Vector2(0, px), Vector2(px, inner_h)), color)
+	draw_rect(Rect2(outer.position + Vector2(outer.size.x - px, px), Vector2(px, inner_h)), color)
+	for corner: Vector2 in [Vector2(px, px), Vector2(outer.size.x - px * 2, px), Vector2(px, outer.size.y - px * 2), Vector2(outer.size.x - px * 2, outer.size.y - px * 2)]:
+		draw_rect(Rect2(outer.position + corner, Vector2(px, px)), color)
+
+
+## 띠 색: 레전드리는 띠마다 다른 무지개색이 천천히 흘러간다
+func _halo_color(h: Dictionary, band: int) -> Color:
+	if h["grade"] == Upgrades.LEGENDARY:
+		return RAINBOW[(int(h["t"] / Juice.CARD_HALO_RAINBOW_STEP) + band) % RAINBOW.size()]
+	return GRADE_COLORS[h["grade"]]
+
+
+## 카드 뒤: 후광 + 빛 기둥(화면 위아래로 뻗고 폭이 줄어듦, 계단 3겹) + 뻗어 나갔다 사라지는 빛줄기
 func _draw() -> void:
+	for h: Dictionary in halos.values():
+		_draw_halo(h)
 	for p in pillars:
 		var k: float = p["t"] / p["life"]
 		var rect: Rect2 = p["rect"]

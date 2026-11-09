@@ -37,8 +37,14 @@ const SOUNDS := {
 	"shield_block": {"files": ["shield_block"], "db": -12.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	# 레벨업: 마림바 도-미-솔-도, 마지막 음은 첫 음으로 돌아와 작게 줄어듦
 	"levelup": {"files": ["levelup"], "db": -9.5, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"card_show": {"files": ["card_show"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_pick": {"files": ["card_pick"], "db": -6.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	# 카드 전용 소리 (tools/make_sfx.py의 CARD_SOUND_DB와 같은 크기)
+	"card_flip": {"files": ["card_flip"], "db": -12.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_rare": {"files": ["card_rare"], "db": -17.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_epic": {"files": ["card_epic"], "db": -14.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_unique": {"files": ["card_unique"], "db": -9.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_gather": {"files": ["card_gather"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_legendary": {"files": ["card_legendary"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
+	"card_pick": {"files": ["card_pick"], "db": -7.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	"open": {"files": ["card_show"], "db": -14.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
 	"cargo_heavy": {"files": ["cargo_heavy"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},
@@ -159,7 +165,7 @@ func pool(sound_name: String) -> Array:
 
 ## 레전드리 카드에 빛이 모이는 소리
 func play_card_gather() -> void:
-	play("barrage_warn", 0.0, 2.0, -8.0)
+	play("card_gather")
 
 
 ## 실드가 공격을 막았을 때

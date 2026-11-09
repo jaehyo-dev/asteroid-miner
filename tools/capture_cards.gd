@@ -2,13 +2,14 @@ extends SceneTree
 ## 레벨업 카드 확인용 캡처 도구 (게임에는 쓰지 않음). 진짜 출격 화면 위에 정해 둔 카드를 띄운다.
 ## 창을 띄워 실행하고 Godot 무비 모드로 프레임을 PNG로 저장한다.
 ##   godot --path . --resolution 1280x720 --fixed-fps 30 --write-movie <폴더>/f.png -s res://tools/capture_cards.gd -- normal
-##   장면: normal(수치 카드), five(다섯 등급, 창 1400x390), zero(다시 뽑기 0회), reveal(등장 연출: 레전드리), reveal_low(등장 연출: 유니크까지), skip(0.3초에 건너뜀), long(가장 긴 문구)
+##   장면: normal(수치 카드), five(다섯 등급, 창 1400x390), zero(다시 뽑기 0회), reveal(등장 연출: 레전드리), reveal_low(등장 연출: 유니크까지), reveal_halo(후광: 에픽·유니크·레전드리), skip(0.3초에 건너뜀), long(가장 긴 문구)
 
 const SCENES := {
 	"normal": [{"id": "fire_rate", "grade": 1}, {"id": "multishot", "grade": 2}, {"id": "magnet", "grade": 0}],
 	"five": [{"id": "fire_rate", "grade": 0}, {"id": "damage", "grade": 1}, {"id": "pierce", "grade": 2}, {"id": "drone", "grade": 3}, {"id": "orbit_pierce", "grade": 4}],
 	"zero": [{"id": "speed", "grade": 3}, {"id": "range", "grade": 0}, {"id": "max_hp", "grade": 1}],
 	"reveal": [{"id": "fire_rate", "grade": 1}, {"id": "pierce", "grade": 2}, {"id": "chain_matrix", "grade": 4}],
+	"reveal_halo": [{"id": "damage", "grade": 2}, {"id": "drone", "grade": 3}, {"id": "orbit_pierce", "grade": 4}],
 	"reveal_low": [{"id": "fire_rate", "grade": 0}, {"id": "damage", "grade": 1}, {"id": "magnet", "grade": 3}],
 	"skip": [{"id": "fire_rate", "grade": 0}, {"id": "orbit_pierce", "grade": 4}, {"id": "magnet", "grade": 1}],
 	"long": [{"id": "speed", "grade": 3}, {"id": "chain_matrix", "grade": 4}, {"id": "multishot", "grade": 2}],
@@ -51,7 +52,7 @@ func _process(_delta: float) -> bool:
 			run._show_level_up()
 			opened_at = frame
 		if opened_at > 0:
-			var hold := 90 if scene.begins_with("reveal") or scene == "skip" else 60
+			var hold := 210 if scene == "reveal_halo" else 90 if scene.begins_with("reveal") or scene == "skip" else 60
 			if scene == "skip" and frame == opened_at + 9:
 				run.cards.skip()
 			elif scene != "skip" and not scene.begins_with("reveal") and frame == opened_at + 1:

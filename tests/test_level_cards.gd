@@ -113,3 +113,46 @@ func test_카드_화면이_레전드리까지_오류_없이_그려짐() -> void:
 	for c in screen.cards:
 		assert_true(c.visible, "펼쳐짐")
 	screen.queue_free()
+
+
+# ── 카드 소리와 후광 (계획서 31번) ─────────────────
+
+func test_카드_소리는_등급마다_전용이고_빌려_쓰지_않음() -> void:
+	assert_eq(LevelUpCards.CARD_GRADE_SOUND.size(), 5)
+	for sound in LevelUpCards.CARD_GRADE_SOUND:
+		assert_true(sound == "" or Sfx.SOUNDS.has(sound), sound)
+	assert_true(Sfx.SOUNDS.has("card_flip") and Sfx.SOUNDS.has("card_gather") and Sfx.SOUNDS.has("card_pick"))
+	assert_false(Sfx.SOUNDS.has("card_show"), "옛 등장 소리는 카드에서 뺌")
+
+
+func test_후광은_터진_뒤_나타나고_약_2초_주기로_숨_쉼() -> void:
+	assert_eq(CardFx.halo_light(0.0), 0.0, "터지는 순간에는 없음")
+	var t := Juice.CARD_HALO_DELAY + 2.0 * Juice.CARD_HALO_PERIOD
+	assert_true(is_equal_approx(CardFx.halo_light(t), 1.0), "밝을 때")
+	assert_true(is_equal_approx(CardFx.halo_light(t + Juice.CARD_HALO_PERIOD * 0.5), Juice.CARD_HALO_LOW), "어두울 때")
+	assert_true(is_equal_approx(CardFx.halo_light(t + Juice.CARD_HALO_PERIOD), 1.0), "한 주기 뒤")
+
+
+func test_후광_세기는_에픽_유니크_레전드리_순서() -> void:
+	assert_eq(Juice.CARD_HALO_BANDS[Upgrades.NORMAL], 0)
+	assert_eq(Juice.CARD_HALO_BANDS[Upgrades.RARE], 0)
+	assert_true(Juice.CARD_HALO_ALPHA[Upgrades.EPIC] < Juice.CARD_HALO_ALPHA[Upgrades.UNIQUE])
+	assert_true(Juice.CARD_HALO_ALPHA[Upgrades.UNIQUE] < Juice.CARD_HALO_ALPHA[Upgrades.LEGENDARY])
+
+
+func test_후광은_에픽부터_걸리고_고르면_사라짐() -> void:
+	var screen := LevelUpCards.new()
+	add_child(screen)
+	screen.size = PHONE
+	await wait_frames(1)
+	screen.show_cards([{"id": "fire_rate", "grade": Upgrades.NORMAL}, {"id": "damage", "grade": Upgrades.EPIC}, {"id": "orbit_pierce", "grade": Upgrades.LEGENDARY}], {}, 1)
+	screen.skip()
+	await wait_frames(1)
+	assert_eq(screen._fx.halos.keys().size(), 2, "에픽, 레전드리만")
+	assert_false(screen._fx.halos.has(0))
+	var t0: float = screen._fx.halos[1]["t"]
+	await wait_frames(3)
+	assert_true(screen._fx.halos[1]["t"] >= t0, "시간이 흐름")
+	screen._fx.clear_halos()
+	assert_true(screen._fx.halos.is_empty())
+	screen.queue_free()
