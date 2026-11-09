@@ -185,6 +185,10 @@ func _step_reveal() -> void:
 			_gathered[i] = true
 			_fx.gather(_card_rect(i), wait)
 			Sfx.play_card_gather()
+		# 모으기가 없는 유니크·레전드리(다시 뽑기): 앞면이 보이는 순간 "쾅"이 맞도록 카드가 떨어질 때부터 "쉬익"
+		if wait == 0.0 and _choices[i]["grade"] >= Upgrades.UNIQUE and ct >= 0.0 and not _gathered[i]:
+			_gathered[i] = true
+			Sfx.play("card_swell")
 		if ct >= Juice.CARD_DROP_TIME + wait + Juice.CARD_FLIP_TIME * 0.5:
 			_play_show(i)
 

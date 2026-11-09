@@ -405,3 +405,7 @@ const FIGHTERS := [
 ]
 ## 격납고 칸 수: FIGHTERS보다 많은 칸은 자물쇠와 "곧 추가"로 보여 준다
 const HANGAR_SLOTS := 4
+
+## 기지 끌어서 둘러보기: 이만큼(그림 픽셀) 넘게 움직여야 끌기로 친다. 폰은 1배라 크게 (손가락 흔들림), PC는 2배라 작게
+const BASE_DRAG_THRESHOLD_SMALL := 4.0
+const BASE_DRAG_THRESHOLD_LARGE := 8.0

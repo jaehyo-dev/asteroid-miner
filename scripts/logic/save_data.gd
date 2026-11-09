@@ -17,6 +17,8 @@ var upgrades: Dictionary = {}
 var risk_tip_seen := false
 ## 워프 출격 연출을 끝까지 본 적이 있는지 (두 번째 출격부터 눌러서 건너뛸 수 있다)
 var warp_seen := false
+## "드래그로 둘러보기" 안내를 본 적이 있는지
+var drag_hint_seen := false
 ## 지금까지 기지로 가져온 광물 수 (등급별 누적, 광물 창고에 보여 줌. v0.6.0부터 셈)
 var hauled := PackedInt32Array([0, 0, 0, 0])
 ## 도감: 처음 본 것 id → true (Discovery.ENTRIES의 id)
@@ -33,7 +35,7 @@ func add_credits(amount: int) -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen, "warp_seen": warp_seen,
+	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen, "warp_seen": warp_seen, "drag_hint_seen": drag_hint_seen,
 		"hauled": Array(hauled), "seen": seen.keys()}
 
 
@@ -70,6 +72,8 @@ static func from_dict(d: Variant) -> SaveData:
 	s.risk_tip_seen = typeof(tip) == TYPE_BOOL and tip  # 참/거짓이 아니면 안 본 것으로
 	var warp: Variant = d.get("warp_seen", false)
 	s.warp_seen = typeof(warp) == TYPE_BOOL and warp
+	var hint: Variant = d.get("drag_hint_seen", false)
+	s.drag_hint_seen = typeof(hint) == TYPE_BOOL and hint
 	var ups: Variant = d.get("upgrades", {})
 	if typeof(ups) == TYPE_DICTIONARY:
 		for u in Balance.BASE_UPGRADES:

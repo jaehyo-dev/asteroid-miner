@@ -1,13 +1,9 @@
 extends TestCase
-## 기지 전초기지 화면 (v0.6.0): 배치, 연구소 카드 문구, 격납고, 도감, 살아 있는 기지, 건물 열기·이륙, 저장 호환.
+## 기지 전초기지 화면 (v0.6.0, 칸 배치는 test_base_station.gd): 연구소 카드 문구, 격납고, 도감, 살아 있는 기지, 건물 열기·이륙, 저장 호환.
 
 const MainScene := preload("res://scenes/main.tscn")
 const RunScene := preload("res://scenes/run.tscn")
 
-## 확인할 화면 크기 (기지 화면 기준 해상도 단위 = App.base_size_for(창, true)):
-## PC 1280x720, 휴대폰 가로 844x390 → 1558x720, 위아래로 긴 PC 창(1000x900 → 1280x1152), 정사각형 창(→ 1280x1280), 아주 넓은 창(2560x720).
-## 게임은 가로 고정이라 세로 창은 안내 화면만 보인다 (test_app.gd). expand라 폭은 1280보다 작아지지 않는다.
-const SIZES := [Vector2(1280, 720), Vector2(1558, 720), Vector2(1280, 1152), Vector2(1280, 1280), Vector2(2560, 720)]
 ## 손가락으로 누르기 쉬운 최소 크기: 휴대폰은 기준 720 → 화면 약 390px(0.54배)이므로 88이면 약 48px
 const MIN_TOUCH := Vector2(88, 88)
 
@@ -21,77 +17,6 @@ func _main() -> Control:
 
 
 # ── 배치 ────────────────────────────────────────────
-
-func test_건물과_이름표가_화면_안에_있고_서로_겹치지_않음() -> void:
-	for size in SIZES:
-		var rects := BaseLayout.rects(size)
-		var screen := Rect2(Vector2(0, BaseLayout.TOP_BAR), size - Vector2(0, BaseLayout.TOP_BAR + BaseLayout.BOTTOM_BAR))  # 위: 보유 광물 줄, 아래: 버전 글자
-		var touch := {}
-		for id in BaseLayout.IDS:
-			var t := BaseLayout.touch_rect(id, rects[id])
-			touch[id] = t
-			assert_true(screen.encloses(t), "%s %s 화면 밖: %s" % [size, id, t])
-			assert_true(t.size.x >= MIN_TOUCH.x and t.size.y >= MIN_TOUCH.y, "%s %s 너무 작음" % [size, id])
-		for i in BaseLayout.IDS.size():
-			for j in range(i + 1, BaseLayout.IDS.size()):
-				var a: String = BaseLayout.IDS[i]
-				var b: String = BaseLayout.IDS[j]
-				assert_false(touch[a].intersects(touch[b]), "%s %s와 %s 겹침" % [size, a, b])
-
-
-func test_위_건물은_착륙장_위_옆_건물은_착륙장_아래쪽() -> void:
-	var r := BaseLayout.rects(Vector2(1280, 720))
-	for id in ["research", "hangar", "drone"]:
-		assert_true(r[id].end.y < r["ship"].position.y + 20.0, "%s는 착륙장 위쪽" % id)
-	for id in ["storage", "museum"]:
-		assert_true(r[id].get_center().y > r["ship"].get_center().y, "%s는 착륙장 아래쪽" % id)
-
-
-func test_이름표는_건물_그림_바깥이고_다른_건물도_가리지_않음() -> void:
-	for size in SIZES:
-		var r := BaseLayout.rects(size)
-		for id in BaseLayout.IDS:
-			var lr := BaseLayout.label_rect(id, r[id])
-			assert_eq(lr.get_center().x, r[id].get_center().x, "%s 이름표 가운데" % id)
-			for other in BaseLayout.IDS:
-				assert_false(lr.intersects(r[other]), "%s %s 이름표가 %s 건물을 가림" % [size, id, other])
-
-
-func test_곧_개방_표지는_건물과_이름표와_다른_건물에_겹치지_않음() -> void:
-	for size in SIZES:
-		var r := BaseLayout.rects(size)
-		var sign_box := BaseLayout.sign_rect(r["drone"], 84.0)
-		for id in BaseLayout.IDS:
-			assert_false(sign_box.intersects(r[id]), "%s 표지가 %s 건물과 겹침" % [size, id])
-			assert_false(sign_box.intersects(BaseLayout.label_rect(id, r[id])), "%s 표지가 %s 이름표와 겹침" % [size, id])
-
-
-func test_건물_자리와_글자는_2픽셀_격자에_맞음() -> void:
-	assert_eq(BaseLayout.FONT_SIZE, 12 * BaseLayout.PIXEL, "픽셀 글꼴(12px)의 정수 배")
-	for size in SIZES:
-		for id in BaseLayout.IDS:
-			var r: Rect2 = BaseLayout.rects(size)[id]
-			assert_eq(fmod(r.position.x, BaseLayout.PIXEL), 0.0, "%s %s x" % [size, id])
-			assert_eq(fmod(r.position.y, BaseLayout.PIXEL), 0.0, "%s %s y" % [size, id])
-			assert_eq(r.size, BaseLayout.sprite_size(BaseLayout.SPRITES[id]) * BaseLayout.PIXEL, "그림 크기 그대로 2배")
-
-
-func test_건물_폭은_화면_폭의_12에서_13퍼센트() -> void:
-	# v0.6.6 목표: 건물·착륙장이 1280 폭 화면의 12~13% (그림 폭 × 격자)
-	for id in BaseLayout.IDS:
-		var ratio: float = BaseLayout.rects(Vector2(1280, 720))[id].size.x / 1280.0
-		assert_true(ratio >= 0.12 and ratio <= 0.13, "%s 폭 %.1f%%" % [id, ratio * 100.0])
-
-
-func test_지면은_무대_크기_한_장이고_건물은_소행성_안에_있음() -> void:
-	assert_eq(BaseLayout.sprite_size("ground_landscape") * BaseLayout.PIXEL, BaseLayout.STAGE, "가로 지면 = 무대")
-	# 소행성 모양(가운데 타원): 건물 그림 네 모서리가 타원 안에 있어야 함 (가로 화면, 소행성은 화면의 약 75%)
-	for id in BaseLayout.IDS:
-		var r: Rect2 = BaseLayout.rects(Vector2(1280, 720))[id]
-		for c: Vector2 in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
-			var d := (c - Vector2(640, 360)) / Vector2(640 * 0.74, 360 * 0.72)
-			assert_true(d.length() <= 1.0, "%s 모서리 %s가 소행성 밖" % [id, c])
-
 
 func test_기지_그림은_정리된_픽셀_아트() -> void:
 	# tools/pixelate.py로 정리했는지: 투명도는 0 또는 1만, 색은 24가지 이하
@@ -120,17 +45,6 @@ func test_기지_화면에서만_2배_기준_해상도() -> void:
 	await wait_frames()
 	assert_false(App.base_mode, "기지를 나가면 원래대로")
 
-
-func test_누르는_자리_버튼이_그림_자리에_놓임() -> void:
-	var main: Control = await _main()
-	var rects := BaseLayout.rects(main.view.size)
-	for id in BaseLayout.IDS:
-		var b: Button = main.spot_buttons[id]
-		assert_eq(Rect2(b.position, b.size), BaseLayout.touch_rect(id, rects[id]), id)
-	main.queue_free()
-
-
-# ── 연구소 카드 문구 ──────────────────────────────────
 
 func test_연구소_카드의_바뀌는_값과_단계_칸() -> void:
 	assert_eq(BaseUpgrades.change_text("max_hp", 2), "체력 120 → 130")
@@ -321,31 +235,9 @@ func test_전체_화면_버튼은_손가락으로_누를_크기() -> void:
 	var b: Button = main.fullscreen_button
 	b.show()
 	await wait_frames()
-	assert_true(b.size.x >= MIN_TOUCH.x and b.size.y >= MIN_TOUCH.y, "전체 화면 버튼 %s" % b.size)
+	var on_screen: Vector2 = b.size * main.stage.scale
+	assert_true(on_screen.x >= MIN_TOUCH.x and on_screen.y >= MIN_TOUCH.y, "전체 화면 버튼 %s" % on_screen)
 	main.queue_free()
-
-
-func test_길은_금속판과_배관이_건물_입구에_닿음() -> void:
-	var main: Control = await _main()
-	var view: BaseView = main.view
-	for id in BaseLayout.IDS:
-		if id == "ship":
-			continue
-		var end: Vector2 = view._path_ends[id]
-		assert_true(view.rects[id].grow(BaseLayout.PIXEL * 4.0).has_point(end), "%s 길 끝 %s가 건물에 닿지 않음" % [id, end])
-	var colors := {}
-	for c in view._path_cells:
-		colors[c[1]] = true
-	assert_true(colors.has(BaseView.PATH_RIM) and colors.has(BaseView.PIPE) and colors.has(BaseView.CABLE), "금속판 테두리·배관·케이블 색")
-	assert_false(colors.has(BaseView.YELLOW) and colors.size() < 4, "노란 점선 막대만 있는 길이 아님")
-	main.queue_free()
-
-
-func test_접지_그림자는_건물_위쪽일수록_오른쪽_아래로_밀림() -> void:
-	var xf := BaseView.shadow_transform(300.0)
-	assert_eq(xf * Vector2(100, 300), Vector2(100, 300), "아랫변은 제자리")
-	var top: Vector2 = xf * Vector2(100, 200)
-	assert_true(top.x > 100.0 and top.y > 300.0, "위쪽 점은 오른쪽·아래 %s" % top)
 
 
 func test_건물_화면은_닫기와_Esc로_닫힘() -> void:

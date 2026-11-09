@@ -19,6 +19,8 @@ var warp_intro := false
 var landing := false
 ## 귀환 결과 {title, body}: 기지가 착륙을 마친 뒤 띄운다 (저장은 넘어오기 전에 끝나 있다)
 var return_result := {}
+## 임시 건물 5채를 더한 기지 모습 (캡처·확인용, 웹 주소 ?base10)
+var base_debug_busy := false
 ## 플레이어 설정 (화면 흔들림, 효과음·배경음 크기, FPS 표시). 바꾸면 apply_settings()로 적용하고 save_file()로 저장한다.
 var settings := GameSettings.load_file()
 
@@ -125,6 +127,14 @@ static func register_actions() -> void:
 ## 기준 해상도: 항상 가로용. 기지 화면은 2배. (세로 창은 안내 화면만 보이므로 따로 없음)
 static func base_size_for(_window_size: Vector2i, base_screen: bool = false) -> Vector2i:
 	return Balance.BASE_LANDSCAPE * BASE_SCREEN_SCALE if base_screen else Balance.BASE_LANDSCAPE
+
+
+## 기지 풍경의 정수 배율: 출격 화면과 같은 기준, 범위 밖 창은 가장 가까운 정수 (1 이상). 건물 창·결과 창은 1280x720 격자에 그대로 둔다.
+static func base_pixel_scale(window_size: Vector2i) -> int:
+	var k := run_pixel_scale(window_size)
+	if k > 0:
+		return k
+	return maxi(1, roundi(minf(window_size.x / float(Balance.BASE_LANDSCAPE.x), window_size.y / float(Balance.BASE_LANDSCAPE.y))))
 
 
 ## 기지 화면에 들어오고 나갈 때 기준 해상도를 바꾼다.

@@ -14,30 +14,54 @@ def high_ratio(a: np.ndarray) -> float:
     return float(s[f > 3000].sum() / s.sum())
 
 
-def over4k(a: np.ndarray) -> float:
-    s = np.abs(np.fft.rfft(a)) ** 2
-    f = np.fft.rfftfreq(len(a), 1 / ms.SR)
-    return float(s[f > 4000].sum() / s.sum())
-
-
 class MakeSfxTest(unittest.TestCase):
-    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
-    def test_카드_선택_소리는_짧고_4kHz_위가_깎임(self):
-        for fn in (ms.pick_a, ms.pick_b):
-            a = fn()
-            self.assertLessEqual(len(a) / ms.SR, 0.25)
-            self.assertLess(over4k(a), 0.01)
+
+    @staticmethod
+    def _share(a, lo, hi):
+        spec = np.abs(np.fft.rfft(a.mean(axis=1))) ** 2
+        f = np.fft.rfftfreq(len(a), 1 / ms.SR)
+        return spec[(f >= lo) & (f < hi)].sum() / spec.sum()
+
+    @staticmethod
+    def _centroid(a):
+        spec = np.abs(np.fft.rfft(a.mean(axis=1))) ** 2
+        return (spec * np.fft.rfftfreq(len(a), 1 / ms.SR)).sum() / spec.sum()
+
+    @staticmethod
+    def _tail(a):
+        """가장 큰 곳 뒤 -30dB까지 걸리는 시간"""
+        e = np.abs(a).max(axis=1)
+        return (np.where(e > e.max() * 10 ** (-30 / 20))[0][-1] - e.argmax()) / ms.SR
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
-    def test_카드_등장_세트는_6개이고_4kHz_위가_깎이며_같은_결과(self):
-        for key in "ab":
-            sounds = ms.show_set(key)
-            self.assertEqual(set(sounds), set(ms.CARD_SOUND_DB))
-            for name, a in sounds.items():
-                self.assertLess(over4k(a), 0.01, name)
-            self.assertAlmostEqual(len(sounds["card_gather"]) / ms.SR, 0.3, places=2)
-            self.assertTrue(np.array_equal(sounds["card_flip"], ms.show_set(key)["card_flip"]))
-        self.assertFalse(np.array_equal(ms.show_set("a")["card_epic"], ms.show_set("b")["card_epic"]))
+    def test_카드_선택은_몸통과_또렷함과_꼬리가_있음(self):
+        for key in ms.CARD_STYLES:
+            a = ms.pick_d(key)
+            self.assertLess(self._share(a, 0, 80), 0.005, "80Hz 아래 없음")
+            self.assertLess(self._share(a, 9000, ms.SR / 2), 0.01, "9kHz 위 부드럽게")
+            self.assertGreater(self._share(a, 150, 600), 0.15, "중간 저음 몸통")
+            self.assertGreater(self._share(a, 2000, 5000), 0.1, "금속 또렷함")
+            self.assertGreater(self._centroid(a), 900, "a·b(373~487Hz)처럼 둔탁하지 않게")
+            self.assertTrue(0.25 <= self._tail(a) <= 0.55, "잔향 꼬리 약 0.4초")
+            self.assertTrue(np.array_equal(a, ms.pick_d(key)), "같은 결과")
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
+    def test_카드_등장은_등급이_오를수록_몸통과_잔향이_커짐(self):
+        for key in ms.CARD_STYLES:
+            s = ms.show_d(key)
+            self.assertEqual(set(s), set(ms.CARD_SOUND_DB))
+            for name, a in s.items():
+                self.assertLess(self._share(a, 0, 80), 0.005, name)
+                self.assertLess(self._share(a, 9000, ms.SR / 2), 0.03, name)
+            order = ["card_rare", "card_epic", "card_unique", "card_legendary"]
+            tails = [self._tail(s[n]) for n in order]
+            self.assertEqual(tails, sorted(tails), "잔향이 커짐")
+            for n in ("card_unique", "card_legendary"):
+                self.assertGreater(self._share(s[n], 150, 600), 0.2, n + " 몸통")
+                sd = (s[n][:, 0] - s[n][:, 1]) / 2
+                self.assertGreater(float(np.sqrt((sd ** 2).mean() / (s[n].mean(axis=1) ** 2).mean())), 0.5, n + " 좌우로 넓게")
+            self.assertAlmostEqual(len(s["card_swell"]) / ms.SR, ms.SWELL_TIME, places=2)
+            self.assertAlmostEqual(len(s["card_gather"]) / ms.SR, ms.LEGEND_REVEAL_GAP, places=2)
 
     def test_꼬리를_자르면_길이가_맞고_끝이_0(self):
         a = np.ones(ms.SR, np.float32)

@@ -1,83 +1,166 @@
 class_name BaseLayout
 extends RefCounted
-## 기지 화면 배치 (가로 고정, 1280x720 기준. 폰도 같은 가로 배치를 쓴다: v0.6.6에서 세로 전용 배치를 없앰).
-## 모든 그림은 tools/pixelate.py로 정리한 픽셀 아트이고, 그림 1픽셀 = 화면 PIXEL픽셀로 그린다.
-## 건물 폭은 화면 폭의 12~13% (2픽셀 격자, 그림 폭 78~83). 크기는 그림 파일 크기에서 읽고, 가운데 위치만 화면 비율로 정한다.
-## 배치는 콘셉트 그림 1(위 3채, 가운데 착륙장, 아래 2채)을 따른다.
+## 기지 정거장 배치: 네모 격자 칸 ↔ 건물, 칸 → 좌표, 지도 끝, 끌어서 둘러보기 범위. 화면·노드와 분리된 계산만 둔다.
+## 단위는 "그림 픽셀": 화면은 정수 배율(PC 2배, 폰 1배)로 키우고 그림 1픽셀 = 격자 1칸이다 (App.base_pixel_scale).
+## 좌표계: 착륙장 가운데가 원점인 지도 좌표. BaseView가 그리고, 버튼도 같은 좌표에 놓는다.
 
-## 그림 1픽셀 = 화면 몇 픽셀 (글자도 픽셀 글꼴 12px의 2배인 24px)
-const PIXEL := 2
-## 픽셀 글꼴 크기 (Galmuri11 기본 12px × PIXEL)
-const FONT_SIZE := 12 * PIXEL
-## 건물 안 화면(BasePanel)과 안내 문구는 읽기 편하게 따로 3배 격자 (풍경 그림과는 따로 놓인 화면)
+## 건물 안 화면(BasePanel)과 안내 문구는 읽기 편하게 따로 3배 격자 (풍경과 따로 놓인 화면)
 const UI_PIXEL := 3
 const UI_FONT_SIZE := 12 * UI_PIXEL
-## 그림 폴더
-const SPRITE_DIR := "res://assets/sprites/base/"
+const SPRITE_DIR := "res://assets/sprites/station/"
+## 연구소 부품·광물 더미·조종사 그림 (v0.6 그림을 그대로 씀)
+const OLD_SPRITE_DIR := "res://assets/sprites/base/"
 
-## 우주선 착륙장과 건물 id (그리는 순서: 위쪽 건물부터)
+## 우주선 착륙장과 건물 id
 const IDS := ["research", "hangar", "drone", "ship", "storage", "museum"]
 ## 건물 이름표
-const NAMES := {"ship": "출격", "research": "연구소", "hangar": "격납고", "storage": "광물 창고", "museum": "전시관", "drone": "드론 공장"}
-## id → 그림 파일 (착륙장 자리는 착륙장 그림 크기)
-const SPRITES := {"ship": "pad", "research": "research", "hangar": "hangar", "storage": "storage", "museum": "museum", "drone": "drone_factory"}
-## 위쪽 보유 광물 줄 높이, 아래쪽 버전 글자 줄 높이
-const TOP_BAR := 54.0
-const BOTTOM_BAR := 48.0
-## 이름표 높이 (글자 24 + 위아래 여백)
-const LABEL_HEIGHT := 32.0
-## 이름표와 건물 그림 사이 틈
-const LABEL_GAP := 2.0
-## "곧 개방" 표지와 건물 그림 사이 틈
-const SIGN_GAP := 6.0
+const NAMES := {"ship": "착륙장", "research": "연구소", "hangar": "격납고", "storage": "광물 창고", "museum": "전시관", "drone": "드론 공장"}
+## 건물 ↔ 칸 (열, 행). 착륙장은 0열 위아래 3칸을 차지한다
+const CELLS := {"research": Vector2i(-1, -1), "hangar": Vector2i(1, -1), "drone": Vector2i(-1, 0), "museum": Vector2i(1, 0), "storage": Vector2i(-1, 1)}
+const PAD_ROWS := [-1, 0, 1]
+## 건물이 늘어날 때 채우는 칸 순서 (앞쪽 빈 칸 EMPTY_SHOWN개만 "건설 예정"으로 보인다)
+const NEXT_SLOTS: Array[Vector2i] = [Vector2i(1, 1), Vector2i(2, 0), Vector2i(-2, 0), Vector2i(2, -1), Vector2i(-2, -1), Vector2i(2, 1), Vector2i(-2, 1)]
+const EMPTY_SHOWN := 2
+## 임시 건물 5채를 더한 디버그 모습 (App.base_debug_busy, 웹 주소 ?base10). 8종뿐이라 2채는 연구소·창고 그림을 다시 쓴다
+const DEBUG_EXTRA := {"weapon": Vector2i(1, 1), "planet": Vector2i(2, -1), "evolve": Vector2i(2, 0), "research": Vector2i(-2, -1), "storage": Vector2i(-2, 0)}
+const DEBUG_NAMES := {"weapon": "보조 무기 연구소", "planet": "행성 관제소", "evolve": "진화 도감 실험실", "research": "연구소", "storage": "광물 창고"}
 
-## 가로 화면 배치 (승인된 콘셉트 v0.6.3, 1280x720 무대 기준): id → [가운데 x, 그림 아래 y]
-## 무대는 화면 가운데에 놓이고, 더 큰 화면은 별 배경이 채운다. 소행성이 화면의 약 75%로 줄어든 만큼 콘셉트 배치(건물 사이 비율)를 같은 비율로 소행성 중심에 모았다.
-const STAGE := Vector2(1280, 720)
-const LANDSCAPE_POS := {
-	"research": [382, 330], "hangar": [620, 271], "drone": [879, 307],
-	"ship": [623, 426], "storage": [366, 507], "museum": [874, 512],
-}
-
-static var _sizes: Dictionary = {}
-
-
-## 그림 크기 (그림 픽셀 단위)
-static func sprite_size(name: String) -> Vector2:
-	if not _sizes.has(name):
-		var tex: Texture2D = load(SPRITE_DIR + name + ".png")
-		_sizes[name] = tex.get_size()
-	return _sizes[name]
+## 칸 간격: PC는 착륙장 + 둘레 6칸이 한 화면, 폰은 글자가 2배라 넓게
+const PITCH_SMALL := Vector2i(172, 104)
+const PITCH_LARGE := Vector2i(232, 100)
+## 갑판 크기 (tools/bake_base.py가 구운 크기)
+const PLATE := Vector2i(128, 88)
+## 건물 그림이 갑판 가운데보다 아래로 내려오는 양 (앞마당에 이름 글자 자리가 남음). 폰은 글자가 2배라 건물을 더 올린다
+const BUILD_FOOT_SMALL := 20
+const BUILD_FOOT_LARGE := 12
+## 착륙장 고리 누르는 자리 (착륙장 전체를 누르면 실수로 출격하기 쉬워 가운데만)
+const RING_TOUCH := Vector2i(96, 96)
+## 지도 끝 여유: 둘레 띠 바깥으로 돌과 꾸밈이 보이는 폭
+const MAP_MARGIN := Vector2i(56, 20)
+## 첫 화면에서 착륙장을 아래로 내리는 양 (위쪽 바 몫)
+const CENTER_DROP := 8
 
 
-## 화면 픽셀 값을 그림 격자(PIXEL의 배수)에 맞춘다
-static func snap(v: Vector2) -> Vector2:
-	return (v / PIXEL).round() * PIXEL
+## 건물 그림 아래 (칸 가운데 기준). 이름 글자가 이 아래에 놓인다
+static func build_foot(large: bool) -> int:
+	return BUILD_FOOT_LARGE if large else BUILD_FOOT_SMALL
 
 
-## id → 그림 자리 Rect2 (화면 픽셀, 격자에 맞춤). 무대(1280x720)를 화면 가운데에 놓는다.
-static func rects(size: Vector2) -> Dictionary:
-	var off := (size - STAGE) / 2.0
-	var out := {}
-	for id in IDS:
-		var pos: Array = LANDSCAPE_POS[id]
-		var s := sprite_size(SPRITES[id]) * PIXEL
-		out[id] = Rect2(snap(off + Vector2(pos[0] - s.x / 2.0, pos[1] - s.y)), s)
+## 칸 간격
+static func pitch(large: bool) -> Vector2i:
+	return PITCH_LARGE if large else PITCH_SMALL
+
+
+## 칸 가운데 (지도 좌표)
+static func cell_center(cell: Vector2i, large: bool) -> Vector2:
+	return Vector2(cell * pitch(large))
+
+
+## 건설 예정 칸: 건물이 없는 NEXT_SLOTS 앞쪽 count개
+static func next_slots(built: Array, count: int = EMPTY_SHOWN) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for s in NEXT_SLOTS:
+		if not built.has(s) and out.size() < count:
+			out.append(s)
 	return out
 
 
-## 이름표 자리: 건물 바로 위 (착륙장은 바로 아래). 건물 그림에 걸치지 않는다.
-static func label_rect(id: String, rect: Rect2) -> Rect2:
-	var y := rect.end.y + LABEL_GAP if id == "ship" else rect.position.y - LABEL_HEIGHT - LABEL_GAP
-	return Rect2(rect.position.x, y, rect.size.x, LABEL_HEIGHT)
+## 정거장 칸 전체: 건물 + 임시 건물 + 건설 예정 + 착륙장 3칸
+static func station_cells(busy: bool) -> Array[Vector2i]:
+	var built: Array = CELLS.values()
+	if busy:
+		built.append_array(DEBUG_EXTRA.values())
+	var out: Array[Vector2i] = []
+	for c in built:
+		out.append(c)
+	out.append_array(next_slots(built))
+	for r in PAD_ROWS:
+		out.append(Vector2i(0, r))
+	return out
 
 
-## 누르는 자리: 그림 + 이름표 (손가락으로 누르기 쉽게)
-static func touch_rect(id: String, rect: Rect2) -> Rect2:
-	return rect.merge(label_rect(id, rect))
+## 칸 하나가 차지하는 둘레 사각형 (이웃 칸과 빈틈없이 닿는다)
+static func cell_block(cell: Vector2i, large: bool) -> Rect2:
+	var p := Vector2(pitch(large))
+	return Rect2(cell_center(cell, large) - p / 2.0, p)
 
 
-## 드론 공장 "곧 개방" 표지: 건물 그림 바로 아래 오른쪽 끝 (건물·이름표·길과 겹치지 않음)
-static func sign_rect(rect: Rect2, text_width: float) -> Rect2:
-	var w := text_width + PIXEL * 4.0
-	return Rect2(snap(Vector2(rect.end.x - w, rect.end.y + SIGN_GAP)), snap(Vector2(w, PIXEL * 14.0)))
+## 정거장 맨 바깥 둘레 선분: 이웃이 없는 칸 변만. [시작, 끝, 변 방향(Vector2i: 위 (0,-1) 등)]
+static func outline(cells: Array[Vector2i], large: bool) -> Array:
+	var out := []
+	for c in cells:
+		var r := cell_block(c, large)
+		for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			if cells.has(c + d):
+				continue
+			match d:
+				Vector2i.UP:
+					out.append([r.position, Vector2(r.end.x, r.position.y), d])
+				Vector2i.DOWN:
+					out.append([Vector2(r.position.x, r.end.y), r.end, d])
+				Vector2i.LEFT:
+					out.append([r.position, Vector2(r.position.x, r.end.y), d])
+				Vector2i.RIGHT:
+					out.append([Vector2(r.end.x, r.position.y), r.end, d])
+	return out
+
+
+## 지도 전체 사각형: 둘레 + 여유
+static func map_rect(cells: Array[Vector2i], large: bool) -> Rect2:
+	var r := cell_block(cells[0], large)
+	for c in cells:
+		r = r.merge(cell_block(c, large))
+	return r.grow_individual(MAP_MARGIN.x, MAP_MARGIN.y, MAP_MARGIN.x, MAP_MARGIN.y)
+
+
+## 건물 그림 자리. 그림 아래 가운데가 칸 가운데 + BUILD_FOOT
+static func building_rect(cell: Vector2i, sprite: Vector2, large: bool) -> Rect2:
+	var foot := cell_center(cell, large) + Vector2(0, build_foot(large))
+	return Rect2((foot - Vector2(sprite.x / 2.0, sprite.y)).round(), sprite)
+
+
+## 갑판 자리
+static func plate_rect(cell: Vector2i, large: bool) -> Rect2:
+	return Rect2(cell_center(cell, large) - Vector2(PLATE) / 2.0, PLATE)
+
+
+## 누르는 자리 (지도 좌표)
+static func touch_rect(id: String, large: bool) -> Rect2:
+	if id == "ship":
+		return Rect2(-Vector2(RING_TOUCH) / 2.0, RING_TOUCH)
+	var p := plate_rect(CELLS[id], large)
+	var h := float(pitch(large).y)  # 건물 지붕까지 누를 수 있게 위로 늘리되 윗칸과 겹치지 않게
+	return Rect2(p.position.x, p.end.y - h, p.size.x, h)
+
+
+## 화면 가운데에 착륙장을 둘 때 지도 원점의 화면 위치
+static func center_origin(view: Vector2) -> Vector2:
+	return (view / 2.0).floor() + Vector2(0, CENTER_DROP)
+
+
+## 끌기 범위: cam은 첫 화면에서 옮긴 양. 지도 끝이 화면 끝에 닿으면 멈춘다. 지도가 화면보다 작은 쪽은 0 (착륙장이 가운데인 채로).
+static func clamp_cam(cam: Vector2, map: Rect2, view: Vector2) -> Vector2:
+	var o := center_origin(view)
+	var lo := Vector2(minf(view.x - o.x - map.end.x, 0.0), minf(view.y - o.y - map.end.y, 0.0))
+	var hi := Vector2(maxf(-o.x - map.position.x, 0.0), maxf(-o.y - map.position.y, 0.0))
+	return Vector2(clampf(cam.x, lo.x, hi.x), clampf(cam.y, lo.y, hi.y)).round()
+
+
+## 끌어서 볼 곳이 있는지 (안내를 띄울지)
+static func can_pan(map: Rect2, view: Vector2) -> bool:
+	var big := Vector2(1e6, 1e6)
+	return clamp_cam(big, map, view) != Vector2.ZERO or clamp_cam(-big, map, view) != Vector2.ZERO
+
+
+## rect(지도 좌표)가 화면에 보이도록 cam을 최소한으로 옮긴다 (키보드로 화면 밖 건물을 고를 때)
+static func reveal_cam(cam: Vector2, rect: Rect2, map: Rect2, view: Vector2, top: float, bottom: float) -> Vector2:
+	var o := center_origin(view) + cam
+	var c := cam
+	c.x += maxf(-(o.x + rect.position.x), 0.0) + minf(view.x - (o.x + rect.end.x), 0.0)
+	c.y += maxf(top - (o.y + rect.position.y), 0.0) + minf(view.y - bottom - (o.y + rect.end.y), 0.0)
+	return clamp_cam(c, map, view)
+
+
+## 출격 버튼 자리: 착륙장 앞(anchor)을 따라다니되 화면 안(위아래 바 사이)에 남는다
+static func sortie_pos(anchor: Vector2, button: Vector2, view: Vector2, top: float, bottom: float) -> Vector2:
+	return Vector2(clampf(anchor.x - button.x / 2.0, 4.0, view.x - button.x - 4.0), clampf(anchor.y - button.y, top, view.y - bottom - button.y)).round()
