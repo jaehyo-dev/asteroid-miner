@@ -1,0 +1,14 @@
+; 격납고 전투기 회전 비교용 작은 프로젝트 (게임과 별개, review/는 .gdignore로 게임에서 빠져 있음)
+config_version=5
+[application]
+config/name="spin3d"
+run/main_scene="res://spin.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+[display]
+window/size/viewport_width=384
+window/size/viewport_height=336
+window/stretch/mode="disabled"
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
