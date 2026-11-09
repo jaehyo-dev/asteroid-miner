@@ -51,6 +51,8 @@ var _launch_phase := WarpJump.Phase.TAKEOFF
 var _launch_done := false
 ## 점프·착륙 때 화면 전체를 덮는 흰 번쩍임
 var _white := ColorRect.new()
+## 점프 속도선 (풍경 위, 고정 UI 아래. 끌어도 화면에 붙어 있게 Stage에 둔다)
+var _speed_lines := Control.new()
 ## 귀환 결과 창 (착륙이 끝나면 기지 위에 뜬다)
 var result_menu := MenuPanel.new()
 var _pending_result := {}
@@ -115,6 +117,10 @@ func _ready() -> void:
 	_white.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_white)
 	_white.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_speed_lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_speed_lines.draw.connect(_draw_speed_lines)
+	stage.add_child(_speed_lines)
+	stage.move_child(_speed_lines, hud.get_index())
 	result_menu.ui_scale = BaseLayout.UI_PIXEL
 	result_menu.chosen.connect(_on_result_chosen)
 	add_child(result_menu)
@@ -247,8 +253,15 @@ func _step_launch() -> void:
 		elif phase == WarpJump.Phase.JUMP:
 			Sfx.play_warp_done()
 	_white.modulate.a = WarpJump.base_white(t)
+	_speed_lines.queue_redraw()
 	if t >= BaseView.LAUNCH_TIME:
 		_finish_launch(true)
+
+
+func _draw_speed_lines() -> void:
+	var strength := WarpJump.speed_lines(WarpJump.jump(view.launch_t))
+	if strength > 0.0:
+		WarpTunnel.draw_streaks(_speed_lines, stage.size, view.launch_t, strength)
 
 
 ## with_tunnel: 끝까지 봤으면 터널이 이어지고, 건너뛰었으면 바로 출격 화면

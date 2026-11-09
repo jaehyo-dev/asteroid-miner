@@ -1,7 +1,7 @@
 extends TestCase
 ## 효과음 (Kenney 팩을 다듬은 wav, tools/make_sfx.py): 파일·라이선스, 동시 재생 수 제한, 음 높이 랜덤, 연속 줍기 음 높이, 행동별 소리 이름
 
-const PACKS := ["kenney_sci-fi", "kenney_impact", "kenney_interface"]
+const PACKS := ["kenney_sci-fi", "kenney_impact", "kenney_interface", "zer0_sol_reload"]
 
 
 func _stop_all() -> void:

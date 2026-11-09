@@ -63,6 +63,8 @@ const BUG_COLOR := Color("#a5cc5f")
 ## 효과 연출 색: 관통 불꽃, 튕김 궤적, 연쇄 번개, 폭발, 채굴 레이저, 실드 금색과 조각 색, 과부하 붉은빛, 비콘 고리
 const PIERCE_COLOR := Color("#f6ce50")
 const BOUNCE_COLOR := Color("#99e9e6")
+## 귀환 빛줄기·속도선 색
+const GATE_LINE := Color("#99e9e6")
 const CHAIN_COLOR := Color("#a884f3")
 const EXPLODE_COLOR := Color("#f89419")
 const LASER_COLOR := Color("#30e1b9")
@@ -597,20 +599,33 @@ static func damage_stage(hp: float, max_hp: float) -> int:
 	return 3
 
 
-## 귀환 성공: 우주선이 게이트 쪽으로 길게 늘어나며 가운데로 빨려 들어간다 (6단계 워프 점프에서 다시 만듦)
+## 귀환 성공: 우주선이 그림 크기 그대로(ART_BIBLE 1번) 게이트로 끌려 들어간다. 잔상 + 엔진 빛줄기 + 모여드는 속도선
 func _draw_ship_warp() -> void:
 	var k := gate_fx.suck() if gate_fx != null else 1.0
 	if k >= 1.0:
 		return
-	var target := sim.gate.pos
-	var pos := sim.player_pos.lerp(target, k * k)
-	var angle := (target - sim.player_pos).angle() if sim.player_pos.distance_to(target) > 0.5 else sim.facing
-	draw_set_transform(pos.round(), angle + PI / 2.0, Vector2(1.0 - 0.75 * k, 1.0 + 3.5 * k))
-	var c: int = RunSprites.CELL["ship"]
-	var src := RunSprites.region("ship", damage_stage(sim.hp, sim.max_hp))
-	src.position += RunSprites.entry_rect("ship").position
-	draw_texture_rect_region(RunSprites.atlas(0), Rect2(-Vector2(c, c) / 2.0, Vector2(c, c)), src, Color(1, 1, 1, 1.0 - smoothstep(0.7, 1.0, k)))
-	draw_set_transform(Vector2.ZERO)
+	var start := sim.player_pos
+	var angle := (sim.gate.pos - start).angle() if start.distance_to(sim.gate.pos) > 0.5 else sim.facing
+	# 게이트 안에서 충전하니 가운데까지는 아주 가깝다. 가운데를 지나 더 뻗어야 잔상이 보인다
+	var target := sim.gate.pos + Vector2.from_angle(angle) * Juice.WARP_SUCK_OVERSHOOT
+	var dir := PixelArt.dir8(angle + PI / 2.0)
+	var stage := damage_stage(sim.hp, sim.max_hp)
+	var fade := 1.0 - smoothstep(0.7, 1.0, k)
+	var pos := start.lerp(target, k * k)
+	for i in Juice.WARP_SUCK_LINES:
+		# 줄마다 고정된 방향·거리 (i로 계산해 상태가 없음). 게이트 쪽으로 빨려 든다
+		var a := absi(hash(i * 7919))
+		var away := Vector2.from_angle(float(a % 628) / 100.0) * (24.0 + float(a % 60) + (1.0 - fposmod(k * 2.0 + float(a % 7) / 7.0, 1.0)) * 100.0)
+		RunSprites.line(self, (sim.gate.pos + away).round(), (sim.gate.pos + away * (1.0 + Juice.WARP_SUCK_LINE_LEN / away.length())).round(), Color(GATE_LINE, minf(k * 2.0, 1.0) * fade))
+	if start.distance_to(pos) >= 1.0:
+		RunSprites.line(self, start.round(), pos.round(), Color(GATE_LINE, 0.5 * fade), 3.0)
+		RunSprites.line(self, start.round(), pos.round(), Color(1, 1, 1, 0.9 * fade))
+	for i in range(Juice.WARP_GHOSTS, 0, -1):
+		var ghost := WarpJump.ghost_alpha(k, i)
+		if ghost > 0.0:
+			var g := WarpJump.ghost_progress(k, i)
+			RunSprites.draw(self, "ship", stage, dir, start.lerp(target, g * g), Color(0.6, 0.95, 1.0, ghost * fade))
+	RunSprites.draw(self, "ship", stage, dir, pos, Color(1, 1, 1, fade))
 
 
 ## 내 우주선 (팩 Main Ship): 엔진 불꽃(빠르면 출력, 느리면 대기) → 엔진 → 자동 포(쏠 때 총구 불꽃) → 몸(피해 단계).

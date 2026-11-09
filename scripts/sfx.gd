@@ -45,7 +45,7 @@ const SOUNDS := {
 	"card_swell": {"files": ["card_swell"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_gather": {"files": ["card_gather"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_legendary": {"files": ["card_legendary"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
-	"card_pick": {"files": ["card_pick"], "db": -8.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"card_pick": {"files": ["card_pick"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	"open": {"files": ["card_show"], "db": -14.0, "pitch": 1.15, "jitter": 0.0, "max": 1},
 	"cargo_heavy": {"files": ["cargo_heavy"], "db": -5.0, "pitch": 0.9, "jitter": 0.0, "max": 1},

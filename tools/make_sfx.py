@@ -455,7 +455,7 @@ BREAKS = {
 ## 고른 후보 (사용자가 다른 것을 고르면 여기만 바꾸고 다시 실행)
 CHOICE = {"barrage": barrage_a, "levelup": lambda: levelup2("a"), "pickup": pickup_c, "jelly": jelly_a, "bug": bug_b}
 ## 고른 카드 소리 후보 (review/v070_step5/listen/). 사용자가 다른 것을 고르면 여기만 바꾸고 다시 실행
-CARD_CHOICE = {"pick": "e2", "show": "d2"}
+CARD_CHOICE = {"pick": "e3", "show": "d2"}
 ## 그대로 wav로 바꾸는 Kenney 소리: 게임 이름 → 원본
 COPY = {
     "shoot_0": "kenney_sci-fi/laserSmall_000", "shoot_1": "kenney_sci-fi/laserSmall_002",
@@ -512,7 +512,7 @@ def whoosh(dur: float, seed: int) -> np.ndarray:
 F3, AB3, C4, EB4, F4, AB4, C5_, EB5, F5, AB5, C6, EB6, F6, AB6 = 174.61, 207.65, 261.63, 311.13, 349.23, 415.30, 523.25, 622.25, 698.46, 830.61, 1046.5, 1244.51, 1396.91, 1661.22
 ## 게임 크기(dB), scripts/sfx.gd의 SOUNDS와 같게
 CARD_SOUND_DB = {"card_flip": -13.0, "card_rare": -14.0, "card_epic": -12.0, "card_swell": -13.0, "card_unique": -9.0, "card_gather": -13.0, "card_legendary": -8.0}
-CARD_PICK_DB = -8.0
+CARD_PICK_DB = -10.0
 SWELL_TIME = 0.16  # 앞면이 보일 때까지 (Juice.CARD_DROP_TIME + 뒤집기 절반): 유니크의 "쉬익"이 이 길이
 LEGEND_REVEAL_GAP = 0.34  # 모임이 시작되고 앞면이 보일 때까지 (Juice.CARD_LEGEND_GATHER + 뒤집기 절반)
 ## d1: 금속이 앞에 서는 단단한 쪽 (화음은 3음 없는 5도), d2: 화음이 앞에 서는 넓은 쪽 (3음을 넣고 잔향이 길다)
@@ -639,10 +639,14 @@ def pick_tail(st: dict) -> np.ndarray:
 
 ## 권총 슬라이드: 뒤로 "척"에서 앞으로 "컥"까지 (초). 사용자 요청 0.06~0.1초
 RACK_GAP = 0.08
-## e3 원본: zer0_sol "Handgun Reload Sound Effect" (CC0). 게임에는 들어가지 않아 review 아래에 둔다
-RACK_RECORDING = os.path.join(ROOT, "review/v070_step5/listen/src/reload.wav")
-RACK_RECORDING_FROM = 1.098  # 원본에서 슬라이드를 당기는 순간 (앞은 탄창 소리)
-RACK_RECORDING_TO = 1.5
+## e3 원본: zer0_sol "Handgun Reload Sound Effect" (CC0). 카드 선택 소리로 게임에 들어감 (원본 wav 자체는 내보내기에서 뺌)
+RACK_RECORDING = os.path.join(SRC, "zer0_sol_reload/reload.wav")
+## 슬라이드를 당기기 시작하는 순간. 앞 0.85~1.03초는 -55dB 아래로 조용하고(그 앞은 탄창 소리), 1.0315초에 소리가 시작된다.
+## 1.105초 뒤로 부딪힘, 1.185초 앞으로 닫힘. (예전 값 1.098은 당기는 첫 67ms를 잘랐다)
+RACK_RECORDING_FROM = 1.031
+RACK_RECORDING_TO = 1.42
+## 얇게 들리지 않을 만큼만 넣는 아주 짧은 실내 잔향 (길이 초, 섞는 양)
+RACK_ROOM = (0.1, 0.1)
 
 
 def rack_parts() -> list[tuple[float, np.ndarray]]:
@@ -668,8 +672,8 @@ def pick_e(key: str) -> np.ndarray:
     eq = "equalizer=f=450:t=q:w=1.2:g=12,equalizer=f=1200:t=q:w=1:g=5,highshelf=f=6500:g=-11:t=q:w=0.7,lowpass=f=12000"
     a = np.stack([ffx(a[:, ch], eq)[:len(a)] for ch in (0, 1)], axis=1)
     a = a / max(float(np.abs(a).max()), 1e-9)
-    a[:int(0.003 * SR)] *= np.linspace(0.0, 1.0, int(0.003 * SR))[:, None]  # 잘라 낸 자리의 튐 방지
-    return card_finish(a.astype(np.float32), 0.08)
+    a[:int(0.002 * SR)] *= np.linspace(0.0, 1.0, int(0.002 * SR))[:, None]  # 잘라 낸 자리의 튐 방지
+    return card_finish(room(a.astype(np.float32), RACK_ROOM[0], RACK_ROOM[1], 85), 0.08)
 
 
 def show_d(key: str) -> dict[str, np.ndarray]:
@@ -733,7 +737,7 @@ def listen5() -> None:
 
 def listen6() -> None:
     gap = stereo(silence(0.5))
-    for key in ("e1", "e2", "e3"):
+    for key in ("e3",):  # e1·e2는 고르지 않아 다시 만들지 않는다
         a = pick_e(key) * 10 ** (CARD_PICK_DB / 20.0)
         save(np.concatenate([a, gap, a, gap, a]), os.path.join(ROOT, f"review/v070_step5/listen/card_pick_{key}.ogg"), quality=6)
 

@@ -477,20 +477,33 @@ func _draw_ship_and_pilot() -> void:
 	if board < 1.0:
 		_sprite(pilot, pilot_foot.lerp(ship_foot - Vector2(0, P * 4), board), Color(1, 1, 1, 1.0 - board))
 	var k := WarpJump.lift(launch_t)
-	var foot := ship_foot - Vector2(0, k * Juice.WARP_HOVER_CELLS * P)
+	var hover := ship_foot - Vector2(0, k * Juice.WARP_HOVER_CELLS * P)
+	var jump := WarpJump.jump(launch_t)
+	var foot := _jump_foot(hover, WarpJump.jump_rise(jump))
 	if k > 0.0:
-		_draw_dust(ship_foot - Vector2(0, SHIP_PAD), k, 1.0 - WarpJump.jump(launch_t))
+		_draw_dust(ship_foot - Vector2(0, SHIP_PAD), k, 1.0 - jump)
 		var flame := 3 + int(k * 3) + int(WarpJump.charge(launch_t) * 5.0) + (1 if _blink(0.08) else 0)
 		_draw_flame(foot - Vector2(0, SHIP_PAD), flame)
-	var jump := WarpJump.jump(launch_t)
-	var nose := foot - Vector2(0, ship.get_height() - SHIP_PAD)
 	if jump > 0.0:
-		# 점프: 앞으로 길게 늘어나며 사라진다 (빛 효과라 잠깐 격자를 벗어남)
-		var s := ship.get_size() * P * Vector2(1.0 - 0.8 * jump, 1.0 + 7.0 * jump)
-		draw_texture_rect(ship, Rect2(foot - Vector2(s.x / 2.0, s.y + 35.0 * jump), s), false, Color(1.6, 1.6, 1.8, 1.0 - jump * jump))
-	else:
-		_sprite(ship, foot)
-		_draw_warp_glow(nose, WarpJump.charge(launch_t))
+		_draw_jump_trail(ship, hover, foot, jump)
+	_sprite(ship, foot)  # 점프 중에도 그림 크기는 그대로 (ART_BIBLE 1번 정수 배율)
+	_draw_warp_glow(foot - Vector2(0, ship.get_height() - SHIP_PAD), WarpJump.charge(launch_t) * (1.0 - jump))
+
+
+func _jump_foot(hover: Vector2, rise: float) -> Vector2:
+	return hover - Vector2(0, rise * Juice.WARP_JUMP_CELLS * P)
+
+
+## 점프: 떠 있던 자리부터 우주선까지 이어지는 엔진 빛줄기 + 뒤로 남는 잔상
+func _draw_jump_trail(ship: Texture2D, hover: Vector2, foot: Vector2, jump: float) -> void:
+	var top := foot - Vector2(0, SHIP_PAD)
+	var cells := maxf((hover - foot).y / P, 1.0)
+	_cell(top + Vector2(-P * 2, 0), Color(CYAN, 0.45 * (1.0 - jump * 0.5)), 5, cells)
+	_cell(top, Color(1, 1, 1, 0.9 * (1.0 - jump * 0.5)), 1, cells)
+	for i in range(Juice.WARP_GHOSTS, 0, -1):
+		var a := WarpJump.ghost_alpha(jump, i)
+		if a > 0.0:
+			_sprite(ship, _jump_foot(hover, WarpJump.jump_rise(WarpJump.ghost_progress(jump, i))), Color(0.6, 0.95, 1.0, a))
 
 
 ## 대기 엔진: 팩의 작은 불꽃 프레임 (우주선 칸과 같은 48x48)

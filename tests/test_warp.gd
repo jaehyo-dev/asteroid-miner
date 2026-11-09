@@ -42,6 +42,20 @@ func test_전체_시간은_3에서_4초() -> void:
 	assert_true(Juice.WARP_LAND_TIME < WarpJump.TOTAL_TIME / 2.0, "귀환은 더 짧게")
 
 
+func test_점프는_잔상이_뒤처지고_뒤로_갈수록_옅음() -> void:
+	assert_eq(WarpJump.jump_rise(0.0), 0.0)
+	assert_eq(WarpJump.jump_rise(1.0), 1.0)
+	assert_true(WarpJump.jump_rise(0.75) - WarpJump.jump_rise(0.5) > WarpJump.jump_rise(0.25), "갈수록 빨라짐")
+	assert_true(Juice.WARP_GHOSTS >= 2 and Juice.WARP_GHOSTS <= 4, "잔상 2~4개")
+	assert_eq(WarpJump.ghost_alpha(0.05, 1), 0.0, "본체가 조금 뜨기 전엔 잔상 없음")
+	for i in range(1, Juice.WARP_GHOSTS):
+		assert_true(WarpJump.ghost_progress(1.0, i + 1) < WarpJump.ghost_progress(1.0, i), "뒤 잔상이 더 뒤처짐")
+		assert_true(WarpJump.ghost_alpha(1.0, i + 1) < WarpJump.ghost_alpha(1.0, i), "뒤 잔상이 더 옅음")
+	assert_true(WarpJump.ghost_alpha(1.0, Juice.WARP_GHOSTS) > 0.0, "끝에는 모두 보임")
+	assert_eq(WarpJump.speed_lines(0.0), 0.0, "점프 전엔 속도선 없음")
+	assert_eq(WarpJump.speed_lines(1.0), 1.0)
+
+
 func test_시간표는_순서대로_진행() -> void:
 	assert_eq(WarpJump.phase(0.0), WarpJump.Phase.TAKEOFF)
 	assert_eq(WarpJump.phase(Juice.WARP_TAKEOFF_TIME), WarpJump.Phase.CHARGE)

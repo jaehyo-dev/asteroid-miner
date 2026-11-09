@@ -64,6 +64,16 @@ class MakeSfxTest(unittest.TestCase):
             self.assertTrue(np.array_equal(a, ms.pick_e(key)), "같은 결과")
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
+    def test_실제_녹음_장전은_당기는_순간부터_시작(self):
+        src = np.abs(ms.decode(ms.RACK_RECORDING, 2)).max(axis=1)
+        start = int(ms.RACK_RECORDING_FROM * ms.SR)
+        self.assertLess(src[start - int(0.1 * ms.SR):start].max(), 10 ** (-50 / 20), "자른 자리 앞은 조용함 (탄창 소리가 안 섞임)")
+        self.assertGreater(src[start:start + int(0.005 * ms.SR)].max(), 10 ** (-30 / 20), "자르자마자 소리가 시작됨")
+        out = np.abs(ms.pick_e("e3")).max(axis=1)
+        self.assertLess(np.argmax(out > 0.01) / ms.SR, 0.003, "앞에 빈 부분이 없음")
+        self.assertLess(len(out) / ms.SR, 0.55, "카드 선택답게 짧음")
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg 없음")
     def test_카드_등장은_등급이_오를수록_몸통과_잔향이_커짐(self):
         for key in ms.CARD_STYLES:
             s = ms.show_d(key)

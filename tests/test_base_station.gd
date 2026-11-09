@@ -404,7 +404,7 @@ func test_안내는_갑판_착륙장_버튼을_가리지_않음() -> void:
 	assert_true(Rect2(Vector2.ZERO, main.stage.size).encloses(hint), "화면 안")
 	var o: Vector2 = main.world.position
 	var pad := view.tex("pad").get_size()
-	assert_false(hint.intersects(Rect2(o + Vector2(-pad.x / 2.0, -pad.y / 2.0 + BaseView.PAD_DROP), pad)), "착륙장")
+	assert_true(hint.position.x >= (o + Vector2(pad.x / 2.0, 0)).x, "착륙장 옆으로 비켜남 (아래쪽 테두리에 붙어 보이지 않게)")
 	for b in view.buildings:
 		var p := BaseLayout.plate_rect(b[2])
 		assert_false(hint.intersects(Rect2(p.position + o, p.size)), "%s 갑판" % b[3])

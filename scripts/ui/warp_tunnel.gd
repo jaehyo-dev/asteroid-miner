@@ -17,17 +17,22 @@ func _draw() -> void:
 	var strength := WarpJump.tunnel_strength(t)
 	if strength > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(BACK, strength))
-		for i in Juice.WARP_STREAKS:
-			# 줄마다 고정된 무작위 값 (i로 계산해 상태가 없음)
-			var a := absi(hash(i * 7919))
-			var x := float(a % 10000) / 10000.0 * size.x
-			var speed := Juice.WARP_STREAK_SPEED * (0.6 + float(a % 97) / 97.0 * 0.8)
-			var length := Juice.WARP_STREAK_LEN * (0.4 + float(a % 89) / 89.0) * strength
-			var y := fposmod(float(a % 1000) + t * speed, size.y + length) - length
-			draw_rect(Rect2(Vector2(x, y).round(), Vector2(1, roundf(length))), Color(COLORS[a % COLORS.size()], (0.35 + float(a % 83) / 83.0 * 0.65) * strength))
+		draw_streaks(self, size, t, strength)
 	var k := WarpJump.arrive(t)
 	if k > 0.0 and k < 1.0:
 		var center := (size / 2.0).round()
 		var eased := 1.0 - (1.0 - k) * (1.0 - k)
 		draw_arc(center, Juice.WARP_RING_RADIUS * eased, 0.0, TAU, 64, Color(COLORS[1], 1.0 - k), 2.0)
 		draw_arc(center, Juice.WARP_RING_RADIUS * eased * 0.7, 0.0, TAU, 64, Color(COLORS[0], 0.7 * (1.0 - k)), 1.0)
+
+
+## 세로 빛줄기 (기지 쪽 점프 속도선도 같은 것을 써서 터널로 이어진다)
+static func draw_streaks(ci: CanvasItem, area: Vector2, time: float, strength: float) -> void:
+	for i in Juice.WARP_STREAKS:
+		# 줄마다 고정된 무작위 값 (i로 계산해 상태가 없음)
+		var a := absi(hash(i * 7919))
+		var x := float(a % 10000) / 10000.0 * area.x
+		var speed := Juice.WARP_STREAK_SPEED * (0.6 + float(a % 97) / 97.0 * 0.8)
+		var length := Juice.WARP_STREAK_LEN * (0.4 + float(a % 89) / 89.0) * strength
+		var y := fposmod(float(a % 1000) + time * speed, area.y + length) - length
+		ci.draw_rect(Rect2(Vector2(x, y).round(), Vector2(1, roundf(length))), Color(COLORS[a % COLORS.size()], (0.35 + float(a % 83) / 83.0 * 0.65) * strength))

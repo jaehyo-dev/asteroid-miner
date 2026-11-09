@@ -89,12 +89,12 @@ const SHIELD_BREAK_TIME := 0.14
 const OVERLOAD_PULSE := 7.0
 const BEACON_RING_TIME := 0.7
 
-# ── 워프 점프 (GAME_SPEC 11번, 합쳐서 3.5초) ─────────────────────
-## 기지 쪽: 이륙(조종사 탑승 포함), 충전, 점프(늘어나며 사라짐 + 흰 번쩍)
+# ── 워프 점프 (GAME_SPEC 11번, 합쳐서 약 3.7초) ─────────────────────
+## 기지 쪽: 이륙(조종사 탑승 포함), 충전, 점프(잔상·빛줄기·속도선을 남기고 위로 사라짐 + 흰 번쩍. 그림은 늘이지 않는다)
 const WARP_TAKEOFF_TIME := 0.9
 const WARP_BOARD_TIME := 0.25
 const WARP_CHARGE_TIME := 0.9
-const WARP_JUMP_TIME := 0.2
+const WARP_JUMP_TIME := 0.35
 ## 출격 화면 쪽: 터널(별이 빛줄기), 도착(감속, 충격파 고리, HUD가 밀려 들어옴)
 const WARP_TUNNEL_TIME := 1.0
 const WARP_ARRIVE_TIME := 0.5
@@ -112,6 +112,15 @@ const WARP_SHAKE_CELLS := 2.0
 const WARP_GATHER_PARTS := 28
 const WARP_GATHER_CELLS := 42.0
 const WARP_GLOW_CELLS := 9
+## 점프로 솟구치는 거리(기지 그림 칸), 잔상 수, 잔상 하나가 뒤처지는 정도(점프 진행 0~1 기준), 첫 잔상 진하기
+const WARP_JUMP_CELLS := 300.0
+const WARP_GHOSTS := 4
+const WARP_GHOST_LAG := 0.09
+const WARP_GHOST_ALPHA := 0.65
+## 귀환 게이트로 빨려 들 때 모여드는 속도선 수와 길이, 우주선이 가운데를 지나 더 뻗는 거리 (출격 화면 픽셀)
+const WARP_SUCK_LINES := 18
+const WARP_SUCK_LINE_LEN := 34.0
+const WARP_SUCK_OVERSHOOT := 70.0
 ## 귀환 후 기지 착륙: 시간(출격보다 훨씬 짧게), 흰 번쩍임이 사라지는 시간, 내려오는 높이(그림 칸)
 const WARP_LAND_TIME := 0.9
 const WARP_LAND_WHITE := 0.25

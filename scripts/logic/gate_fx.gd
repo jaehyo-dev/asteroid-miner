@@ -3,7 +3,7 @@ extends RefCounted
 ## 워프 게이트 연출의 시간 흐름 (그리기와 분리해 자동 테스트할 수 있게 함). 게임 규칙은 바꾸지 않는다.
 ## 등장: 흩어진 조각이 모여 맞물림(ASSEMBLE_TIME) → 섬광과 함께 소용돌이가 열림(OPEN_TIME)
 ## 닫히기 직전(CLOSING_TIME 남음): 붉게 변하고 떨림 / 닫힘: 조각이 흩어지며 사라짐(COLLAPSE_TIME)
-## 귀환 성공: 우주선이 늘어나며 빨려 들어감(SUCK_TIME) → 화면이 하얗게 번쩍임 → 결과 화면(WARP_TOTAL)
+## 귀환 성공: 우주선이 잔상을 남기며 빨려 들어감(SUCK_TIME) → 화면이 하얗게 번쩍임 → 결과 화면(WARP_TOTAL)
 
 const ASSEMBLE_TIME := 0.6
 const OPEN_TIME := 0.3

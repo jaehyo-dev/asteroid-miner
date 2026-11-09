@@ -93,7 +93,7 @@ func relayout() -> void:
 	old_versions.position = Vector2(8.0, size.y - 14.5 - old_versions.size.y / 2.0)
 	_place_button(sortie, font_size, 34.0 if large else 25.0, 76.0)
 	_place_label(hint, Vector2.ZERO, 12, 19.0, 36.0)
-	hint.position = Vector2(floorf((size.x - hint.size.x) / 2.0), size.y - hint.size.y)  # 화면 맨 아래 가운데: 갑판·착륙장 끝보다 아래라 아무것도 가리지 않는다
+	hint.position = Vector2(version.position.x - hint.size.x - 8.0, size.y - hint.size.y)  # 버전 표시 왼쪽의 아래 띠: 가운데 착륙장을 피하고 건물 칸보다 아래
 
 
 ## 보유 광물 글자가 바뀌면 판 폭도 다시
