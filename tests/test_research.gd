@@ -290,3 +290,138 @@ func test_정밀_드릴은_운석에서_가끔_더_떨어뜨림() -> void:
 func test_광역_스캔은_황금_운석을_앞당김() -> void:
 	var sim := _sim({"wide_scan": 1})
 	assert_true(is_equal_approx(sim.next_golden_gap(), _sim({}).next_golden_gap() * 0.8))
+
+
+func test_글자_나누기는_폭이_0이어도_멈춤() -> void:
+	assert_true(WindowArt.wrap("광물이 모자라요", 0).size() > 0)
+	assert_true(WindowArt.wrap("광물이 모자라요", -40).size() > 0)
+	assert_eq(WindowArt.wrap("", 100).size(), 0)
+
+
+# ── 배치와 관 연결 ───────────────────────────────
+
+const SCREENS := [Vector2i(540, 292), Vector2i(350, 159), Vector2i(620, 340)]
+
+
+func _save_mid() -> SaveData:
+	var s := _rich()
+	s.upgrades = {"max_hp": 1, "insurance": 1, "repair": 1, "damage": 1}
+	s.forks_owned = {"thick_dodge": "ab"}
+	s.forks_on = {"thick_dodge": "b"}
+	return s
+
+
+func test_격자_대칭_직각() -> void:
+	for sz: Vector2i in SCREENS:
+		for b: String in Balance.RESEARCH_BRANCHES:
+			var lay := ResearchLayout.compute(b, sz.x, sz.y)
+			var cx: int = lay["cx"]
+			assert_eq(cx, sz.x / 2)
+			for k: String in lay["cells"]:
+				var c: Vector2i = lay["cells"][k]
+				assert_eq((c.x - cx) % ResearchLayout.CELL, 0, "세로줄 %s" % k)
+				assert_eq((int(lay["base"]) - c.y) % ResearchLayout.CELL, 0, "가로줄 %s" % k)
+				if k.right(1) == "a":
+					var o: Vector2i = lay["cells"][k.left(-1) + "b"]
+					assert_eq(o.y, c.y, "갈림길 같은 높이")
+					assert_eq(cx - c.x, o.x - cx, "갈림길 대칭")
+			for l: Dictionary in ResearchLayout.links(b, lay):
+				var pts: Array = l["pts"]
+				for j in pts.size() - 1:
+					assert_true(pts[j].x == pts[j + 1].x or pts[j].y == pts[j + 1].y, "직각")
+
+
+func test_모든_칸은_위아래_소켓으로_이어짐() -> void:
+	for sz: Vector2i in SCREENS:
+		for b: String in Balance.RESEARCH_BRANCHES:
+			var lay := ResearchLayout.compute(b, sz.x, sz.y)
+			assert_eq(ResearchLayout.broken(b, lay, ResearchLayout.links(b, lay)), [], "%s %s" % [b, sz])
+
+
+func test_끊긴_관은_검사가_잡아냄() -> void:
+	var lay := ResearchLayout.compute("hull", 540, 292)
+	var full := ResearchLayout.links("hull", lay)
+	for i in full.size():  # 관을 하나씩 빼면 어느 것이든 실패해야 한다
+		var cut := full.duplicate()
+		cut.remove_at(i)
+		assert_true(ResearchLayout.broken("hull", lay, cut).size() > 0, "관 %d을 빼도 통과함" % i)
+
+
+func test_글자가_관과_다른_칸을_덮지_않음() -> void:
+	for sz: Vector2i in SCREENS:
+		for b: String in Balance.RESEARCH_BRANCHES:
+			var lay := ResearchLayout.compute(b, sz.x, sz.y)
+			for k: String in lay["cells"]:
+				var label := ResearchLayout.label_rect(k, lay, _label_w(b, k))
+				assert_true(label.position.x >= 0 and label.end.x <= sz.x - 6, "%s %s 판 밖 %s" % [b, k, label])
+				for o: String in lay["cells"]:
+					if o != k:
+						assert_false(label.intersects(ResearchLayout.cell_rect(o, lay)), "%s %s가 %s를 덮음" % [b, k, o])
+				for l: Dictionary in ResearchLayout.links(b, lay):
+					var pts: Array = l["pts"]
+					for j in pts.size() - 1:
+						var box := Rect2i(pts[j].min(pts[j + 1]) - Vector2i(4, 4), (pts[j] - pts[j + 1]).abs() + Vector2i(8, 8))
+						assert_false(label.intersects(box), "%s %s 글자가 관을 덮음" % [b, k])
+
+
+func _label_w(b: String, k: String) -> int:
+	var node: Variant = Research.tree(b)[k.to_int()]
+	return WindowArt.width(Research.name_of(node, k.right(1)) if Research.is_fork(node) else Research.name_of(node))
+
+
+func test_사용_중인_쪽으로만_빛이_이어져_위_칸까지_감() -> void:
+	var s := _save_mid()
+	var lay := ResearchLayout.compute("hull", 540, 292)
+	var runs := ResearchLayout.routes(ResearchLayout.tiers(s, "hull", lay))
+	assert_eq(runs.size(), 1, "끊기지 않음")
+	var run: Array = runs[0]
+	assert_true(run.has(lay["cells"]["2b"]), "사용 중인 오른쪽")
+	assert_false(run.has(lay["cells"]["2a"]), "꺼진 왼쪽은 안 지남")
+	assert_eq(run[-1], lay["cells"]["3c"], "위 칸까지")
+	s.forks_on["thick_dodge"] = "a"
+	var run2: Array = ResearchLayout.routes(ResearchLayout.tiers(s, "hull", lay))[0]
+	assert_true(run2.has(lay["cells"]["2a"]), "바꾸면 흐름이 옮겨 감")
+
+
+func test_PC_설명_창은_다른_칸을_가리지_않고_누른_칸도_안_가림() -> void:
+	for b: String in Balance.RESEARCH_BRANCHES:
+		var lay := ResearchLayout.compute(b, 540, 292)
+		var avoid := {}
+		for k: String in lay["cells"]:
+			avoid[k] = [ResearchLayout.cell_rect(k, lay), ResearchLayout.label_rect(k, lay, _label_w(b, k) + 8)]
+		for pan: int in [0, lay["max_pan"]]:
+			for k: String in lay["cells"]:
+				var at := ResearchLayout.popup_pos(k, Vector2i(156, 140), lay, avoid, 540, 292, pan, 6)
+				assert_eq(at[2], 0, "%s %s 끌기 %d" % [b, k, pan])
+				var box := Rect2i(at[0], at[1], 156, 140)
+				var mine := ResearchLayout.cell_rect(k, lay)
+				assert_false(box.intersects(Rect2i(mine.position + Vector2i(0, pan), mine.size)), "누른 칸 %s" % k)
+
+
+# ── 창 배율 ─────────────────────────────────────
+
+func test_창_배율은_정수이고_폰은_2배() -> void:
+	assert_eq(BaseWindow.scale_for(Vector2i(1280, 720), 1.0), 2)
+	assert_eq(BaseWindow.scale_for(Vector2i(1920, 1080), 1.0), 3)
+	assert_eq(BaseWindow.scale_for(Vector2i(844, 390), 1.0), 2)
+	assert_eq(BaseWindow.scale_for(Vector2i(2532, 1170), 3.0), 6)
+	assert_true(BaseWindow.is_compact(Vector2i(422, 195)))
+	assert_false(BaseWindow.is_compact(Vector2i(640, 360)))
+
+
+func test_폰에서_고른_칸이_띠_위로_보임() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	main.auto_start = false
+	add_child(main)
+	await wait_frames()
+	var w: BaseWindow = main.panel
+	w.open("research")
+	await wait_frames()
+	var v: ResearchView = w.view
+	v.win.compact = true
+	v._board_size = Vector2i(350, 159)
+	v._select_branch("hull")
+	v.select_cell("0c")
+	assert_eq(v._pan_target, v._board_size.y - ResearchView.STRIP_H - 26 - int(v.lay["cells"]["0c"].y), "맨 아래 칸을 띠 위로")
+	assert_true(v.lay["cells"]["0c"].y + v._pan_target + 26 <= v._board_size.y - ResearchView.STRIP_H)
+	main.queue_free()

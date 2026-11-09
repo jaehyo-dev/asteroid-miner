@@ -9,7 +9,6 @@ const RUN_SCENE := "res://scenes/run.tscn"
 const TOAST_TIME := 2.5
 ## 착륙장 고리와 출격 버튼 사이 (누르는 자리가 판보다 커서 음수로 판이 고리에 붙는다)
 const SORTIE_GAP := -4.0
-const DRONE_NOTICE := "드론 공장은 공사 중이에요. 곧 개방!"
 
 ## 이전 버전 목록 페이지로 이동하는 자바스크립트.
 ## 보관된 이전 버전(.../versions/v0.0.1/)에서 눌러도 같은 목록(.../versions/)으로 가도록
@@ -36,7 +35,7 @@ signal launched
 @onready var spots: Control = %Spots
 @onready var hud: BaseHud = %Hud
 @onready var starfield: Starfield = %Starfield
-@onready var panel: BasePanel = %Panel
+@onready var panel: BaseWindow = %Panel
 @onready var toast: Label = %Toast
 
 var save: SaveData
@@ -86,6 +85,7 @@ func _ready() -> void:
 	panel.save = save
 	panel.closed.connect(_on_panel_closed)
 	panel.bought.connect(func(_id: String) -> void: refresh())
+	panel.band_changed.connect(_on_window_band)
 	for id in BaseLayout.IDS:
 		var b := Button.new()
 		b.flat = true
@@ -218,11 +218,7 @@ func press(id: String) -> void:
 	match id:
 		"ship":
 			launch()
-		"drone":
-			Sfx.play("click")
-			show_toast(DRONE_NOTICE)
 		_:
-			Sfx.play("open")
 			panel.open(id)
 
 
@@ -317,6 +313,11 @@ func _on_result_chosen(index: int) -> void:
 	hud.sortie.show()
 	if index == 0:
 		launch()
+
+
+## 창이 열리면 위쪽 띠가 위로 들어간다 (ratio 1 = 다 보임)
+func _on_window_band(ratio: float) -> void:
+	hud.position.y = -roundf((1.0 - ratio) * hud.top_h)
 
 
 func _on_panel_closed() -> void:

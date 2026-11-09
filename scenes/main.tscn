@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/ui/starfield.gd" id="2_stars"]
 [ext_resource type="Script" path="res://scripts/ui/base_view.gd" id="3_view"]
-[ext_resource type="Script" path="res://scripts/ui/base_panel.gd" id="4_panel"]
+[ext_resource type="Script" path="res://scripts/ui/window/base_window.gd" id="4_panel"]
 [ext_resource type="Script" path="res://scripts/ui/base_hud.gd" id="5_hud"]
 
 [node name="Main" type="Control"]

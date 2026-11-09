@@ -180,31 +180,36 @@ func _open_main() -> Control:
 	return main
 
 
-func test_기지_화면에_보유_광물이_보이고_연구소에_업그레이드_카드가_있음() -> void:
+func test_기지_화면에_보유_광물이_보이고_연구소에_강화_칸이_있음() -> void:
 	var save := SaveData.new()
 	save.credits = 500
-	save.upgrades = {"cargo": 1}
+	save.upgrades = {"cargo": 1, "magnet": 1}
 	save.save_file()
 	var main: Control = await _open_main()
 	assert_eq(main.credits_label.text, "보유 광물 500")
 	main.press("research")
 	await wait_frames()
 	assert_true(main.panel.visible, "연구소 열림")
-	assert_eq(main.panel.buy_buttons.size(), Balance.BASE_UPGRADES.size(), "카드 수")
-	var cargo_button: Button = main.panel.buy_buttons["cargo"]
-	assert_eq(cargo_button.text, "강화  %d" % BaseUpgrades.cost("cargo", 1))
-	assert_false(cargo_button.disabled, "살 수 있음")
-	assert_eq(main.panel.cards["cargo"].modulate.a, 1.0, "살 수 있으면 선명")
+	var v: ResearchView = main.panel.view
+	v._select_branch("mine")
+	v.select_cell("1c")
+	var info := v.action_info()
+	assert_eq(info["label"], "강화")
+	assert_eq(info["cost"], BaseUpgrades.cost("cargo", 1))
+	assert_false(info["off"], "살 수 있음")
+	assert_false(v.action_button.disabled)
 	main.queue_free()
 
 
-func test_광물이_없으면_카드가_흐리고_구매_버튼이_막힘() -> void:
+func test_광물이_없으면_강화_버튼이_막힘() -> void:
 	var main: Control = await _open_main()
 	main.press("research")
 	await wait_frames()
-	for id in main.panel.buy_buttons:
-		assert_true(main.panel.buy_buttons[id].disabled, id)
-		assert_true(is_equal_approx(main.panel.cards[id].modulate.a, BasePanel.DIM_ALPHA), id + " 흐림")
+	var v: ResearchView = main.panel.view
+	v._select_branch("mine")
+	v.select_cell("0c")
+	assert_true(v.action_button.disabled)
+	assert_eq(v.action_info()["note"], "광물이 모자라요")
 	main.queue_free()
 
 
@@ -215,7 +220,10 @@ func test_연구소에서_사면_바로_저장되고_보유_광물이_줄어듦(
 	var main: Control = await _open_main()
 	main.press("research")
 	await wait_frames()
-	main.panel.buy_buttons["magnet"].pressed.emit()
+	var v: ResearchView = main.panel.view
+	v._select_branch("mine")
+	v.select_cell("0c")
+	v.action_button.pressed.emit()
 	await wait_frames()
 	var cost := BaseUpgrades.cost("magnet", 0)
 	assert_eq(main.credits_label.text, "보유 광물 %d" % (300 - cost))
@@ -226,7 +234,7 @@ func test_연구소에서_사면_바로_저장되고_보유_광물이_줄어듦(
 	main.queue_free()
 
 
-func test_최대_단계는_MAX로_표시() -> void:
+func test_최대_단계는_최대로_표시() -> void:
 	var save := SaveData.new()
 	save.upgrades = _maxed()
 	save.credits = 999999
@@ -234,9 +242,12 @@ func test_최대_단계는_MAX로_표시() -> void:
 	var main: Control = await _open_main()
 	main.press("research")
 	await wait_frames()
-	for id in main.panel.buy_buttons:
-		assert_eq(main.panel.buy_buttons[id].text, "MAX", id)
-		assert_true(main.panel.buy_buttons[id].disabled, id)
+	var v: ResearchView = main.panel.view
+	v._select_branch("mine")
+	for k in ["0c", "1c", "2c"]:
+		v.select_cell(k)
+		assert_eq(v.action_info()["label"], "최대", k)
+		assert_true(v.action_button.disabled, k)
 	main.queue_free()
 
 

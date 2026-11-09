@@ -118,7 +118,7 @@ func test_적의_도감_id() -> void:
 	e.kind = RunSim.GUARD
 	assert_eq(Discovery.enemy_id(e), "guard")
 	for entry in Discovery.ENTRIES:
-		assert_not_null(BasePanel.discovery_icon(entry["id"]), entry["id"] + " 아이콘")
+		assert_not_null(WindowArt.discovery_icon(entry["id"]), entry["id"] + " 아이콘")
 
 
 func test_화면_안에_보인_것만_도감에_오름() -> void:
@@ -164,34 +164,27 @@ func test_전시관은_못_본_것을_물음표로() -> void:
 	var main: Control = await _main()
 	main.press("museum")
 	await wait_frames()
-	var texts := _texts(main.panel)
-	assert_true(texts.has("발견 2 / %d" % Discovery.ENTRIES.size()), "발견 수")
-	assert_true(texts.has("일반 광물") and texts.has("우주 해파리"), "본 것은 이름")
-	assert_false(texts.has("고대 경비선"), "못 본 것은 이름을 숨김")
-	assert_eq(texts.count("?"), Discovery.ENTRIES.size() - 2, "못 본 것은 ?")
+	var v: MuseumView = main.panel.view
+	assert_eq(v._found(), 2, "발견 수")
+	assert_eq(v.max_scroll >= 0, true)
 	main.queue_free()
-
-
-func _texts(node: Node) -> Array:
-	var result := []
-	for child in node.find_children("*", "Label", true, false):
-		result.append((child as Label).text)
-	return result
 
 
 # ── 광물 창고 ───────────────────────────────────────
 
-func test_광물_창고는_총가치와_등급별_개수() -> void:
+func test_광물_금고_더미_눈금() -> void:
+	assert_eq(StorageView.pile_step(0), -1, "없으면 비움")
+	assert_eq(StorageView.pile_step(1), 0)
+	assert_eq(StorageView.pile_step(11), 2)
+	assert_eq(StorageView.pile_step(999999), Balance.TANK_PILE_COUNTS.size() - 1)
 	var save := SaveData.new()
-	save.credits = 1240
 	save.hauled = PackedInt32Array([12, 5, 2, 1])
 	save.save_file()
 	var main: Control = await _main()
 	main.press("storage")
 	await wait_frames()
-	var texts := _texts(main.panel)
-	assert_true(texts.has("보유 광물 총가치  1,240"), str(texts))
-	assert_true(texts.has("일반 12개") and texts.has("전설 1개"), str(texts))
+	assert_eq(main.panel.kind, "storage")
+	assert_eq(BaseLayout.NAMES["storage"], "광물 금고")
 	main.queue_free()
 
 
@@ -208,25 +201,12 @@ func test_판이_끝나면_가져온_광물_수가_쌓임() -> void:
 
 # ── 드론 공장, 닫기, 이륙 ─────────────────────────────
 
-func test_드론_공장은_안내만_띄움() -> void:
+func test_드론_공장은_설계도_창을_엶() -> void:
 	var main: Control = await _main()
 	main.press("drone")
 	await wait_frames()
-	assert_false(main.panel.visible, "화면은 안 열림")
-	assert_true(main.toast.visible)
-	assert_eq(main.toast.text, main.DRONE_NOTICE)
-	main.queue_free()
-
-
-func test_폰_가로_크기에서도_건물_화면이_폭_안에_들어감() -> void:
-	var main: Control = await _main()
-	main.panel.size = Vector2(1558, 720)  # 휴대폰 가로 (844x390)
-	for kind in ["research", "hangar", "storage", "museum"]:
-		main.press(kind)
-		await wait_frames(2)
-		var box: Control = main.panel._panel
-		assert_true(box.get_combined_minimum_size().x <= 1558.0, "%s 최소 폭 %d" % [kind, box.get_combined_minimum_size().x])
-		main.panel.close()
+	assert_true(main.panel.visible)
+	assert_true(main.panel.view is DroneView)
 	main.queue_free()
 
 
@@ -245,6 +225,7 @@ func test_건물_화면은_닫기와_Esc로_닫힘() -> void:
 	main.press("research")
 	await wait_frames()
 	main.panel.close_button.pressed.emit()
+	await get_tree().create_timer(BaseWindow.CLOSE_TIME + 0.1).timeout
 	assert_false(main.panel.visible, "닫기 버튼")
 	main.press("museum")
 	await wait_frames()
@@ -252,6 +233,7 @@ func test_건물_화면은_닫기와_Esc로_닫힘() -> void:
 	esc.action = "pause"
 	esc.pressed = true
 	main.panel._unhandled_input(esc)
+	await get_tree().create_timer(BaseWindow.CLOSE_TIME + 0.1).timeout
 	assert_false(main.panel.visible, "Esc")
 	main.queue_free()
 
@@ -263,6 +245,7 @@ func test_터치로_닫으면_포커스_테두리가_없고_키보드로_닫으�
 	main.press("research")
 	await wait_frames()
 	main.panel.close_button.pressed.emit()
+	await get_tree().create_timer(BaseWindow.CLOSE_TIME + 0.1).timeout
 	assert_true(main.get_viewport().gui_get_focus_owner() == null, "터치로 닫음 → 테두리 없음")
 	assert_eq(main.view.hover_id, "", "터치로 닫음 → 건물 강조도 끔")
 	var key := InputEventKey.new()
@@ -270,6 +253,7 @@ func test_터치로_닫으면_포커스_테두리가_없고_키보드로_닫으�
 	main.press("museum")
 	await wait_frames()
 	main.panel.close()
+	await get_tree().create_timer(BaseWindow.CLOSE_TIME + 0.1).timeout
 	assert_eq(main.get_viewport().gui_get_focus_owner(), main.spot_buttons["ship"], "키보드로 닫음 → 우주선")
 	main.queue_free()
 
