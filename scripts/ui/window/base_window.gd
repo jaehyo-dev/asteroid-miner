@@ -196,7 +196,7 @@ func open(new_kind: String) -> void:
 	_build()
 	_closing = false
 	_t = 0.0
-	Sfx.play("open")
+	Sfx.play_window(true)
 	show()
 	set_process(true)
 	_apply(0.0)
@@ -228,7 +228,7 @@ func _process(delta: float) -> void:
 func close() -> void:
 	if not visible or _closing:
 		return
-	Sfx.play("close")
+	Sfx.play_window(false)
 	_closing = true
 	_t = 0.0
 	set_process(true)

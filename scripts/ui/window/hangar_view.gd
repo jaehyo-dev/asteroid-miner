@@ -131,6 +131,10 @@ func _draw_slot(x: int, y: int, w: int, h: int, fighter: Dictionary, chosen: boo
 		draw_texture(ship, Vector2(tx, y + (h - ship.get_height()) / 2 - 1), Color.BLACK if locked else Color.WHITE)
 		tx += ship.get_width() + 6
 	var ty := y + (h - 28) / 2 - 1
+	if win.compact:  # 폰은 칸이 낮아 이름 한 줄만
+		var line: String = "해금 조건 ???" if locked else fighter["name"]
+		WindowArt.text(self, Vector2i(x + w / 2, y + (h - 12) / 2 - 2), line, WindowArt.DIM if locked else WindowArt.GOLD, 0)
+		return
 	if locked:
 		WindowArt.text(self, Vector2i(tx, ty), "해금 조건", WindowArt.DIM)
 		WindowArt.text(self, Vector2i(tx, ty + 14), "???", WindowArt.DIM)

@@ -58,6 +58,16 @@ const SOUNDS := {
 	"barrage_fire": {"files": ["barrage_fire"], "db": -10.0, "pitch": 1.0, "jitter": 0.05, "max": 3},
 }
 
+## 창 소리 시험 (웹 주소 ?doortest): 고르면 나머지를 지운다. db는 재생 크기
+const WINDOW_SOUNDS := [
+	{"name": "1 홀로그램 화면 켜짐", "open": "window_1_open", "close": "window_1_close", "db": -12.0},
+	{"name": "2 공기압 슉 + 딸깍", "open": "window_2_open", "close": "window_2_close", "db": -12.0},
+	{"name": "3 금속 패널 스륵-탁", "open": "window_3_open", "close": "window_3_close", "db": -12.0},
+	{"name": "4 단말기 삐빅", "open": "window_4_open", "close": "window_4_close", "db": -12.0},
+	{"name": "5 클릭 + 은은한 울림", "open": "window_5_open", "close": "window_5_close", "db": -12.0},
+	{"name": "지금 door2 A", "open": "window_open", "close": "window_close", "db": -5.0},
+]
+
 ## 체력 낮음 경고음: 높낮이를 두 번 오가는 경보
 const WARNING_SOUND := {"wave": "square", "notes": [[880.0, 0.09], [620.0, 0.09], [880.0, 0.09], [620.0, 0.12]], "volume": 0.3}
 
@@ -89,6 +99,7 @@ var _warp_charge_player: AudioStreamPlayer
 var _warp_done_player: AudioStreamPlayer
 var _raid_player: AudioStreamPlayer
 var _warning_player: AudioStreamPlayer
+var _window_db := 0.0
 
 
 func _ready() -> void:
@@ -169,6 +180,19 @@ func pool(sound_name: String) -> Array:
 ## 레전드리 카드에 빛이 모이는 소리
 func play_card_gather() -> void:
 	play("card_gather")
+
+
+## 창 소리 시험: 후보를 바꾼다 (이후 "open"·"close" 재생에 쓰임)
+func use_window_sound(index: int) -> void:
+	var s: Dictionary = WINDOW_SOUNDS[index]
+	_streams["open"] = [load(SFX_DIR + s["open"] + ".wav")]
+	_streams["close"] = [load(SFX_DIR + s["close"] + ".wav")]
+	_window_db = float(s["db"]) - float(SOUNDS["open"]["db"])
+
+
+## 건물 창을 열고 닫는 소리 (시험 중이면 그 후보로)
+func play_window(opening: bool) -> void:
+	play("open" if opening else "close", -1.0, 1.0, _window_db)
 
 
 ## 실드가 공격을 막았을 때

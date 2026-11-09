@@ -29,3 +29,9 @@
 - 폰 갈림길 창은 양쪽 카드가 안 들어가서 누른 쪽 하나만 보여요.
 
 다시 만들기: `python3 review/v070_fix3/research_pipes/make_pipes.py`
+
+## 승인 뒤 고친 것 (게임 실제 캡처, `fixed_*`)
+- `fixed_fork_pc`, `fixed_fork_phone`: 갈림길 칸도 위아래 소켓에 관이 꽂혀요. 칸 사이 가운데 가로관에서 T자로 갈라지고 합쳐져요. 이름·가격·상태는 바깥쪽 옆으로. 줄기 칸 가격도 관을 덮지 않게 이름 아래로 옮겼어요.
+- `fixed_strip_phone`, `fixed_strip_fork_a_phone`, `fixed_strip_fork_b_phone`: 폰 아래 띠. 누른 칸은 띠 위로 자동 스크롤, 갈림길은 좌우 화살표나 띠 넘기기로 둘 중 하나를 봐요.
+- `fixed_tabs_phone_x2`: 폰 탭 아이콘과 이름 사이 간격 (2배로 확대한 그림).
+- 연결이 끊긴 관은 `tests/test_research.gd`의 검사가 잡아요. 관을 하나씩 빼 보는 검사도 함께 돌아요.

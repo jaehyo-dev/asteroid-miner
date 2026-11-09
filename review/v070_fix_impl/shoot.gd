@@ -52,6 +52,9 @@ func _run() -> void:
 			v.select_cell("2a")
 			await create_timer(0.3).timeout
 			await _shot("research_fork")
+			v.select_cell("2b")
+			await create_timer(0.3).timeout
+			await _shot("research_fork_b")
 			v.select_cell("1c")
 			await create_timer(0.3).timeout
 			await _shot("research_node")

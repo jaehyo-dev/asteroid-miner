@@ -425,3 +425,28 @@ func test_폰에서_고른_칸이_띠_위로_보임() -> void:
 	assert_eq(v._pan_target, v._board_size.y - ResearchView.STRIP_H - 26 - int(v.lay["cells"]["0c"].y), "맨 아래 칸을 띠 위로")
 	assert_true(v.lay["cells"]["0c"].y + v._pan_target + 26 <= v._board_size.y - ResearchView.STRIP_H)
 	main.queue_free()
+
+
+# ── 창 소리 시험 ─────────────────────────────────
+
+func test_창_소리_후보는_평소_버튼이_없고_시험에서_차례로_돎() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	main.auto_start = false
+	add_child(main)
+	await wait_frames()
+	assert_true(main.hud.door_test == null, "정식 화면에는 없음")
+	main.enable_door_test()
+	assert_not_null(main.hud.door_test)
+	assert_eq(main._door_i, 0, "후보 1부터")
+	assert_true(main.toast.text.contains(Sfx.WINDOW_SOUNDS[0]["name"]))
+	for i in Sfx.WINDOW_SOUNDS.size() - 1:
+		main.hud.door_test.pressed.emit()
+	assert_true(main.toast.text.contains("door2 A"), "마지막은 지금 소리")
+	main.hud.door_test.pressed.emit()
+	assert_eq(main._door_i, 0, "다시 처음으로")
+	assert_true(main.hud.hits_button(main.hud.door_test.position + Vector2.ONE), "눌러도 끌기가 아님")
+	for s: Dictionary in Sfx.WINDOW_SOUNDS:
+		assert_not_null(load(Sfx.SFX_DIR + s["open"] + ".wav"), s["name"])
+		assert_not_null(load(Sfx.SFX_DIR + s["close"] + ".wav"), s["name"])
+	Sfx.use_window_sound(Sfx.WINDOW_SOUNDS.size() - 1)  # 다른 테스트에 영향 없게 원래 소리로
+	main.queue_free()
