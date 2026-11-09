@@ -1,0 +1,111 @@
+extends SceneTree
+## 후반(4~5분) 광물 줍기 소리 측정: 지금 규칙과 시안 규칙을 같은 판에 대어 본다 (재생기 수·소리 길이 반영)
+const STEP := 1.0 / 60.0
+const LEN := [0.25, 0.25, 0.3, 0.335]
+const POOL := 2
+
+class Voices:
+	var ends := {0: [], 1: [], 2: [], 3: []}
+	var plays := 0
+	var dropped := 0
+	var peak := 0
+	var db_sum := 0.0
+	var semis := []
+	var sec_plays := {}
+	var sec_energy := {}
+	const BASE_DB := [-16.0, -12.0, -11.0, -7.0]
+	func total_voices(now: float) -> int:
+		var n := 0
+		for k in ends:
+			for t in ends[k]:
+				if t > now:
+					n += 1
+		return n
+	func play(now: float, g: int, pitch: float, db: float, semi: int) -> void:
+		ends[g] = ends[g].filter(func(t): return t > now)
+		if ends[g].size() >= POOL:
+			dropped += 1
+			return
+		ends[g].append(now + LEN[g] / pitch)
+		plays += 1
+		db_sum += db
+		var sk := int(now)
+		sec_plays[sk] = sec_plays.get(sk, 0) + 1
+		sec_energy[sk] = sec_energy.get(sk, 0.0) + pow(10.0, (BASE_DB[g] + db) / 10.0) * LEN[g] / pitch
+		semis.append(semi)
+		peak = maxi(peak, total_voices(now))
+
+func _init() -> void:
+	var t0 := 240.0
+	var t1 := 300.0
+	var total := {"pick": 0, "frames": 0, "old": Voices.new(), "new": Voices.new(), "sec_peak": 0}
+	for s in range(1, 11):
+		var sim := RunSim.new(s)
+		sim.apply_base({"damage": 5, "max_hp": 5, "speed": 5, "cargo": 5, "insurance": 5, "magnet": 5})
+		sim.max_hp = 1.0e6
+		sim.hp = 1.0e6
+		var combo := PickupCombo.new()
+		var neu := PickupSound.new()
+		var per_sec := {}
+		while sim.time < t1:
+			if not sim.choices.is_empty():
+				sim.choose(BalanceBot.best_choice(sim.choices))
+				continue
+			var move := Vector2.ZERO
+			var danger := RunSim.nearest_enemy(sim.player_pos, sim.enemies, BalanceBot.COLLECTOR_DANGER)
+			if danger != null:
+				move = (sim.player_pos - danger.pos).normalized()
+			else:
+				var best := 260.0
+				for m in sim.minerals:
+					var d := m.pos.distance_to(sim.player_pos)
+					if d < best:
+						best = d
+						move = (m.pos - sim.player_pos).normalized()
+			sim.hp = 1.0e6
+			sim.update(STEP, move)
+			if sim.time < t0 or sim.picked.is_empty():
+				continue
+			total["pick"] += sim.picked.size()
+			total["frames"] += 1
+			var sec := int(sim.time)
+			per_sec[sec] = per_sec.get(sec, 0) + sim.picked.size()
+			var semi := combo.pick(sim.time)
+			var seen := {}
+			var seen2 := {}
+			for p in sim.picked:
+				var g: int = p["grade"]
+				if not seen.has(g):
+					seen[g] = true
+					total["old"].play(sim.time + s * 1000.0, g, PickupCombo.pitch_of(semi), 0.0, semi)
+			var grades := []
+			for p in sim.picked:
+				grades.append(p["grade"])
+			var r := neu.pick(sim.time + s * 1000.0, grades)
+			if not r.is_empty() and total["new"].total_voices(sim.time + s * 1000.0) < PickupSound.MAX_VOICES:
+				total["new"].play(sim.time + s * 1000.0, r["grade"], PickupCombo.pitch_of(r["semi"]), r["db"], r["semi"])
+		for k in per_sec:
+			total["sec_peak"] = maxi(total["sec_peak"], per_sec[k])
+	var secs := 10.0 * (t1 - t0)
+	print("RESULT 줍기 %.1f개/초 (1초 최대 %d개), 줍기가 있는 프레임 %.1f/초" % [total["pick"] / secs, total["sec_peak"], total["frames"] / secs])
+	for k in ["old", "new"]:
+		var v: Voices = total[k]
+		var at_max := 0
+		var mx := 12 if k == "old" else PickupSound.COMBO_MAX
+		for x in v.semis:
+			if x >= mx:
+				at_max += 1
+		print("RESULT %s: 실제 재생 %.1f번/초, 재생기 꽉 차서 못 낸 것 %.1f번/초, 동시 재생 최대 %d, 평균 음량 보정 %.1fdB, 최고 음(%d반음)인 비율 %d%%" % [k, v.plays / secs, v.dropped / secs, v.peak, v.db_sum / maxi(v.plays, 1), mx, roundi(at_max * 100.0 / maxi(v.semis.size(), 1))])
+	# 가장 바쁜 초(지금 규칙에서 재생이 많은 상위 10%)에서 두 규칙 비교
+	var keys: Array = total["old"].sec_plays.keys()
+	keys.sort_custom(func(a, b): return total["old"].sec_plays[a] > total["old"].sec_plays[b])
+	var top := keys.slice(0, maxi(keys.size() / 10, 1))
+	for k in ["old", "new"]:
+		var v: Voices = total[k]
+		var p := 0.0
+		var e := 0.0
+		for sec in top:
+			p += v.sec_plays.get(sec, 0)
+			e += v.sec_energy.get(sec, 0.0)
+		print("RESULT 바쁜 초 %s: 재생 %.1f번/초, 소리 에너지 %.1fdB" % [k, p / top.size(), 10.0 * log(e / top.size()) / log(10.0)])
+	quit(0)

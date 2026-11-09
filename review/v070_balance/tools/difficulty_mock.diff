@@ -1,0 +1,87 @@
+diff --git a/scripts/logic/run_sim.gd b/scripts/logic/run_sim.gd
+index 061f8a8..bc575af 100644
+--- a/scripts/logic/run_sim.gd
++++ b/scripts/logic/run_sim.gd
+@@ -43,6 +43,7 @@ class Mineral:
+ 	var grade: int  ## Balance.MINERAL_GRADES 인덱스 (0 일반 ~ 3 전설)
+ 	var vel := Vector2.ZERO  ## 운석에서 튕겨 나가는 속도 (점점 줄어 멈춤)
+ 	var attracted := false  ## 자석에 끌려오는 중인지 (한번 끌리면 끝까지 따라옴)
++	var xp_grade := -1  ## 시안: 경험치 기준 등급 (등급이 오르기 전)
+ 
+ 
+ ## 에너지탄 한 개: 심연의 포격 또는 고대 경비선이 쏜다 (자동 공격으로 부술 수 없음)
+@@ -59,6 +60,7 @@ class Shot:
+ ## 탄 한 개
+ class Bullet:
+ 	var pos: Vector2
++	var drone := false
+ 	var prev_pos: Vector2  ## 이번 프레임 이동 전 위치 (지나간 선분으로 명중 판정)
+ 	var vel: Vector2
+ 	var life: float  ## 남은 비행 시간
+@@ -402,6 +404,9 @@ func damage_player(amount: float) -> bool:
+ 		invuln = Balance.SHIELD_BLOCK_INVULN
+ 		events.append("shield_block")
+ 		return true
++	var late := OS.get_environment("LATE_DMG").split(",")  # 시안: 시작초,분당 증가,상한
++	if late.size() == 3:
++		amount *= minf(1.0 + float(late[1]) * maxf(floorf((time - float(late[0])) / 60.0), 0.0), float(late[2]))
+ 	hp = maxf(hp - amount, 0.0)
+ 	invuln = Balance.SHIP_INVULN_TIME + (Balance.RES_DODGE_INVULN if _base("dodge") else 0.0)
+ 	events.append("hit")
+@@ -596,7 +601,10 @@ func _auto_fire(delta: float) -> void:
+ 	var base_angle := intercept_angle(player_pos, target.pos, target.vel, Balance.BULLET_SPEED)
+ 	var life := fire_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR
+ 	_shots_fired += 1
+-	var shot_damage := bullet_damage * (Balance.RES_OVER_MULT if _base("over") and _shots_fired % Balance.RES_OVER_EVERY == 0 else 1.0)
++	var ov := OS.get_environment("OVER").split(",")  # 시안: 과부하 탄두 간격,배율
++	var ov_every := int(ov[0]) if ov.size() == 2 else Balance.RES_OVER_EVERY
++	var ov_mult := float(ov[1]) if ov.size() == 2 else Balance.RES_OVER_MULT
++	var shot_damage := bullet_damage * (ov_mult if _base("over") and _shots_fired % ov_every == 0 else 1.0)
+ 	for shot in shot_pattern(base_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG), Balance.PARALLEL_SHOT_GAP):
+ 		_fire_bullet(player_pos + shot.offset, shot.angle, life, shot_damage)
+ 	# 프레임 사이에 넘친 시간은 다음 발사에 반영해 프레임 속도와 관계없이 간격을 지킨다.
+@@ -653,7 +661,10 @@ func _update_drones(delta: float) -> void:
+ 			if d.timer <= 0.0:
+ 				d.timer = Balance.DRONE_FIRE_INTERVAL
+ 				var angle := intercept_angle(d.pos, target.pos, target.vel, Balance.BULLET_SPEED)
+-				fired = _fire_bullet(d.pos, angle, drone_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR, bullet_damage * Balance.DRONE_DAMAGE) != null or fired
++				var db := _fire_bullet(d.pos, angle, drone_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR, bullet_damage * Balance.DRONE_DAMAGE)
++				if db != null:
++					db.drone = true
++				fired = db != null or fired
+ 		else:
+ 			d.timer = maxf(d.timer, 0.0)
+ 	if fired:
+@@ -814,6 +825,8 @@ func _on_enemy_destroyed(a: Enemy) -> void:
+ 			fx.append({"type": "drop_extra", "pos": a.pos})
+ 		for i in count:
+ 			var m := drop_mineral(a.pos, rolled_grade(int(drop["grade"])))
++			if OS.get_environment("XP_BASE") == "1":
++				m.xp_grade = int(drop["grade"])
+ 			# 운석 자리에서 사방으로 튕겨 나가 감속하며 멈춘다 (멈출 때까지 가는 거리 = 속도 / 감속)
+ 			m.vel = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(Juice.MINERAL_POP_MIN, Juice.MINERAL_POP_MAX) * Juice.MINERAL_POP_DAMP
+ 
+@@ -975,6 +988,7 @@ func _update_minerals(delta: float) -> void:
+ 			m.pos = m.pos.move_toward(player_pos, magnet_speed(dist, magnet_radius) * (1.0 + Balance.RES_FAST_PULL if _base("fast") else 1.0) * delta)
+ 			dist = m.pos.distance_to(player_pos)
+ 		if dist <= Balance.PICKUP_RADIUS:
++			_next_xp_grade = m.xp_grade
+ 			picked.append({"pos": m.pos, "grade": m.grade, "gain": collect(m.grade)})
+ 		else:
+ 			kept.append(m)
+@@ -982,12 +996,14 @@ func _update_minerals(delta: float) -> void:
+ 
+ 
+ ## 광물을 줍는다. 경험치는 화물칸이 꽉 찼어도 항상 받는다. 화물칸에서 늘어난 가치를 돌려준다.
++var _next_xp_grade := -1
+ func collect(grade: int) -> int:
+ 	collected[grade] += 1
+ 	mineral_value += int(Balance.MINERAL_GRADES[grade]["value"])
+ 	events.append("pickup")
+ 	var gain := cargo.add(grade)
+-	gain_xp(mineral_xp(grade))
++	gain_xp(mineral_xp(_next_xp_grade if _next_xp_grade >= 0 else grade))
++	_next_xp_grade = -1
+ 	return gain
+ 
+ 

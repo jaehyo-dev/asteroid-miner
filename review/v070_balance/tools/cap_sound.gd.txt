@@ -1,0 +1,56 @@
+extends SceneTree
+## 후반 소리 녹음 (작업 사본 전용): 출격 직후 시각을 4분으로 옮기고 후반 강화를 넣은 뒤 40초 동안 봇이 줍는다. 배경음은 끈다.
+var frame := 0
+var run: Node
+var start := -1
+
+func _initialize() -> void:
+	SaveData.path = "user://cap_sound_save.json"
+	SaveData.new().save_file()
+
+func _process(_d: float) -> bool:
+	frame += 1
+	RenderingServer.force_draw(false)
+	AudioServer.set_bus_mute(AudioServer.get_bus_index(&"Music"), true)
+	if frame == 1:
+		change_scene_to_file("res://scenes/main.tscn")
+	elif frame == 30:
+		current_scene.press("ship")
+	elif current_scene != null and current_scene.has_method("bank_result"):
+		return _step()
+	return frame > 4000
+
+func _step() -> bool:
+	var sim: RunSim = current_scene.sim
+	if run != current_scene:
+		run = current_scene
+		sim.rng.seed = 77
+		for p in [["fire_rate", 3], ["fire_rate", 3], ["multishot", 2], ["multishot", 2], ["damage", 3], ["damage", 3], ["magnet", 3], ["magnet", 3], ["drone", 3], ["explosive", 3], ["range", 2]]:
+			sim.apply_pick(p[0], p[1])
+	sim.max_hp = 1.0e6
+	sim.hp = 1.0e6
+	if run.intro_t >= 0.0:
+		return false
+	if start < 0:
+		start = frame
+		sim.time = 240.0
+		sim.gate.timer = 1.0e6
+	if run.current_menu == run.Menu.PAUSE:
+		run._close_menu()
+	elif run.current_menu == run.Menu.LEVEL_UP:
+		if run.cards.state == run.cards.State.READY:
+			run.cards.choose(BalanceBot.best_choice(sim.choices))
+	else:
+		var move := Vector2.ZERO
+		var danger := RunSim.nearest_enemy(sim.player_pos, sim.enemies, BalanceBot.COLLECTOR_DANGER)
+		if danger != null:
+			move = (sim.player_pos - danger.pos).normalized()
+		else:
+			var best := 260.0
+			for m in sim.minerals:
+				var d := m.pos.distance_to(sim.player_pos)
+				if d < best:
+					best = d
+					move = (m.pos - sim.player_pos).normalized()
+		run.joystick.vector = move
+	return frame > start + 40 * 30

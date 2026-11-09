@@ -1,0 +1,43 @@
+class_name PickupSound
+extends RefCounted
+## 시안: 광물 줍기 소리 규칙.
+## - GROUP초 안에 주운 광물은 소리 한 번으로 묶고, 그 묶음에서 가장 높은 등급 소리를 낸다 (희귀 이상이 일반에 묻히지 않게).
+## - 1초에 나는 횟수가 RATE_REF보다 많으면 한 번의 음량을 낮춰 전체 크기를 비슷하게 한다. 전설은 RARE_FLOOR_DB까지만 낮춘다.
+## - 연달아 주우면 묶음마다 1반음씩 COMBO_MAX까지 오르고, COMBO_GAP초 끊기면 처음 음으로.
+## - 동시에 나는 줍기 소리는 전체 MAX_VOICES개까지 (부르는 쪽이 지킨다).
+
+const GROUP := 0.05
+const RATE_REF := 3.0
+const COMBO_GAP := 0.6
+const COMBO_MAX := 5
+const RARE_FLOOR_DB := -3.0
+const MAX_VOICES := 3
+
+var _group_at := -INF
+var _group_grade := -1
+var _plays: Array[float] = []
+var _combo := 0
+var _last := -INF
+
+
+## now에 grades(이번 프레임에 주운 등급들)를 주웠을 때 낼 소리 {grade, db, semi}. 묶여서 내지 않으면 빈 Dictionary.
+func pick(now: float, grades: Array) -> Dictionary:
+	var top := -1
+	for g in grades:
+		top = maxi(top, int(g))
+	if now - _last > COMBO_GAP:
+		_combo = 0
+	_last = now
+	# 묶음 안인데 더 높은 등급이 아니면 내지 않는다
+	if now - _group_at < GROUP and top <= _group_grade:
+		return {}
+	if now - _group_at >= GROUP:
+		_group_at = now
+		_combo = mini(_combo + 1, COMBO_MAX) if _plays.size() > 0 and now - _plays[-1] <= COMBO_GAP else _combo
+	_group_grade = top
+	_plays = _plays.filter(func(t: float) -> bool: return now - t < 1.0)
+	_plays.append(now)
+	var db := -10.0 * log(maxf(_plays.size() / RATE_REF, 1.0)) / log(10.0)
+	if top >= 3:
+		db = maxf(db, RARE_FLOOR_DB)
+	return {"grade": top, "db": db, "semi": _combo}

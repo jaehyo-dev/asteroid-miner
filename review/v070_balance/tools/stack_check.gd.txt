@@ -1,0 +1,33 @@
+extends SceneTree
+## 스킬을 여러 번 찍었을 때 실제 값 (점검용)
+func _show(label: String, picks: Array) -> void:
+	var sim := RunSim.new(1)
+	sim.apply_base({})
+	var avail := []
+	for p in picks:
+		sim.apply_pick(p[0], p[1])
+	var lv := sim.upgrade_levels.duplicate()
+	var pool := Upgrades.available_in(Balance.EFFECT_UPGRADES, lv)
+	print("%s | 드론 %d | 실드 간격 %.1f | 관통 %d | 튕김 %d | 폭발 반경 %.0f 비율 %.2f | 치명 %.2f | 채굴 %.2f | 탄 %d 피해 %.2f 간격 %.3f | 카드 계속 나옴(효과): %s" % [label, int(sim.upgrade_bonus.get("drone",0)), sim.shield_interval, sim.pierce_count, sim.bounce_count, sim.explosive_radius, sim.explosive_share, sim.crit_chance, sim.mineral_bonus, sim.bullet_count, sim.bullet_damage, sim.fire_interval, ",".join(pool)])
+func _init() -> void:
+	var E := 2
+	var U := 3
+	_show("드론 U", [["drone",U]])
+	_show("드론 U,U", [["drone",U],["drone",U]])
+	_show("드론 E,E,E", [["drone",E],["drone",E],["drone",E]])
+	_show("실드 E", [["shield",E]])
+	_show("실드 U", [["shield",U]])
+	_show("실드 U,E", [["shield",U],["shield",E]])
+	_show("실드 E,E", [["shield",E],["shield",E]])
+	_show("실드 U,U,U", [["shield",U],["shield",U],["shield",U]])
+	_show("관통 U,U", [["pierce",U],["pierce",U]])
+	_show("튕김 U,U", [["ricochet",U],["ricochet",U]])
+	_show("폭발 E,E,E", [["explosive",E],["explosive",E],["explosive",E]])
+	_show("폭발 U,E", [["explosive",U],["explosive",E]])
+	_show("치명 U,U", [["crit",U],["crit",U]])
+	_show("채굴 U,U", [["mining_laser",U],["mining_laser",U]])
+	_show("다중 U,U,U,U", [["multishot",U],["multishot",U],["multishot",U],["multishot",U]])
+	_show("다중 E,E,E,E", [["multishot",E],["multishot",E],["multishot",E],["multishot",E]])
+	_show("연쇄+튕김U", [["chain_matrix",4],["ricochet",U]])
+	_show("궤도관통", [["pierce",U],["orbit_pierce",4]])
+	quit(0)

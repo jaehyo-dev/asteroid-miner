@@ -1,0 +1,72 @@
+extends SceneTree
+## 점검용 캡처 (작업 사본 전용). CAP_MODE=drone|cards, 인자: 저장 경로 접두사
+var frame := 0
+var run: Node
+var out := ""
+var shots := 0
+var card_frame := -1
+
+func _initialize() -> void:
+	out = OS.get_cmdline_user_args()[0]
+	SaveData.path = "user://cap_balance_save.json"
+	var save := SaveData.new()
+	save.save_file()
+
+func _process(_d: float) -> bool:
+	frame += 1
+	RenderingServer.force_draw(false)
+	if frame > 2400:
+		return true
+	if frame == 1:
+		change_scene_to_file("res://scenes/main.tscn")
+	elif frame == 30:
+		current_scene.press("ship")
+	elif current_scene != null and current_scene.has_method("bank_result"):
+		return _step()
+	return false
+
+func _save(name: String) -> void:
+	get_root().get_texture().get_image().save_png(out + name + ".png")
+
+func _step() -> bool:
+	if run != current_scene:
+		run = current_scene
+		run.sim.rng.seed = 2026
+		run.sim.max_hp = 1.0e5
+		run.sim.hp = 1.0e5
+		if OS.get_environment("CAP_MODE") == "drone":
+			run.sim.apply_pick("drone", 3)
+			run.sim.apply_pick("drone", 3)
+			run.sim.max_hp = 1.0e5
+			run.sim.hp = 1.0e5
+	if run.intro_t >= 0.0:
+		return false
+	var sim: RunSim = run.sim
+	if run.current_menu == run.Menu.PAUSE:
+		run._close_menu()
+	if OS.get_environment("CAP_MODE") == "drone":
+		if run.current_menu == run.Menu.LEVEL_UP:
+			if run.cards.state == run.cards.State.READY:
+				run.cards.choose(0)
+			return false
+		run.joystick.vector = Vector2.ZERO
+		if sim.time > 14.0 and frame % 6 == 0:
+			var n := 0
+			for b in sim.bullets:
+				if b.drone:
+					n += 1
+			if n >= 3:
+				shots += 1
+				_save("drone_%d" % shots)
+		return shots >= 6
+	# cards
+	if run.current_menu == run.Menu.LEVEL_UP:
+		if run.cards.state == run.cards.State.READY:
+			if card_frame < 0:
+				card_frame = frame
+			elif frame == card_frame + 20:
+				_save("cards")
+				return true
+	elif sim.time > 4.0 and sim.choices.is_empty():
+		sim.gain_xp(Upgrades.xp_to_next(sim.level))
+	return false

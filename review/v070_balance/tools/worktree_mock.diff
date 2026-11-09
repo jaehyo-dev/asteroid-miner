@@ -1,0 +1,177 @@
+diff --git a/scripts/logic/run_sim.gd b/scripts/logic/run_sim.gd
+index 061f8a8..939f4b4 100644
+--- a/scripts/logic/run_sim.gd
++++ b/scripts/logic/run_sim.gd
+@@ -59,6 +59,7 @@ class Shot:
+ ## 탄 한 개
+ class Bullet:
+ 	var pos: Vector2
++	var drone := false
+ 	var prev_pos: Vector2  ## 이번 프레임 이동 전 위치 (지나간 선분으로 명중 판정)
+ 	var vel: Vector2
+ 	var life: float  ## 남은 비행 시간
+@@ -653,7 +654,10 @@ func _update_drones(delta: float) -> void:
+ 			if d.timer <= 0.0:
+ 				d.timer = Balance.DRONE_FIRE_INTERVAL
+ 				var angle := intercept_angle(d.pos, target.pos, target.vel, Balance.BULLET_SPEED)
+-				fired = _fire_bullet(d.pos, angle, drone_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR, bullet_damage * Balance.DRONE_DAMAGE) != null or fired
++				var db := _fire_bullet(d.pos, angle, drone_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR, bullet_damage * Balance.DRONE_DAMAGE)
++				if db != null:
++					db.drone = true
++				fired = db != null or fired
+ 		else:
+ 			d.timer = maxf(d.timer, 0.0)
+ 	if fired:
+diff --git a/scripts/run.gd b/scripts/run.gd
+index 5ba70e3..5ffe3ef 100644
+--- a/scripts/run.gd
++++ b/scripts/run.gd
+@@ -49,6 +49,7 @@ var hitstop := 0.0
+ var slowmo := 0.0
+ ## 광물 연속 줍기 음 높이
+ var _combo := PickupCombo.new()
++var _pickup_new := PickupSound.new()
+ ## 운석 깨짐 소리가 몰리면 작게·적게
+ var _break_sounds := SoundThrottle.new(Juice.BREAK_SOUND_WINDOW, Juice.BREAK_SOUND_MAX, Juice.BREAK_SOUND_STEP_DB)
+ ## 적 소리 이름 → 몰림 줄이기 (처음 날 때 만든다)
+@@ -348,6 +349,14 @@ func _play_sounds() -> void:
+ 	# 줍기: 같은 등급은 한 프레임에 한 번만, 1초 안에 연속으로 주우면 음이 올라감
+ 	if sim.picked.is_empty():
+ 		return
++	if OS.get_environment("PICKUP_NEW") == "1":  # 시안: 묶기·음량 맞춤·짧은 콤보·높은 등급 우선, 동시 3개
++		var grades := []
++		for p in sim.picked:
++			grades.append(p["grade"])
++		var r := _pickup_new.pick(sim.time, grades)
++		if not r.is_empty() and Sfx.voices_playing("pickup_") < PickupSound.MAX_VOICES:
++			Sfx.play("pickup_%d" % r["grade"], 0.0, PickupCombo.pitch_of(r["semi"]), r["db"])
++		return
+ 	var pitch := PickupCombo.pitch_of(_combo.pick(sim.time))
+ 	var played := {}
+ 	for p in sim.picked:
+diff --git a/scripts/sfx.gd b/scripts/sfx.gd
+index c477058..5f1c55e 100644
+--- a/scripts/sfx.gd
++++ b/scripts/sfx.gd
+@@ -156,6 +156,8 @@ func _make_player(sound: Dictionary) -> AudioStreamPlayer:
+ ## 효과음을 낸다. pitch_jitter: 음 높이 랜덤 ±비율 (음수면 표의 값), pitch: 표의 음 높이에 곱할 배율, db: 표의 음량에 더할 값.
+ ## 같은 소리가 이미 max개 나고 있으면 내지 않고 false를 돌려준다 (한꺼번에 너무 겹치지 않게).
+ func play(sound_name: String, pitch_jitter: float = -1.0, pitch: float = 1.0, db: float = 0.0) -> bool:
++	if OS.get_environment("PICKUP_ONLY") == "1" and not sound_name.begins_with("pickup_"):
++		return false  # 시안 녹음: 줍기 소리만
+ 	var sound: Dictionary = SOUNDS[sound_name]
+ 	var jitter: float = sound["jitter"] if pitch_jitter < 0.0 else pitch_jitter
+ 	for player: AudioStreamPlayer in _pools[sound_name]:
+@@ -169,6 +171,17 @@ func play(sound_name: String, pitch_jitter: float = -1.0, pitch: float = 1.0, db
+ 	return false
+ 
+ 
++## 이름이 prefix로 시작하는 소리가 지금 몇 개 나는지 (시안)
++func voices_playing(prefix: String) -> int:
++	var n := 0
++	for k in _pools:
++		if str(k).begins_with(prefix):
++			for player: AudioStreamPlayer in _pools[k]:
++				if player.playing:
++					n += 1
++	return n
++
++
+ ## 소리 이름의 재생기 묶음 (테스트용)
+ func pool(sound_name: String) -> Array:
+ 	return _pools[sound_name]
+diff --git a/scripts/ui/level_up_cards.gd b/scripts/ui/level_up_cards.gd
+index 300dc44..2e23511 100644
+--- a/scripts/ui/level_up_cards.gd
++++ b/scripts/ui/level_up_cards.gd
+@@ -363,6 +363,9 @@ func _apply_layout() -> void:
+ 		if state != State.REVEAL:
+ 			cards[i].settle()
+ 	_build_button(lay, top + int(lay["h"]) + int(lay["btn_gap"]), int(view.x))
++	var mock := OS.get_environment("SKIP_MOCK")
++	if mock != "":
++		_mock_skip(mock, lay, top, x0, w, gap, int(view.x))
+ 
+ 
+ ## 다시 뽑기 버튼: 판 그림 + "다시 뽑기 N회". 0회면 어둡게 꺼진다
+@@ -408,3 +411,62 @@ func _button_label(text: String, pos: Vector2, font_size: int, color: Color) ->
+ 	label.add_theme_font_size_override("font_size", font_size)
+ 	label.add_theme_color_override("font_color", color)
+ 	reroll_button.add_child(label)
++
++
++## 시안: 건너뛰기 버튼 (A = 다시 뽑기 옆, B = 카드 오른쪽 세로 칸)
++var _skip_btn: Control
++func _mock_skip(mode: String, lay: Dictionary, top: int, x0: int, w: int, gap: int, view_w: int) -> void:
++	if _skip_btn != null:
++		_skip_btn.queue_free()
++	var btn: Vector2i = lay["btn"]
++	var font_size: int = lay["btn_size"]
++	var b := Control.new()
++	var plate := NinePatchRect.new()
++	var art := LevelCard.tex("button")
++	plate.texture = art
++	plate.patch_margin_left = art.get_width() / 2
++	plate.patch_margin_right = art.get_width() / 2
++	plate.patch_margin_top = art.get_height() / 2
++	plate.patch_margin_bottom = art.get_height() / 2
++	b.add_child(plate)
++	var text := "건너뛰기"
++	var sub := "광물 +40"
++	if mode == "A":
++		var half := gap / 2 + 2
++		var small := Vector2i(btn.x, btn.y)
++		reroll_button.position.x = view_w / 2 - half - small.x
++		b.position = Vector2(view_w / 2 + half, reroll_button.position.y)
++		b.size = small
++	else:
++		var bw := maxi(w / 3, font_size * 3)
++		b.position = Vector2(x0 + cards.size() * (w + gap), top + int(lay["h"]) / 2 - int(lay["h"]) / 4)
++		b.size = Vector2(bw, int(lay["h"]) / 2)
++	plate.size = b.size
++	var font := LevelCard.FONT
++	var line_h := int(font.get_height(font_size))
++	if mode == "A":
++		var tw := int(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
++		var sw := int(font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
++		if tw + font_size / 2 + sw > int(b.size.x) - font_size * 2:  # 좁으면(폰) "광물" 글자를 뺀다
++			sub = "+40"
++			sw = int(font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
++		var x := (int(b.size.x) - tw - font_size / 2 - sw) / 2
++		_mock_label(b, text, Vector2(x, (int(b.size.y) - line_h) / 2), font_size, LABEL_INK)
++		_mock_label(b, sub, Vector2(x + tw + font_size / 2, (int(b.size.y) - line_h) / 2), font_size, COUNT_COLOR)
++	else:
++		var y := int(b.size.y) / 2 - line_h
++		for t in [[text, LABEL_INK], [sub, COUNT_COLOR]]:
++			var tw := int(font.get_string_size(t[0], HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
++			_mock_label(b, t[0], Vector2((int(b.size.x) - tw) / 2, y), font_size, t[1])
++			y += line_h
++	add_child(b)
++	_skip_btn = b
++
++
++func _mock_label(parent: Control, text: String, pos: Vector2, font_size: int, color: Color) -> void:
++	var label := Label.new()
++	label.text = text
++	label.position = pos
++	label.add_theme_font_size_override("font_size", font_size)
++	label.add_theme_color_override("font_color", color)
++	parent.add_child(label)
+diff --git a/scripts/world_view.gd b/scripts/world_view.gd
+index a3b1aae..b27ad87 100644
+--- a/scripts/world_view.gd
++++ b/scripts/world_view.gd
+@@ -276,7 +276,12 @@ func _draw() -> void:
+ 	for b in sim.bullets:
+ 		if sim.orbit_pierce:
+ 			_draw_orbit_tail(b)
+-		RunSprites.draw(self, "bullet", bullet_frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
++		if b.drone and OS.get_environment("DRONE_SMALL") == "1":  # 시안: 드론 탄은 반 크기
++			draw_set_transform(b.pos.round(), 0.0, Vector2(0.5, 0.5))
++			RunSprites.draw(self, "bullet", bullet_frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), Vector2.ZERO, Color(0.75, 1.0, 1.0))
++			draw_set_transform(Vector2.ZERO)
++		else:
++			RunSprites.draw(self, "bullet", bullet_frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
+ 	for fx in _pickups:
+ 		_draw_pickup_fx(fx)
+ 	_draw_effects()
