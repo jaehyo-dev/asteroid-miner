@@ -95,15 +95,36 @@ func test_부서진_적의_소리_이름() -> void:
 
 func test_연속_줍기는_반음씩_올라가고_끊기면_처음부터() -> void:
 	var c := PickupCombo.new()
-	assert_eq(c.pick(0.0), 0, "첫 줍기")
-	assert_eq(c.pick(0.5), 1)
-	assert_eq(c.pick(1.4), 2, "앞 줍기에서 1초 안")
+	assert_eq(c.pick(0.0, [0])["semi"], 0, "첫 줍기")
+	assert_eq(c.pick(0.5, [0])["semi"], 1)
+	assert_eq(c.pick(1.0, [0])["semi"], 2, "앞 줍기에서 0.6초 안")
 	for i in 20:
-		c.pick(1.5 + i * 0.1)
-	assert_eq(c.steps, Juice.PICKUP_COMBO_MAX_SEMITONES, "최대 +12반음")
-	assert_eq(c.pick(10.0), 0, "1초 넘게 쉬면 처음부터")
+		c.pick(1.1 + i * 0.1, [0])
+	assert_eq(c.steps, 5, "최대 +5반음")
+	assert_eq(Juice.PICKUP_COMBO_MAX_SEMITONES, 5)
+	assert_eq(c.pick(10.0, [0])["semi"], 0, "0.6초 넘게 쉬면 처음부터")
 	assert_true(is_equal_approx(PickupCombo.pitch_of(12), 2.0), "12반음 = 한 옥타브")
 	assert_true(is_equal_approx(PickupCombo.pitch_of(0), 1.0))
+
+
+func test_줍기_0_05초_안은_한_번_높은_등급_우선() -> void:
+	var c := PickupCombo.new()
+	assert_eq(c.pick(0.0, [0, 2, 1])["grade"], 2, "한 프레임에 여럿이면 가장 높은 등급")
+	assert_true(c.pick(0.02, [0]).is_empty(), "묶음 안 같거나 낮은 등급은 안 냄")
+	assert_eq(c.pick(0.03, [3])["grade"], 3, "묶음 안이라도 더 높은 등급은 따로 냄")
+	assert_false(c.pick(0.06, [0]).is_empty(), "0.05초 지나면 새 묶음")
+	assert_true(c.pick(1.0, []).is_empty(), "주운 게 없으면 없음")
+
+
+func test_줍기_1초_12번이면_한_번_6dB_작게_전설은_3dB까지만() -> void:
+	var c := PickupCombo.new()
+	var last := {}
+	for i in 12:
+		last = c.pick(i * 0.08, [0])
+	assert_true(absf(last["db"] - (-6.02)) < 0.05, "1초에 12번이면 -6dB (%s)" % last["db"])
+	assert_eq(PickupCombo.rate_db(3), 0.0, "3번 이하는 그대로")
+	var legend := c.pick(0.95, [3])
+	assert_eq(legend["db"], Juice.PICKUP_LEGEND_FLOOR_DB, "전설은 -3dB까지만")
 
 
 func test_탄이_맞으면_맞음_사건() -> void:

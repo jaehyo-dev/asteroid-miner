@@ -75,6 +75,13 @@ class OrbFramesTest(unittest.TestCase):
             self.assertEqual((xs[0] + xs[-1] + 1) // 2, 8)
 
 
+    def test_드론_탄은_3x5(self):
+        sheet = brs.drone_bullet_sheet()
+        self.assertEqual(sheet.size, (16 * len(brs.DRONE_BULLET_FRAMES), 16 * 8))
+        for f in range(len(brs.DRONE_BULLET_FRAMES)):
+            x0, y0, x1, y1 = sheet.crop((f * 16, 0, f * 16 + 16, 16)).getbbox()
+            self.assertEqual((x1 - x0, y1 - y0), (3, 5))
+
     def test_내_탄은_6x10이고_좌우_대칭으로_칸_가운데(self):
         sheet = brs.bullet_sheet()
         self.assertEqual(sheet.size, (32 * len(brs.BULLET_FRAMES), 32 * 8))

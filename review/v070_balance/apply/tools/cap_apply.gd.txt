@@ -1,0 +1,195 @@
+extends SceneTree
+## v0.7.0 밸런스 적용 확인 캡처 (게임에 포함하지 않음). tests/cap_apply.gd로 복사해서 창을 띄워 실행:
+##   godot --path . --resolution 1280x720 --fixed-fps 25 -s res://tests/cap_apply.gd -- pc
+##   godot --path . --resolution 844x390 --fixed-fps 25 -s res://tests/cap_apply.gd -- phone
+## 프레임은 user://cap_apply/<태그>/<장면>/NNNN.png, 한 장은 user://cap_apply/<태그>/<이름>.png
+
+var tag := "pc"
+var run: Node
+var _rec := ""
+var _n := 0
+
+
+func _initialize() -> void:
+	tag = OS.get_cmdline_user_args()[0] if OS.get_cmdline_user_args().size() > 0 else "pc"
+	_main.call_deferred()
+
+
+func _process(_d: float) -> bool:
+	if _rec != "":
+		root.get_texture().get_image().save_png("user://cap_apply/%s/%s/%04d.png" % [tag, _rec, _n])
+		_n += 1
+	return false
+
+
+func rec(name: String) -> void:
+	DirAccess.make_dir_recursive_absolute("user://cap_apply/%s/%s" % [tag, name])
+	_rec = name
+	_n = 0
+
+
+func stop() -> void:
+	await process_frame
+	_rec = ""
+
+
+func wait(t: float) -> void:
+	await create_timer(t).timeout
+
+
+func still(name: String) -> void:
+	await RenderingServer.frame_post_draw
+	DirAccess.make_dir_recursive_absolute("user://cap_apply/%s" % tag)
+	root.get_texture().get_image().save_png("user://cap_apply/%s/%s.png" % [tag, name])
+
+
+## 새 출격 화면 (적은 치우고, 죽지 않게)
+func _new_run(base: Dictionary = {}) -> RunSim:
+	if run:
+		run.queue_free()
+		await process_frame
+	var save := SaveData.new()
+	save.upgrades = base
+	save.warp_seen = true
+	save.risk_tip_seen = true
+	save.save_file()
+	run = load("res://scenes/run.tscn").instantiate()
+	root.add_child(run)
+	current_scene = run
+	await wait(0.3)
+	var sim: RunSim = run.sim
+	sim.rng.seed = 2026
+	sim.max_hp = 1.0e5  # 무적은 깜빡여서 체력으로 버틴다
+	sim.hp = 1.0e5
+	sim.enemies.clear()
+	return sim
+
+
+## 화면을 비워 둔다 (적이 나오지 않게 매 프레임 치움)
+func _keep_clear(sim: RunSim, seconds: float) -> void:
+	var t := 0.0
+	while t < seconds:
+		sim.enemies.clear()
+		sim.shots.clear()
+		sim.barrages.clear()
+		await process_frame
+		t += 1.0 / 25.0
+
+
+func _main() -> void:
+	SaveData.path = "user://cap_apply_save.json"
+	await _merge()
+	await _skip()
+	await _skip_empty()
+	await _drone()
+	await _cards()
+	await _hud()
+	quit(0)
+
+
+## 6) 합치기: 일반 5개·희귀 3개+(일반 5개가 합쳐져 4번째)·영웅 4개+(위 희귀가 합쳐져 5번째) → 연쇄로 전설
+func _merge() -> void:
+	var sim := await _new_run()
+	var c := sim.player_pos + Vector2(90, -10)
+	for i in 5:
+		sim.drop_mineral(c + Vector2.from_angle(i * TAU / 5.0) * 10.0, 0)
+	for i in 3:
+		sim.drop_mineral(c + Vector2(-10 + i * 10, 16), 1)
+	for i in 4:
+		sim.drop_mineral(c + Vector2(-9 + i * 6, -8), 2)
+	var d := sim.player_pos + Vector2(-100, 20)  # 왼쪽: 일반 10개 → 희귀 2개 (옆 무더기는 따로)
+	for i in 10:
+		sim.drop_mineral(d + Vector2((i % 5) * 8, (i / 5) * 30), 0)
+	rec("merge")
+	await _keep_clear(sim, 3.2)
+	await stop()
+	await still("merge_after")
+
+
+## 3) 건너뛰기: 카드가 다 펼쳐진 뒤 건너뛰기 → "광물 +N 금고로"
+func _skip() -> void:
+	var sim := await _new_run()
+	await _keep_clear(sim, 0.3)
+	sim.gain_xp(Upgrades.xp_to_next(1) + Upgrades.xp_to_next(2) + 10)
+	rec("skip")
+	while run.cards.state != run.cards.State.READY:
+		await process_frame
+	await wait(0.6)
+	await still("skip_cards")
+	run.cards.skip_pick()
+	await _keep_clear(sim, 1.6)
+	await stop()
+
+
+## 고를 카드가 없을 때: 건너뛰기 버튼만 크게
+func _skip_empty() -> void:
+	var sim := await _new_run()
+	for u in Balance.UPGRADES:
+		sim.upgrade_levels[u["id"]] = u["max"]
+	sim.effects_enabled = false
+	sim.gain_xp(Upgrades.xp_to_next(1))
+	while run.cards.state != run.cards.State.READY:
+		await process_frame
+	await wait(0.4)
+	await still("skip_empty")
+	run.cards.skip_pick()
+	await wait(0.2)
+
+
+## 4) 드론 탄: 드론 3기가 실제로 쏘는 순간
+func _drone() -> void:
+	var sim := await _new_run()
+	sim.apply_pick("drone", Upgrades.UNIQUE)
+	sim.apply_pick("drone", Upgrades.UNIQUE)
+	sim.fire_interval = 1.0e9  # 우주선 탄은 끄고 드론 탄만 보이게
+	rec("drone")
+	var shots := 0
+	for f in 75:
+		if sim.enemies.size() < 3:
+			var a := sim.spawn_asteroid()
+			a.pos = sim.player_pos + Vector2.from_angle(f * 2.1) * 70.0
+			a.vel = Vector2.ZERO
+			a.hp = 1.0e9
+		await process_frame
+		if shots < 3 and sim.bullets.any(func(b): return b.drone and b.pos.distance_to(sim.player_pos) > 30.0):
+			shots += 1
+			await still("drone_shot_%d" % shots)
+	await stop()
+
+
+## 1) 카드 문구: 이미 가진 효과 "지금 → 다음" 3장
+func _cards() -> void:
+	var sim := await _new_run()
+	sim.apply_pick("drone", Upgrades.UNIQUE)
+	sim.apply_pick("shield", Upgrades.UNIQUE)
+	sim.apply_pick("explosive", Upgrades.EPIC)
+	var cards := []
+	for c in [["drone", Upgrades.UNIQUE], ["shield", Upgrades.EPIC], ["explosive", Upgrades.EPIC]]:
+		cards.append({"id": c[0], "grade": c[1], "desc": Upgrades.describe_next(c[0], c[1], sim.upgrade_bonus), "short": Upgrades.describe_next(c[0], c[1], sim.upgrade_bonus, true)})
+	sim.pending_levelups = 1
+	sim.choices = cards
+	while run.cards.state != run.cards.State.READY:
+		await process_frame
+	await wait(0.6)
+	await still("cards_now_next")
+	# 처음 찍는 카드 문구 (유니크 드론 +2기, 고밀도 탄두 %, 연쇄 반사 매트릭스)
+	run.cards.close()
+	run._close_menu()
+	var fresh := await _new_run()
+	fresh.pending_levelups = 1
+	fresh.choices = [{"id": "drone", "grade": Upgrades.UNIQUE}, {"id": "damage", "grade": Upgrades.RARE}, {"id": "chain_matrix", "grade": Upgrades.LEGENDARY}]
+	while run.cards.state != run.cards.State.READY:
+		await process_frame
+	await wait(0.6)
+	await still("cards_first")
+
+
+## HUD: 연구소 실드 칸(3칸 중 1칸 씀) + 적 피해 안내
+func _hud() -> void:
+	var sim := await _new_run({"shield": 3})
+	sim.damage_player(1.0)
+	sim.invuln = 0.0
+	sim.time = 209.5
+	sim._damage_mult = 1.0
+	await _keep_clear(sim, 1.2)
+	await still("hud_shield_damage")

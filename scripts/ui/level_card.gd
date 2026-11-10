@@ -118,7 +118,15 @@ static func tex(file: String) -> Texture2D:
 static func wrap_text(text: String, font_size: int, width: float) -> PackedStringArray:
 	var lines: PackedStringArray = []
 	var cur := ""
-	for word in text.split(" "):
+	# "24 → 30"처럼 화살표 앞뒤는 한 줄에 들어가면 한 덩어리로 (줄이 화살표에서 끊기지 않게)
+	var words: PackedStringArray = []
+	for group in text.replace(" → ", "\u00a0→\u00a0").split(" "):
+		var whole := group.replace("\u00a0", " ")
+		if FONT.get_string_size(whole, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x <= width:
+			words.append(whole)
+		else:
+			words.append_array(whole.split(" "))
+	for word in words:
 		var joined := word if cur.is_empty() else cur + " " + word
 		if cur.is_empty() or FONT.get_string_size(joined, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x <= width:
 			cur = joined
@@ -131,9 +139,9 @@ static func wrap_text(text: String, font_size: int, width: float) -> PackedStrin
 
 ## 설명 줄: 긴 문구가 DESC_MAX_LINES를 넘으면 짧은 문구를 쓴다
 static func desc_lines(card: Dictionary, font_size: int, width: float) -> PackedStringArray:
-	var lines := wrap_text(Upgrades.describe(card["id"], card["grade"]), font_size, width)
+	var lines := wrap_text(Upgrades.card_text(card), font_size, width)
 	if lines.size() > DESC_MAX_LINES:
-		lines = wrap_text(Upgrades.describe(card["id"], card["grade"], true), font_size, width)
+		lines = wrap_text(Upgrades.card_text(card, true), font_size, width)
 	return lines
 
 

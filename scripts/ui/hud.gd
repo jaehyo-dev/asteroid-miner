@@ -30,6 +30,9 @@ const BANNER_Y := 88.0
 ## 포격 표시를 하나로 묶는 거리 (거의 같은 곳에서 쏘면 "!" 하나만)
 const BARRAGE_MARKER_MERGE := 24.0
 const COLOR_BAR_BG := Color("#2a2a40")
+## 연구소 편향 실드 남은 횟수 칸 (체력 막대 높이에 맞춤)
+const BLOCK_SIZE := Vector2(4, 6)
+const COLOR_BLOCK := Color("#99e9e6")
 ## 워프 게이트 색 (화살표, 남은 시간, 충전)
 const COLOR_GATE := Color("#7cf0ff")
 ## 화물칸 칸수·가치 글자 크기. 글꼴은 12px의 정수배만 쓴다(16은 픽셀이 뭉개짐).
@@ -84,6 +87,7 @@ func _draw() -> void:
 	# 체력
 	draw_string(font, Vector2(MARGIN, MARGIN + 10), "HP", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	_draw_bar(Vector2(MARGIN + 18, MARGIN + 4), sim.hp / sim.max_hp, hp_bar_color(alert, sim.time))
+	_draw_blocks(Vector2(MARGIN + 18 + BAR_SIZE.x + 4, MARGIN + 4))
 	# 부순 적 수(운석·생명체)
 	draw_string(font, Vector2(MARGIN, MARGIN + 26), "파괴 %d" % roundi(shown_kills), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)
 	# 주운 광물: 등급별 아이콘과 개수, 총 가치
@@ -347,6 +351,13 @@ static func arrow_points(marker: Vector2, dir: Vector2) -> PackedVector2Array:
 	var side := Vector2(-dir.y, dir.x)
 	var back := marker - dir * MARKER_BACK
 	return PackedVector2Array([marker + dir * MARKER_SIZE, back + side * MARKER_HALF_WIDTH, back - side * MARKER_HALF_WIDTH])
+
+
+## 연구소 편향 실드의 남은 막기 횟수: 체력 막대 옆 작은 칸 (찬 칸 = 남음, 빈 칸 = 씀)
+func _draw_blocks(pos: Vector2) -> void:
+	for i in sim.block_slots():
+		var r := Rect2(pos + Vector2(i * (BLOCK_SIZE.x + 2), 0), BLOCK_SIZE)
+		draw_rect(r, COLOR_BLOCK if i < sim.blocks_left else COLOR_BAR_BG)
 
 
 func _draw_bar(pos: Vector2, ratio: float, color: Color) -> void:

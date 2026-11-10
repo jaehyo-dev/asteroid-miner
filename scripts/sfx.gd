@@ -169,6 +169,17 @@ func play(sound_name: String, pitch_jitter: float = -1.0, pitch: float = 1.0, db
 	return false
 
 
+## 광물 줍기·합치기 소리: 줍기 소리는 등급을 합쳐 동시에 Juice.PICKUP_MAX_VOICES개까지 (전설은 꽉 차도 낸다: 항상 들리게)
+func play_pickup(grade: int, pitch: float, db: float) -> bool:
+	var playing := 0
+	for g in 4:
+		for player: AudioStreamPlayer in _pools["pickup_%d" % g]:
+			playing += 1 if player.playing else 0
+	if playing >= Juice.PICKUP_MAX_VOICES and grade < PickupCombo.LEGEND:
+		return false
+	return play("pickup_%d" % grade, 0.0, pitch, db)
+
+
 ## 소리 이름의 재생기 묶음 (테스트용)
 func pool(sound_name: String) -> Array:
 	return _pools[sound_name]

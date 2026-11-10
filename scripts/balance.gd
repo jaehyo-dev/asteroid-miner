@@ -235,6 +235,13 @@ const MAGNET_SPEED := 220.0
 const PICKUP_RADIUS := 10.0
 ## 바닥에 남아 있을 수 있는 최대 광물 수 (넘으면 오래된 것부터 사라짐)
 const MAX_MINERALS := 300
+## 광물 합치기: 같은 등급이 MERGE_RADIUS 안에 MERGE_COUNT[등급]개 이상, 모두 MERGE_REST초 넘게 놓여 있으면 한 단계 위 1개로.
+## 가치는 그대로 (일반 5 = 희귀 1, 희귀 4 = 영웅 1, 영웅 5 = 전설 1). 전설은 더 합치지 않는다(0). 자석에 끌려오는 광물은 빠진다.
+const MERGE_COUNT := [5, 4, 5, 0]
+const MERGE_RADIUS := 24.0
+const MERGE_REST := 1.5
+## 한 프레임에 합치기 후보로 살펴보는 광물 수 (많을 때 프레임마다 돌아가며 나눠 본다: 폰 성능)
+const MERGE_CHECKS_PER_FRAME := 40
 
 # ── 경험치와 레벨업 강화 ─────────────────────────────
 ## 레벨업에 필요한 경험치 = XP_BASE + (현재 레벨 - 1) × XP_GROWTH  (1→2: 16, 2→3: 52, 3→4: 88 …)
@@ -245,6 +252,8 @@ const XP_GROWTH := 38
 const UPGRADE_CHOICE_COUNT := 3
 ## 한 판에 쓸 수 있는 다시 뽑기 횟수 (3장을 한꺼번에 새로 뽑음)
 const REROLLS_PER_RUN := 2
+## 건너뛰기: 카드를 고르지 않고 넘기면 다음 레벨 필요 경험치의 이 비율만큼 광물 가치를 기지 금고에 바로 더한다 (경험치 없음)
+const SKIP_REWARD_RATIO := 0.15
 ## 등급 확률(%): 노멀·레어·에픽·유니크·레전드리. RISK_RAMP_TIME에 걸쳐 시작값 → 끝값으로 오르고 그 뒤로는 고정
 const GRADE_WEIGHTS_START := [55.0, 27.0, 12.0, 5.0, 1.0]
 const GRADE_WEIGHTS_END := [35.0, 30.0, 20.0, 12.0, 3.0]
@@ -257,6 +266,11 @@ const XP_SOFT_GROWTH := 4
 const ENEMY_LATE_HP_START := 270.0
 const ENEMY_LATE_HP_TIME := 60.0
 const ENEMY_LATE_HP_SCALE := 0.6
+## 후반 적 피해 (v0.7.0 밸런스 D): ENEMY_DAMAGE_START초부터 1분마다 ENEMY_DAMAGE_STEP씩 오르고 ENEMY_DAMAGE_MAX에서 멈춘다.
+## 부딪힘·적 탄 모두 (2:30 ×1, 3:30 ×1.25 … 8:30부터 ×2.5)
+const ENEMY_DAMAGE_START := 150.0
+const ENEMY_DAMAGE_STEP := 0.25
+const ENEMY_DAMAGE_MAX := 2.5
 ## 에픽·유니크 칸이 효과 강화일 확률 (나머지는 수치 강화)
 const EFFECT_SHARE := 0.6
 ## 효과 카드 없는 레벨업이 이만큼 이어지면 다음 화면에 에픽 효과 1장 확정
@@ -281,14 +295,14 @@ const EFFECT_UPGRADES := [
 	{"id": "ricochet", "name": "반사 코팅 탄", "kind": "공격", "max": 2, "desc": ["맞은 뒤 1번 튕김 (피해 70%)", "맞은 뒤 2번 튕김 (피해 70%)"], "short": ["1번 튕김 피해 70%", "2번 튕김 피해 70%"]},
 	{"id": "explosive", "name": "고폭 탄두", "kind": "공격", "max": 3, "desc": ["부술 때 반경 24 폭발, 탄 피해의 50%", "부술 때 반경 36 폭발, 탄 피해의 75%"], "short": ["부수면 폭발 피해 50%", "부수면 폭발 피해 75%"]},
 	{"id": "crit", "name": "표적 분석 AI", "kind": "공격", "max": 3, "desc": ["치명타 확률 15% (2배 피해)", "치명타 확률 25% (2배 피해)"], "short": ["치명타 15%", "치명타 25%"]},
-	{"id": "shield", "name": "편향 실드 발생기", "kind": "방어", "max": 3, "desc": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"], "short": ["20초마다 1번 막음", "12초마다 1번 막음"]},
-	{"id": "drone", "name": "호위 드론 사출", "kind": "드론", "max": 3, "desc": ["드론 1기가 따라다니며 함께 공격", "드론 2기가 따라다니며 함께 공격"], "short": ["드론 1기 함께 공격", "드론 2기 함께 공격"]},
+	{"id": "shield", "name": "자동 방어막 발생기", "kind": "방어", "max": 3, "desc": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"], "short": ["20초마다 1번 막음", "12초마다 1번 막음"]},
+	{"id": "drone", "name": "호위 드론 사출", "kind": "드론", "max": 3, "desc": ["드론 +1기가 따라다니며 함께 공격", "드론 +2기가 따라다니며 함께 공격"], "short": ["드론 +1기 함께 공격", "드론 +2기 함께 공격"]},
 	{"id": "mining_laser", "name": "정밀 채굴 레이저", "kind": "채굴", "max": 3, "desc": ["운석에서 나오는 광물 +25%", "운석에서 나오는 광물 +50%"], "short": ["운석 광물 +25%", "운석 광물 +50%"]},
 ]
 ## 레전드리 4종: 한 판에 1번, 한 화면에 1장까지
 const LEGENDARY_UPGRADES := [
 	{"id": "orbit_pierce", "name": "궤도 관통 가속기", "kind": "공격", "max": 1, "desc": "모든 탄이 사거리 끝까지 관통", "short": "모든 탄이 끝까지 관통"},
-	{"id": "chain_matrix", "name": "연쇄 반사 매트릭스", "kind": "공격", "max": 1, "desc": "3번 연쇄 튕김, 튕길 때마다 피해 -20%", "short": "3번 튕김 피해 -20%씩"},
+	{"id": "chain_matrix", "name": "연쇄 반사 매트릭스", "kind": "공격", "max": 1, "desc": "튕김 +3번, 반사 탄도 튕길 때 피해 80%", "short": "튕김 +3, 전부 80%"},
 	{"id": "overload", "name": "과부하 반응로", "kind": "공격", "max": 1, "desc": "체력이 절반 이하면 발사 속도 ×2", "short": "체력 절반 이하 연사 ×2"},
 	{"id": "tractor_beacon", "name": "전역 견인 비콘", "kind": "채굴", "max": 1, "desc": "8초마다 화면 안 모든 광물을 끌어옴", "short": "8초마다 모든 광물 끌어옴"},
 ]
@@ -308,7 +322,7 @@ const EXPLOSIVE_STAGE_RADIUS := 6.0
 const CRIT_ADD := [0.15, 0.25]
 const CRIT_CAP := 0.5
 const CRIT_MULT := 2.0
-## 편향 실드: 막는 간격, 단계마다 줄어드는 시간, 최소 간격, 막은 뒤 무적 시간
+## 자동 방어막 발생기(카드 "shield"): 막는 간격, 단계마다 줄어드는 시간, 최소 간격, 막은 뒤 무적 시간
 const SHIELD_INTERVAL := [20.0, 12.0]
 const SHIELD_STAGE_CUT := 3.0
 const SHIELD_MIN_INTERVAL := 8.0
@@ -403,7 +417,7 @@ const RESEARCH_TREE := {
 ## 새 칸 (임시, 나중에 밸런스 조정). effect: 효과 글. step이 있으면 단계마다 값 %d 또는 %.0f에 넣는다. soon: 기능이 아직 없어 잠김.
 const RESEARCH_NODES := [
 	{"id": "sub", "name": "보조 무기 해금", "max": 1, "cost": 300, "effect": "보조 무기 칸 1개", "soon": true},
-	{"id": "over", "name": "과부하 탄두", "max": 1, "cost": 800, "effect": "5발마다 공격력 2배 탄"},
+	{"id": "over", "name": "증폭 탄창", "max": 1, "cost": 800, "effect": "6발마다 공격력 1.6배 탄"},
 	{"id": "repair", "name": "긴급 수리", "max": 1, "cost": 800, "effect": "판마다 1번 체력 30% 회복"},
 	{"id": "drill", "name": "정밀 드릴", "max": 1, "cost": 800, "effect": "10% 확률로 광물 +1개"},
 	{"id": "shield", "name": "편향 실드", "max": 5, "cost": 200, "effect": "피해 막기 +%.0f번", "step": 1},
@@ -428,8 +442,9 @@ const RES_RAPID_RATE := 0.15
 const RES_RAPID_DAMAGE := -0.05
 const RES_HEAVY_DAMAGE := 0.25
 const RES_HEAVY_RATE := -0.15
-const RES_OVER_EVERY := 5
-const RES_OVER_MULT := 2.0
+## 증폭 탄창(저장 키 "over"): 6발마다 1.6배 = 평균 피해 +10% (v0.7.0 밸런스 D, 예전 5발마다 2배)
+const RES_OVER_EVERY := 6
+const RES_OVER_MULT := 1.6
 const RES_THICK_HP := 30.0
 const RES_THICK_SPEED := -0.05
 const RES_DODGE_INVULN := 0.3

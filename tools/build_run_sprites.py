@@ -249,6 +249,26 @@ def bullet_sheet() -> Image.Image:
     return rotsprite.dir8_sheet(row(frames), 32, 32)
 
 
+## 드론 탄: 내 탄의 반 크기(보이는 부분 3x5) + 옅은 청록(void32). 판정 반지름은 내 탄과 같고 그림만 작다. 2프레임은 꼬리 깜빡임
+DRONE_BULLET_COLORS = {"3": (254, 248, 229), "9": (153, 233, 230), "4": (48, 225, 185)}
+DRONE_BULLET_FRAMES = [
+    [".3.", "393", "494", ".4.", ".9."],
+    [".3.", "393", "494", ".9.", ".4."],
+]
+
+
+def drone_bullet_sheet() -> Image.Image:
+    frames = []
+    for rows in DRONE_BULLET_FRAMES:
+        img = Image.new("RGBA", (len(rows[0]), len(rows)), (0, 0, 0, 0))
+        for y, line in enumerate(rows):
+            for x, ch in enumerate(line):
+                if ch != ".":
+                    img.putpixel((x, y), DRONE_BULLET_COLORS[ch] + (255,))
+        frames.append(center_in(img, 16))
+    return rotsprite.dir8_sheet(row(frames), 16, 16)
+
+
 ## 호위 드론: 팩 색(Main Ship 금속 + 청록 눈)으로 손으로 찍은 작은 비행체. 위쪽을 봄. 2프레임은 꼬리 불꽃 깜빡임
 DRONE_COLORS = {"0": (43, 25, 37), "1": (92, 81, 100), "2": (165, 178, 157), "3": (254, 248, 229), "4": (48, 225, 185),
                 "5": (248, 148, 25), "6": (246, 206, 80)}
@@ -278,6 +298,7 @@ def build() -> None:
         shrink_ship.shrink_sheet(strip, name).save(f"{OUT}/{name}.png")
     bullet_sheet().save(f"{OUT}/bullet.png")  # 팩 Auto cannon bullet을 60%로 다시 찍음
     drone_sheet().save(f"{OUT}/drone.png")  # 호위 드론
+    drone_bullet_sheet().save(f"{OUT}/drone_bullet.png")  # 드론 탄 (반 크기)
 
     # 적 3종 (팩은 아래를 봄 → 뒤집음): 몸, 엔진, 파괴
     enemies = {

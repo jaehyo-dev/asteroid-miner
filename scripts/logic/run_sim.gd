@@ -43,6 +43,8 @@ class Mineral:
 	var grade: int  ## Balance.MINERAL_GRADES 인덱스 (0 일반 ~ 3 전설)
 	var vel := Vector2.ZERO  ## 운석에서 튕겨 나가는 속도 (점점 줄어 멈춤)
 	var attracted := false  ## 자석에 끌려오는 중인지 (한번 끌리면 끝까지 따라옴)
+	var xp := 0  ## 주웠을 때 받는 경험치: 떨어질 때 원래 등급 기준 (탐지기로 오른 등급은 화물 가치에만), 합치면 더한 값
+	var rest := 0.0  ## 멈춰 놓여 있던 시간 (합치기 조건)
 
 
 ## 에너지탄 한 개: 심연의 포격 또는 고대 경비선이 쏜다 (자동 공격으로 부술 수 없음)
@@ -63,6 +65,7 @@ class Bullet:
 	var vel: Vector2
 	var life: float  ## 남은 비행 시간
 	var damage: float
+	var drone := false  ## 호위 드론이 쏜 탄 (작은 그림)
 	var pierce := 0  ## 더 뚫을 수 있는 수 (-1이면 사거리 끝까지)
 	var bounces := 0  ## 더 튕길 수 있는 수
 	var hits: Array[Enemy] = []  ## 이미 맞힌 적 (관통·튕김 탄이 같은 적을 두 번 맞히지 않게)
@@ -101,7 +104,9 @@ var destroyed: Array[Enemy] = []
 var crashed: Array[Enemy] = []
 ## 이번 프레임에 주운 광물 {pos, grade, gain(화물칸에서 늘어난 가치)} (줍기 연출·효과음용)
 var picked: Array[Dictionary] = []
-## 이번 프레임에 일어난 일 (효과·소리용): "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden",
+## 이번 프레임에 합쳐진 광물 {pos(새 광물 자리), grade(새 등급), from(빨려 든 광물 자리 목록), mineral(새 광물)} (합치기 연출·소리용)
+var merged: Array[Dictionary] = []
+## 이번 프레임에 일어난 일 (효과·소리용): "enemy_damage_up"(후반 적 피해가 한 단계 오름), "hit", "dead", "shoot", "destroy", "pickup", "levelup", "golden",
 ## "barrage_warning"·"barrage_charge"·"barrage_fire"(심연의 포격), "new_barrage"(첫 포격),
 ## "new_jelly"·"new_bug"·"new_guard"(처음 등장), "guard_charge"·"guard_fire"(고대 경비선),
 ## "raid_warning", "raid_start", "raid_end", "raid_golden"(습격과 함께 온 황금 운석),
@@ -149,6 +154,8 @@ var choices: Array = []
 var upgrade_levels: Dictionary = {}
 ## 강화로 쌓인 값 (등급마다 오르는 양이 달라 단계 수로 계산할 수 없다). Upgrades.add_bonus 참고
 var upgrade_bonus: Dictionary = {}
+## 건너뛰기로 이번 판에 금고에 바로 넣은 광물 가치 (화물칸·사망 보존과 상관없음)
+var skip_banked := 0
 ## 남은 다시 뽑기 횟수
 var rerolls_left := Balance.REROLLS_PER_RUN
 ## 효과·레전드리 카드가 뽑히는지 (보정도 이 값이 켜져야 동작한다)
@@ -171,7 +178,7 @@ var drones: Array[Drone] = []
 ## 도감 보상: 이동 속도 더하기, 사망 보존 더하기
 var codex_speed := 0.0
 var keep_bonus := 0.0
-## 연구소 새 칸: 실드 막기 남은 횟수와 충전 시간, 과부하 탄두 발사 수, 긴급 수리 남은 횟수
+## 연구소 새 칸: 실드 막기 남은 횟수와 충전 시간, 증폭 탄창 발사 수, 긴급 수리 남은 횟수
 var blocks_left := 0
 var blocks_top := 0
 var _bolt_timer := 0.0
@@ -182,6 +189,10 @@ var shield_interval := 0.0
 var shield_charge := 0.0
 var _beacon_timer := Balance.BEACON_INTERVAL
 var _drone_angle := 0.0
+## 지난 프레임의 후반 적 피해 배율 (오를 때 안내)
+var _damage_mult := 1.0
+## 합치기 검사를 이어 갈 광물 번호 (한 프레임에 MERGE_CHECKS_PER_FRAME개씩 돌아가며 본다)
+var _merge_cursor := 0
 
 var _spawn_timer := 0.0
 ## 다음 황금 운석까지 남은 시간
@@ -220,12 +231,16 @@ func update(delta: float, move: Vector2) -> void:
 	destroyed.clear()
 	crashed.clear()
 	picked.clear()
+	merged.clear()
 	fx.clear()
-	if is_over() or (not choices.is_empty() and not run_during_levelup):
+	if is_over() or (choosing() and not run_during_levelup):
 		return  # 판이 끝났거나 강화를 고르는 중이면 멈춘다 (레벨업 슬로모션 동안만 계속)
 	delta = clampf(delta, 0.0, Balance.MAX_FRAME_DELTA)
 	time += delta
 	invuln = maxf(invuln - delta, 0.0)
+	if enemy_damage_mult(time) > _damage_mult:
+		_damage_mult = enemy_damage_mult(time)
+		events.append("enemy_damage_up")
 	player_vel = move.limit_length(1.0) * current_speed()
 	if move != Vector2.ZERO and cargo.fill_ratio() > Balance.CARGO_HEAVY_START and not introduced.has("heavy"):
 		introduced["heavy"] = true
@@ -402,7 +417,7 @@ func damage_player(amount: float) -> bool:
 		invuln = Balance.SHIELD_BLOCK_INVULN
 		events.append("shield_block")
 		return true
-	hp = maxf(hp - amount, 0.0)
+	hp = maxf(hp - amount * enemy_damage_mult(time), 0.0)
 	invuln = Balance.SHIP_INVULN_TIME + (Balance.RES_DODGE_INVULN if _base("dodge") else 0.0)
 	events.append("hit")
 	if repairs_left > 0 and hp > 0.0 and hp < max_hp * Balance.RES_REPAIR_AT:  # 긴급 수리: 죽기 직전이 아니라 위험할 때 한 번
@@ -653,7 +668,10 @@ func _update_drones(delta: float) -> void:
 			if d.timer <= 0.0:
 				d.timer = Balance.DRONE_FIRE_INTERVAL
 				var angle := intercept_angle(d.pos, target.pos, target.vel, Balance.BULLET_SPEED)
-				fired = _fire_bullet(d.pos, angle, drone_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR, bullet_damage * Balance.DRONE_DAMAGE) != null or fired
+				var b := _fire_bullet(d.pos, angle, drone_range / Balance.BULLET_SPEED * Balance.BULLET_LIFETIME_FACTOR, bullet_damage * Balance.DRONE_DAMAGE)
+				if b != null:
+					b.drone = true
+					fired = true
 		else:
 			d.timer = maxf(d.timer, 0.0)
 	if fired:
@@ -814,6 +832,7 @@ func _on_enemy_destroyed(a: Enemy) -> void:
 			fx.append({"type": "drop_extra", "pos": a.pos})
 		for i in count:
 			var m := drop_mineral(a.pos, rolled_grade(int(drop["grade"])))
+			m.xp = mineral_xp(int(drop["grade"]))  # 경험치는 오르기 전 등급 기준
 			# 운석 자리에서 사방으로 튕겨 나가 감속하며 멈춘다 (멈출 때까지 가는 거리 = 속도 / 감속)
 			m.vel = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(Juice.MINERAL_POP_MIN, Juice.MINERAL_POP_MAX) * Juice.MINERAL_POP_DAMP
 
@@ -839,11 +858,42 @@ func gain_xp(amount: int) -> void:
 		_roll_choices()
 
 
+## 레벨업 화면이 떠 있어야 하는지 (고를 카드가 없어도 건너뛰기는 할 수 있다)
+func choosing() -> bool:
+	return pending_levelups > 0
+
+
+## 건너뛰기 보상: 다음 레벨 필요 경험치의 SKIP_REWARD_RATIO만큼의 광물 가치
+func skip_reward() -> int:
+	return roundi(Upgrades.xp_to_next(level) * Balance.SKIP_REWARD_RATIO)
+
+
+## 카드를 고르지 않고 넘긴다: 보상은 금고로 바로(skip_banked에 쌓고 화면 쪽이 저장에 더함), 경험치 없음.
+## 남은 레벨업이 있으면 다음 카드를 연다. 받은 가치를 돌려준다 (레벨업 중이 아니면 0).
+func skip() -> int:
+	if not choosing():
+		return 0
+	var reward := skip_reward()
+	skip_banked += reward
+	if effects_enabled:
+		effect_dry = 0 if Upgrades.has_effect(choices) else effect_dry + 1
+	pending_levelups -= 1
+	choices = []
+	if pending_levelups > 0:
+		_roll_choices()
+	return reward
+
+
 ## 지금 시각과 보정 상태로 카드를 뽑는다
 func _roll_choices() -> void:
 	var count: int = Balance.UPGRADE_CHOICE_COUNT + (1 if _base("luck") and rng.randf() < Balance.RES_LUCK_CHANCE else 0)
 	var epic_bonus := Balance.RES_CHIP_EPIC if _base("chip") else 0.0
-	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus)
+	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus, upgrade_bonus)
+
+
+## 연구소 편향 실드 칸 수 (HUD 작은 칸): 실드 칸 단계, 실드 충전만 있으면 1칸
+func block_slots() -> int:
+	return maxi(blocks_top, 1) if _base("bolt") else blocks_top
 
 
 ## 다시 뽑기: 3장을 한꺼번에 새로 뽑는다. 남은 횟수가 없거나 고를 카드가 없으면 false.
@@ -950,6 +1000,7 @@ func drop_mineral(pos: Vector2, grade: int = 0) -> Mineral:
 	var m := Mineral.new()
 	m.pos = pos
 	m.grade = clampi(grade, 0, Balance.MINERAL_GRADES.size() - 1)
+	m.xp = mineral_xp(m.grade)
 	minerals.append(m)
 	while minerals.size() > Balance.MAX_MINERALS:
 		minerals.pop_front()
@@ -967,6 +1018,7 @@ func _update_minerals(delta: float) -> void:
 			m.vel *= exp(-Juice.MINERAL_POP_DAMP * delta)
 			if m.vel.length() < 1.0:
 				m.vel = Vector2.ZERO
+		m.rest = m.rest + delta if m.vel == Vector2.ZERO and not m.attracted else 0.0
 		var dist := m.pos.distance_to(player_pos)
 		if dist <= magnet_radius:
 			m.attracted = true
@@ -975,19 +1027,70 @@ func _update_minerals(delta: float) -> void:
 			m.pos = m.pos.move_toward(player_pos, magnet_speed(dist, magnet_radius) * (1.0 + Balance.RES_FAST_PULL if _base("fast") else 1.0) * delta)
 			dist = m.pos.distance_to(player_pos)
 		if dist <= Balance.PICKUP_RADIUS:
-			picked.append({"pos": m.pos, "grade": m.grade, "gain": collect(m.grade)})
+			picked.append({"pos": m.pos, "grade": m.grade, "gain": collect(m.grade, m.xp)})
 		else:
 			kept.append(m)
 	minerals = kept
+	_merge_minerals()
 
 
-## 광물을 줍는다. 경험치는 화물칸이 꽉 찼어도 항상 받는다. 화물칸에서 늘어난 가치를 돌려준다.
-func collect(grade: int) -> int:
+## 광물 합치기: 같은 등급이 MERGE_RADIUS 안에 MERGE_COUNT개 이상, 모두 MERGE_REST초 넘게 놓여 있으면 가운데에 한 단계 위 1개로.
+## 끌려오는 광물은 빠진다. 새 광물은 바로 다시 후보가 된다 (놓인 시간을 이어받음). 한 프레임에 MERGE_CHECKS_PER_FRAME개만 기준으로 본다.
+func _merge_minerals() -> void:
+	var n := minerals.size()
+	if n == 0:
+		return
+	# 합칠 수 있는 광물을 등급별로 한 번만 모아 둔다 (후보마다 전체를 훑지 않게)
+	var pools: Array = [[], [], [], []]
+	for m in minerals:
+		if _mergeable(m):
+			pools[m.grade].append(m)
+	var removed := {}
+	var r2 := Balance.MERGE_RADIUS * Balance.MERGE_RADIUS
+	for k in mini(Balance.MERGE_CHECKS_PER_FRAME, n):
+		var c := minerals[(_merge_cursor + k) % n]
+		var need: int = Balance.MERGE_COUNT[c.grade]
+		if need <= 0 or removed.has(c) or not _mergeable(c) or pools[c.grade].size() < need:
+			continue
+		var group: Array[Mineral] = []
+		for m: Mineral in pools[c.grade]:
+			if not removed.has(m) and m.pos.distance_squared_to(c.pos) <= r2:
+				group.append(m)
+				if group.size() == need:
+					break
+		if group.size() < need:
+			continue
+		var center := Vector2.ZERO
+		var xp_sum := 0
+		var from: Array[Vector2] = []
+		for m in group:
+			removed[m] = true
+			center += m.pos / need
+			xp_sum += m.xp
+			from.append(m.pos)
+		var made := Mineral.new()
+		made.pos = center
+		made.grade = c.grade + 1
+		made.xp = xp_sum
+		made.rest = Balance.MERGE_REST
+		minerals.append(made)
+		merged.append({"pos": center, "grade": made.grade, "from": from, "mineral": made})
+	_merge_cursor = (_merge_cursor + Balance.MERGE_CHECKS_PER_FRAME) % maxi(n, 1)
+	if not removed.is_empty():
+		minerals = minerals.filter(func(m: Mineral) -> bool: return not removed.has(m))
+
+
+func _mergeable(m: Mineral) -> bool:
+	return not m.attracted and m.rest > Balance.MERGE_REST
+
+
+## 광물을 줍는다. 경험치는 화물칸이 꽉 찼어도 항상 받는다 (xp를 주지 않으면 그 등급 기준). 화물칸에서 늘어난 가치를 돌려준다.
+func collect(grade: int, xp_gain: int = -1) -> int:
 	collected[grade] += 1
 	mineral_value += int(Balance.MINERAL_GRADES[grade]["value"])
 	events.append("pickup")
 	var gain := cargo.add(grade)
-	gain_xp(mineral_xp(grade))
+	gain_xp(xp_gain if xp_gain >= 0 else mineral_xp(grade))
 	return gain
 
 
@@ -1044,6 +1147,11 @@ static func drops_of(a: Enemy) -> Array:
 		return [{"grade": c["grade"], "count": c["minerals"]}]
 	var info: Dictionary = Balance.ASTEROID_TYPES[a.type]
 	return [{"grade": info["grade"], "count": info["minerals"]}]
+
+
+## 후반 적 피해 배율: ENEMY_DAMAGE_START부터 1분마다 ENEMY_DAMAGE_STEP씩, 최대 ENEMY_DAMAGE_MAX
+static func enemy_damage_mult(t: float) -> float:
+	return minf(1.0 + Balance.ENEMY_DAMAGE_STEP * maxf(floorf((t - Balance.ENEMY_DAMAGE_START) / 60.0), 0.0), Balance.ENEMY_DAMAGE_MAX)
 
 
 ## 위험도 배율: 출격 후 RISK_RAMP_TIME에 걸쳐 1.0 → RISK_MAX

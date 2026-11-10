@@ -57,12 +57,14 @@ func test_수리는_체력이_낮을_때만_뽑기에_들어감() -> void:
 	assert_false(saw[false], "체력이 넉넉하면 안 나옴")
 
 
-func test_모두_최대면_수리만_나옴() -> void:
+func test_모두_최대면_체력이_넉넉할_때_카드_없음_낮으면_수리만() -> void:
 	var levels := {}
 	for u in Balance.UPGRADES:
 		levels[u["id"]] = u["max"]
 	var c := Upgrades.roll_choices(RandomNumberGenerator.new(), levels, 3, 0.0, false, false, false)
-	assert_eq(c.size(), 1, "체력이 넉넉해도 수리는 나옴")
+	assert_eq(c.size(), 0, "체력이 넉넉하면 고를 카드 없음 (건너뛰기만)")
+	c = Upgrades.roll_choices(RandomNumberGenerator.new(), levels, 3, 0.0, false, false, true)
+	assert_eq(c.size(), 1, "체력이 낮으면 수리만")
 	assert_eq(c[0]["id"], Upgrades.REPAIR)
 
 
@@ -91,7 +93,8 @@ func test_등급별_수치와_설명() -> void:
 	assert_eq(Upgrades.describe("multishot", Upgrades.NORMAL), "한 번에 1발 더")
 	assert_eq(Upgrades.describe("multishot", Upgrades.RARE), "한 번에 1발 더, 탄 피해 +10%")
 	assert_eq(Upgrades.describe("multishot", Upgrades.UNIQUE), "한 번에 2발 더")
-	assert_eq(Upgrades.describe("damage", Upgrades.NORMAL), "탄 피해 +0.75")
+	assert_eq(Upgrades.describe("damage", Upgrades.NORMAL), "탄 피해 +75%")
+	assert_eq(Upgrades.describe("damage", Upgrades.UNIQUE), "탄 피해 +225%")
 	assert_eq(Upgrades.describe("repair", Upgrades.EPIC), "체력 40 회복")
 	assert_eq(Upgrades.describe("pierce", Upgrades.UNIQUE, true), "2개 더 관통")
 

@@ -172,7 +172,7 @@ func test_빨리_나르기는_끌리는_광물이_더_빠름() -> void:
 	assert_true(b.minerals[0].pos.x < a.minerals[0].pos.x)
 
 
-func test_과부하_탄두는_5발째가_2배() -> void:
+func test_증폭_탄창은_6발째가_1_6배() -> void:
 	var sim := _sim({"over": 1})
 	sim.spawn_asteroid()
 	var target := sim.enemies[0]
@@ -180,14 +180,14 @@ func test_과부하_탄두는_5발째가_2배() -> void:
 	target.vel = Vector2.ZERO
 	target.hp = 1000000.0
 	var seen: Array[float] = []
-	for i in 5:
+	for i in 6:
 		sim._fire_timer = 0.0
 		sim.bullets.clear()
 		sim._auto_fire(0.0)
 		seen.append(sim.bullets[0].damage)
 	assert_eq(seen[0], sim.bullet_damage)
-	assert_eq(seen[3], sim.bullet_damage)
-	assert_eq(seen[4], sim.bullet_damage * 2.0)
+	assert_eq(seen[4], sim.bullet_damage)
+	assert_true(is_equal_approx(seen[5], sim.bullet_damage * 1.6), "6발째 ×1.6")
 
 
 func test_긴급_수리는_위험할_때_판마다_한_번() -> void:

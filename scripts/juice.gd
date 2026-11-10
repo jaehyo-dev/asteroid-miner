@@ -201,9 +201,18 @@ const BUTTON_PRESS_PX := 1
 const BUTTON_PRESS_MODULATE := Color(1.35, 1.35, 1.35)
 
 # ── 소리 ─────────────────────
-## 광물 연속 줍기: 앞 줍기에서 이 시간(초) 안에 또 주우면 음이 1반음씩 올라감, 최대 반음 수
-const PICKUP_COMBO_WINDOW := 1.0
-const PICKUP_COMBO_MAX_SEMITONES := 12
+## 광물 줍기 소리 (v0.7.0 밸런스): PICKUP_GROUP_TIME초 안에 주운 광물은 소리 한 번(그 묶음의 가장 높은 등급, 더 높은 등급이 오면 따로).
+## 최근 1초 재생 수가 PICKUP_RATE_REF를 넘으면 한 번의 음량 = -10·log10(횟수/기준) dB (전설은 PICKUP_LEGEND_FLOOR_DB까지만).
+## 묶음마다 1반음씩 최대 PICKUP_COMBO_MAX_SEMITONES, PICKUP_COMBO_WINDOW초 끊기면 처음 음. 동시에 나는 줍기 소리는 전체 PICKUP_MAX_VOICES개
+const PICKUP_GROUP_TIME := 0.05
+const PICKUP_RATE_REF := 3.0
+const PICKUP_LEGEND_FLOOR_DB := -3.0
+const PICKUP_COMBO_WINDOW := 0.6
+const PICKUP_COMBO_MAX_SEMITONES := 5
+const PICKUP_MAX_VOICES := 3
+## 광물 합치기 연출: 가운데로 빨려 드는 시간, 합칠 때 소리(줍기 소리 계열)의 기본 음 높이와 등급마다 더 올리는 반음
+const MERGE_FX_TIME := 0.3
+const MERGE_SOUND_SEMITONES := 2
 ## 운석 깨짐 소리 몰림 줄이기: BREAK_SOUND_WINDOW초 안에 이미 난 수마다 BREAK_SOUND_STEP_DB씩 작게, BREAK_SOUND_MAX개 넘으면 안 냄
 const BREAK_SOUND_WINDOW := 0.5
 const BREAK_SOUND_MAX := 3

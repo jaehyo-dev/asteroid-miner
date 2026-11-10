@@ -1,0 +1,89 @@
+extends SceneTree
+## 광물 합치기 전후 측정 (게임에 포함하지 않음). tests/merge_measure.gd로 복사해서:
+##   godot --headless --path . -s res://tests/merge_measure.gd -- <판 수>
+## collector 봇(기지 예전 6칸 최대 + 새 칸 일반, 카드 best, 죽지 않게 체력 큼)으로 4:00~5:00 동안
+## 화면 안 광물 수, 줍기 소리 횟수(PickupCombo가 내는 것 + 합치기 소리), 한 프레임 시뮬레이션 시간을 잰다. 합치기 끔/켬 비교.
+
+const STEP := 1.0 / 30.0
+const BASE := {"damage": 5, "max_hp": 5, "speed": 5, "cargo": 5, "insurance": 5, "magnet": 5, "shield": 1, "reroll": 1, "appraise": 2, "radar": 1}
+
+
+class NoMerge extends RunSim:
+	func _merge_minerals() -> void:
+		pass
+
+
+func _init() -> void:
+	var n := int(OS.get_cmdline_user_args()[0]) if OS.get_cmdline_user_args().size() > 0 else 10
+	for merge in [false, true]:
+		var acc := {"view": 0.0, "field": 0.0, "max_view": 0, "plays": 0, "merge_sounds": 0, "us": 0.0, "us_max": 0.0, "frames": 0, "busy": []}
+		for s in range(1, n + 1):
+			_play(s, merge, acc)
+		var f: float = acc["frames"]
+		var busy: Array = acc["busy"]
+		busy.sort()
+		print("합치기 %s: 화면 안 광물 평균 %.1f (최대 %d) · 전체 %.1f · 줍기 소리 %.2f번/초 (가장 바쁜 10%%의 초 %.1f번) · 합치기 소리 %.2f번/초 · 시뮬 %.0fµs/프레임 (최대 %.0f)" % [
+			"켬" if merge else "끔", acc["view"] / f, acc["max_view"], acc["field"] / f, acc["plays"] / (f * STEP), busy[int(busy.size() * 0.9)],
+			acc["merge_sounds"] / (f * STEP), acc["us"] / f, acc["us_max"]])
+	quit(0)
+
+
+func _play(seed_value: int, merge: bool, acc: Dictionary) -> void:
+	var sim: RunSim = RunSim.new(seed_value) if merge else NoMerge.new(seed_value)
+	sim.apply_base(BASE)
+	sim.max_hp = 1.0e6
+	sim.hp = 1.0e6
+	var combo := PickupCombo.new()
+	var second := 0
+	var in_second := 0
+	while sim.time < 300.0:
+		if sim.choosing():
+			if sim.choices.is_empty():
+				sim.skip()
+			else:
+				sim.choose(BalanceBot.best_choice(sim.choices))
+			continue
+		var move := Vector2.ZERO
+		var danger := RunSim.nearest_enemy(sim.player_pos, sim.enemies, BalanceBot.COLLECTOR_DANGER)
+		var escape := sim.barrage_escape(sim.player_pos, BalanceBot.BARRAGE_DODGE_MARGIN)
+		if escape != Vector2.ZERO:
+			move = escape
+		elif danger != null:
+			move = (sim.player_pos - danger.pos).normalized()
+		else:
+			var best := 260.0
+			for m in sim.minerals:
+				var d := m.pos.distance_to(sim.player_pos)
+				if d < best:
+					best = d
+					move = (m.pos - sim.player_pos).normalized()
+		if int(sim.time * 30.0) % 900 == 0:
+			printerr("  시드 %d %s %.0f초 레벨 %d 광물 %d 적 %d 탄 %d" % [seed_value, merge, sim.time, sim.level, sim.minerals.size(), sim.enemies.size(), sim.bullets.size()])
+		var t0 := Time.get_ticks_usec()
+		sim.update(STEP, move)
+		var us := float(Time.get_ticks_usec() - t0)
+		if sim.time < 240.0:
+			continue
+		acc["frames"] += 1
+		acc["us"] += us
+		acc["us_max"] = maxf(acc["us_max"], us)
+		var view := Rect2(sim.player_pos - sim.view_size / 2.0, sim.view_size)
+		var seen := 0
+		for m in sim.minerals:
+			if view.has_point(m.pos):
+				seen += 1
+		acc["view"] += seen
+		acc["field"] += sim.minerals.size()
+		acc["max_view"] = maxi(acc["max_view"], seen)
+		acc["merge_sounds"] += 1 if not sim.merged.is_empty() else 0
+		var grades := []
+		for p in sim.picked:
+			grades.append(p["grade"])
+		var played := not combo.pick(sim.time, grades).is_empty()
+		acc["plays"] += 1 if played else 0
+		if int(sim.time) != second:
+			if second > 0:
+				acc["busy"].append(in_second)
+			second = int(sim.time)
+			in_second = 0
+		in_second += 1 if played else 0

@@ -30,9 +30,12 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 	var turn := 0.0
 	var levelup_times: Array[float] = []  # 레벨업 강화를 고른 시각 (등급 확률 추정용)
 	while not sim.is_over() and sim.time < max_time:  # 귀환해도 판이 끝난다
-		if not sim.choices.is_empty():
+		if sim.choosing():
 			levelup_times.append(sim.time)
-			sim.choose(best_choice(sim.choices) if pick == "best" else rng.randi_range(0, sim.choices.size() - 1))
+			if sim.choices.is_empty():
+				sim.skip()  # 고를 카드가 없으면 건너뛰기 (광물은 금고로)
+			else:
+				sim.choose(best_choice(sim.choices) if pick == "best" else rng.randi_range(0, sim.choices.size() - 1))
 			continue
 		match style:
 			"wander":

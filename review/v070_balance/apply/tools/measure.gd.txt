@@ -1,0 +1,123 @@
+extends SceneTree
+## 난이도 비교 측정 (v0.7.0 점검용, 게임에 포함하지 않음). v0.6.6과 v0.7.0 작업 사본의 tests/에 measure.gd로 복사해서 돌린다.
+## 실행: godot --headless --path <사본> -s res://tests/measure.gd -- <상태> <카드 고르기 random|best> <시드 수> [효과카드 on|off]
+## 봇 움직임은 tests/balance_bot.gd와 같고(위험 거리는 그 버전의 값), v0.6.6에 없는 returner도 같은 규칙으로 넣었다.
+## 한 판마다: 생존 시간, 사망, 귀환, 피격 횟수, 실드로 막은 횟수, 순 체력 손실(수리 회복은 빼고 셈), 처치 수, 광물 가치, 가져간 가치, 레벨
+
+const STEP := 1.0 / 30.0
+const MAX_TIME := 600.0
+const STYLES := ["collector", "flee", "wander", "returner"]
+
+## 기지 상태. 예전 6칸은 두 버전 모두에 있고, 나머지는 v0.7.0 연구소 새 칸 (v0.6.6은 모르는 칸을 무시한다)
+const OLD_NORMAL := {"damage": 2, "max_hp": 2, "speed": 1, "cargo": 2, "insurance": 1, "magnet": 2}
+const OLD_MAX := {"damage": 5, "max_hp": 5, "speed": 5, "cargo": 5, "insurance": 5, "magnet": 5}
+const NEW_NORMAL := {"shield": 1, "reroll": 1, "appraise": 2, "radar": 1}
+const NEW_FULL := {"shield": 5, "reroll": 5, "appraise": 5, "radar": 5, "over": 1, "repair": 1, "drill": 1, "luck": 1,
+	"rapid": 1, "thick": 1, "wide": 1, "bolt": 1, "deep": 1}
+
+
+static func base_of(state: String) -> Dictionary:
+	var parts := state.split("+")
+	var result := {}
+	for p in parts:
+		match p:
+			"none": pass
+			"old_normal": result.merge(OLD_NORMAL, true)
+			"old_max": result.merge(OLD_MAX, true)
+			"new_normal": result.merge(NEW_NORMAL, true)
+			"new_full": result.merge(NEW_FULL, true)
+			_:  # 칸 하나: id 또는 id=단계
+				var kv := p.split("=")
+				result[kv[0]] = int(kv[1]) if kv.size() > 1 else 1
+	return result
+
+
+func _init() -> void:
+	var args := OS.get_cmdline_user_args()
+	var state: String = args[0]
+	var pick: String = args[1]
+	var n := int(args[2])
+	var effects := args.size() < 4 or args[3] == "on"
+	var consts: Dictionary = (BalanceBot as Script).get_script_constant_map()
+	var danger_c: float = consts.get("COLLECTOR_DANGER", 45.0)
+	var danger_f: float = consts.get("FLEE_DANGER", 80.0)
+	var out := {}
+	for style in STYLES:
+		var runs := []
+		for s in range(1, n + 1):
+			runs.append(_play(style, s, base_of(state), pick, effects, danger_c, danger_f))
+		out[style] = runs
+	print("JSON:" + JSON.stringify({"state": state, "pick": pick, "effects": effects, "runs": out}))
+	quit(0)
+
+
+func _play(style: String, seed_value: int, base: Dictionary, pick: String, effects: bool, danger_c: float, danger_f: float) -> Dictionary:
+	var sim := RunSim.new(seed_value)
+	sim.apply_base(base)
+	if OS.get_environment("GIVE") != "":
+		sim.apply_pick(OS.get_environment("GIVE"), 4)
+	if not effects and "effects_enabled" in sim:
+		sim.effects_enabled = false
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value * 31 + 7
+	var move := Vector2.ZERO
+	var turn := 0.0
+	var hits := 0
+	var blocks := 0
+	var lost := 0.0
+	var dmg3 := 0.0  # 3분 이후 순 체력 손실
+	while not sim.is_over() and sim.time < MAX_TIME:
+		if (sim.call("choosing") if sim.has_method("choosing") else not sim.choices.is_empty()):
+			if sim.choices.is_empty():
+				sim.call("skip")
+				continue
+			var idx := rng.randi_range(0, sim.choices.size() - 1)
+			if pick == "best":  # v0.7.0 봇에만 있는 고르기 (v0.6.6은 random으로만 돌린다)
+				idx = BalanceBot.new().call("best_choice", sim.choices)
+			sim.choose(idx)
+			continue
+		match style:
+			"wander":
+				turn -= STEP
+				if turn <= 0.0:
+					turn = 2.0
+					move = Vector2.from_angle(rng.randf() * TAU)
+			"collector", "returner":
+				var home: bool = style == "returner" and sim.gate.state == WarpGate.State.OPEN \
+					and (sim.cargo.size() >= sim.cargo.capacity * 0.6 or sim.hp < sim.max_hp * 0.35)
+				var danger = RunSim.nearest_enemy(sim.player_pos, sim.enemies, danger_c)
+				var escape: Vector2 = sim.barrage_escape(sim.player_pos, 16.0)
+				if escape != Vector2.ZERO:
+					move = escape
+				elif danger != null:
+					move = (sim.player_pos - danger.pos).normalized()
+				elif home:
+					move = (sim.gate.pos - sim.player_pos).limit_length(1.0)
+				else:
+					move = Vector2.ZERO
+					var best := 260.0
+					for m in sim.minerals:
+						var d: float = m.pos.distance_to(sim.player_pos)
+						if d < best:
+							best = d
+							move = (m.pos - sim.player_pos).normalized()
+			"flee":
+				var near = RunSim.nearest_enemy(sim.player_pos, sim.enemies, danger_f)
+				var escape: Vector2 = sim.barrage_escape(sim.player_pos, 16.0)
+				if escape != Vector2.ZERO:
+					move = escape
+				else:
+					move = (sim.player_pos - near.pos).normalized() if near != null else Vector2.ZERO
+		var before: float = sim.hp
+		sim.update(STEP, move)
+		for e in sim.events:
+			if e == "hit":
+				hits += 1
+			elif e == "shield_block":
+				blocks += 1
+		var drop := maxf(before - sim.hp, 0.0)
+		lost += drop
+		if sim.time >= 180.0:
+			dmg3 += drop
+	return {"t": snappedf(sim.time, 0.1), "alive": sim.alive, "ret": sim.returned, "hits": hits, "blocks": blocks,
+		"lost": roundi(lost), "lost3": roundi(dmg3), "kills": sim.kills, "value": sim.mineral_value, "home": sim.final_value(), "lv": sim.level}

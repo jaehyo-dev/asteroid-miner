@@ -78,6 +78,8 @@ static func seen_now(sim: RunSim) -> PackedStringArray:
 			ids[enemy_id(e)] = true
 	for p in sim.picked:
 		ids["mineral_%d" % p["grade"]] = true
+	for m in sim.merged:  # 합치기로 생긴 광물도 발견 (줍기 전이라도)
+		ids["mineral_%d" % m["grade"]] = true
 	if sim.events.has("barrage_warning"):
 		ids["barrage"] = true
 	return PackedStringArray(ids.keys())

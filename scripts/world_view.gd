@@ -93,6 +93,8 @@ var _debris_pool: Array = []
 var _booms: Array[Dictionary] = []
 ## 줍기 연출: {pos, grade, gain(화물칸에서 늘어난 가치에 광물 보너스를 적용한 값), color(그때 보너스 색), t(지난 시간)}
 var _pickups: Array[Dictionary] = []
+## 광물 합치기 연출 {pos, grade, from, mineral, t}: 빨려 드는 동안 새 광물은 숨긴다
+var _merges: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
 ## 우주선 그림의 8방향 번호 (경계에서 깜빡이지 않게 이전 값을 기억)
 var _ship_dir := -1
@@ -154,6 +156,13 @@ func step(delta: float) -> void:
 		if b["start"] + int(b["t"] * b["fps"]) < RunSprites.frames(b["name"]):
 			kept_booms.append(b)
 	_booms = kept_booms
+	for m in sim.merged:
+		var fx: Dictionary = m.duplicate()
+		fx["t"] = 0.0
+		_merges.append(fx)
+	_merges = _merges.filter(func(fx: Dictionary) -> bool:
+		fx["t"] += delta
+		return fx["t"] < Juice.MERGE_FX_TIME * 2.0)
 	var kept_fx: Array[Dictionary] = []
 	for fx in _pickups:
 		fx["t"] += delta
@@ -267,8 +276,15 @@ func _draw() -> void:
 	for b in _booms:
 		if not b["rock"]:
 			RunSprites.draw(self, b["name"], b["start"] + int(b["t"] * b["fps"]), b["dir"], b["pos"])
+	var hidden := {}
+	for fx in _merges:
+		if fx["t"] < Juice.MERGE_FX_TIME:
+			hidden[fx["mineral"]] = true
 	for m in sim.minerals:
-		_draw_mineral(m)
+		if not hidden.has(m):
+			_draw_mineral(m)
+	for fx in _merges:
+		_draw_merge_fx(fx)
 	for d in _debris:
 		RunSprites.rect(self, Rect2((d[0] as Vector2).round(), Vector2.ONE * d[4]), d[3])
 	_draw_barrages()
@@ -276,7 +292,7 @@ func _draw() -> void:
 	for b in sim.bullets:
 		if sim.orbit_pierce:
 			_draw_orbit_tail(b)
-		RunSprites.draw(self, "bullet", bullet_frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
+		RunSprites.draw(self, "drone_bullet" if b.drone else "bullet", bullet_frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
 	for fx in _pickups:
 		_draw_pickup_fx(fx)
 	_draw_effects()
@@ -550,6 +566,24 @@ func _draw_mineral(m: RunSim.Mineral) -> void:
 	RunSprites.draw_mineral(self, m.grade, center - (size / 2.0).floor() + Vector2(0, roundf(bob * 0.6)))
 	# 반짝임: 일반은 가끔 점 하나, 높은 등급일수록 자주·여러 개·큰 십자 (켜진 시간은 짧게 0.25)
 	_draw_sparkles(m.pos, 7.0, 1 + mini(m.grade, 2), m.pos.x, Juice.SPARKLE_RATE[m.grade], 0.25, Juice.SPARKLE_SIZE[m.grade])
+
+
+## 합치기 연출: MERGE_FX_TIME 동안 원래 광물들이 가운데로 빨려 들고(점점 빠르게), 그 뒤 새 광물 자리에서 고리·십자가 반짝인다
+func _draw_merge_fx(fx: Dictionary) -> void:
+	var k: float = fx["t"] / Juice.MERGE_FX_TIME
+	var center: Vector2 = (fx["pos"] as Vector2).round()
+	var grade: int = fx["grade"]
+	if k < 1.0:
+		var size := RunSprites.entry_rect("mineral_%d" % (grade - 1)).size
+		for p: Vector2 in fx["from"]:
+			RunSprites.draw_mineral(self, grade - 1, p.lerp(center, k * k).round() - (size / 2.0).floor())
+		return
+	var a := 2.0 - k  # 1 → 0
+	RunSprites.ring(self, center, 3.0 + 7.0 * (k - 1.0), Color(MINERAL_GLOW[grade], a))
+	var arm := roundi(4.0 * a)
+	if arm > 0:
+		RunSprites.rect(self, Rect2(center + Vector2(-arm, 0), Vector2(arm * 2 + 1, 1)), Color(1, 1, 1, a))
+		RunSprites.rect(self, Rect2(center + Vector2(0, -arm), Vector2(1, arm * 2 + 1)), Color(1, 1, 1, a))
 
 
 ## 줍기 연출: 등급이 높을수록 크고 화려하게. 희귀 이상은 "+가치" 숫자가 떠오른다.

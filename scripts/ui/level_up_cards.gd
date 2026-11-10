@@ -1,10 +1,11 @@
 class_name LevelUpCards
 extends Control
-## 레벨업 카드 화면: 카드 3장 + 다시 뽑기 버튼 + 등장 연출.
+## 레벨업 카드 화면: 카드 3장 + 다시 뽑기·건너뛰기 버튼 + 등장 연출. 고를 카드가 없으면 건너뛰기 버튼만 크게 가운데.
 ## 다 펼쳐지기 전에 누르면 건너뛰기만 하고, 선택은 되지 않는다 (실수 선택 방지).
 
 signal chosen(index: int)
 signal reroll_pressed
+signal skip_pressed
 
 enum State { CLOSED, REVEAL, GUARD, READY, PICKING }
 
@@ -21,6 +22,9 @@ var state := State.CLOSED
 var cards: Array[LevelCard] = []
 var reroll_button: Button
 var rerolls_left := 0
+## 건너뛰기 버튼과 보상(광물 가치)
+var skip_button: Button
+var skip_reward := 0
 
 var _dim: ColorRect
 var _choices: Array = []
@@ -63,12 +67,8 @@ func _ready() -> void:
 		_dim.set_offset(side, 4.0)
 	add_child(_fx)
 	_fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	reroll_button = Button.new()
-	reroll_button.flat = true
-	reroll_button.focus_mode = Control.FOCUS_NONE
-	reroll_button.pressed.connect(reroll)
-	MenuPanel.add_press_feel(reroll_button)
-	add_child(reroll_button)
+	reroll_button = _new_button(reroll)
+	skip_button = _new_button(skip_pick)
 	add_child(_fx.front)
 	_fx.front.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	resized.connect(_apply_layout)
@@ -77,10 +77,11 @@ func _ready() -> void:
 
 
 ## 카드 화면을 연다. is_reroll이면 어둡게 하는 단계 없이 짧은 연출만 한다.
-func show_cards(choices: Array, levels: Dictionary, rerolls: int, is_reroll: bool = false) -> void:
+func show_cards(choices: Array, levels: Dictionary, rerolls: int, is_reroll: bool = false, skip_value: int = 0) -> void:
 	_choices = choices
 	_levels = levels
 	rerolls_left = rerolls
+	skip_reward = skip_value
 	_is_reroll = is_reroll
 	_t = 0.0
 	_picked = -1
@@ -116,7 +117,8 @@ func show_cards(choices: Array, levels: Dictionary, rerolls: int, is_reroll: boo
 	show()
 	set_process(true)
 	_apply_layout()
-	reroll_button.visible = is_reroll
+	reroll_button.visible = is_reroll and not cards.is_empty()
+	skip_button.visible = is_reroll or cards.is_empty()
 	_set_input_open(false)
 	_dim.modulate.a = 1.0 if is_reroll else 0.0
 	_step_reveal()
@@ -241,7 +243,8 @@ func _finish_reveal() -> void:
 	_dim.modulate.a = 1.0
 	for c in cards:
 		c.settle()
-	reroll_button.visible = true
+	reroll_button.visible = not cards.is_empty()
+	skip_button.visible = true
 	_open_input()
 
 
@@ -256,6 +259,7 @@ func _set_input_open(open: bool) -> void:
 		c.mouse_filter = filter
 		c.queue_redraw()
 	reroll_button.mouse_filter = filter
+	skip_button.mouse_filter = filter
 
 
 ## 연출 건너뛰기: 바로 다 펼치고, 소리는 가장 높은 등급 한 번만. 잠깐 동안은 연타가 선택으로 이어지지 않게 막는다.
@@ -345,12 +349,28 @@ func reroll() -> void:
 		reroll_pressed.emit()
 
 
+## 건너뛰기 (버튼, 키보드 S). 다 펼쳐진 뒤에만 된다. 광물은 부르는 쪽이 금고에 넣는다.
+func skip_pick() -> void:
+	if state != State.READY:
+		return
+	state = State.PICKING
+	_set_input_open(false)
+	Sfx.play("click")
+	_fx.clear_halos()
+	close()
+	skip_pressed.emit()
+
+
 ## 화면 크기에 맞춰 카드와 버튼을 놓는다 (연출 중에도 다시 부를 수 있음)
 func _apply_layout() -> void:
-	if cards.is_empty():
+	if state == State.CLOSED:
 		return
 	var view := size
 	var lay := LevelCard.layout_for(view, _choices)
+	if cards.is_empty():  # 고를 카드가 없음: 건너뛰기만 2배 크기로 가운데
+		var big: Vector2i = lay["btn"] * 2
+		_build_button(skip_button, Vector2((int(view.x) - big.x) / 2, (int(view.y) - big.y) / 2), big, int(lay["btn_size"]) * 2, "건너뛰기", "광물 +%d" % skip_reward, true)
+		return
 	var w: int = lay["w"]
 	var gap: int = lay["gap"]
 	var x0 := (int(view.x) - cards.size() * w - (cards.size() - 1) * gap) / 2
@@ -362,19 +382,32 @@ func _apply_layout() -> void:
 		_fx.move_halo(i, _card_rect(i))
 		if state != State.REVEAL:
 			cards[i].settle()
-	_build_button(lay, top + int(lay["h"]) + int(lay["btn_gap"]), int(view.x))
-
-
-## 다시 뽑기 버튼: 판 그림 + "다시 뽑기 N회". 0회면 어둡게 꺼진다
-func _build_button(lay: Dictionary, y: int, view_w: int) -> void:
-	for child in reroll_button.get_children():
-		reroll_button.remove_child(child)
-		child.queue_free()
+	# 버튼 줄: [다시 뽑기 N회] [건너뛰기 광물 +N], 카드 사이 간격만큼 떨어져 가운데 정렬
+	var y := top + int(lay["h"]) + int(lay["btn_gap"])
 	var btn: Vector2i = lay["btn"]
-	var on := rerolls_left > 0
-	reroll_button.disabled = not on
-	reroll_button.size = btn
-	reroll_button.position = Vector2((view_w - btn.x) / 2, y)
+	var left := (int(view.x) - 2 * btn.x - gap) / 2
+	_build_button(reroll_button, Vector2(left, y), btn, lay["btn_size"], "다시 뽑기", "%d회" % rerolls_left, rerolls_left > 0)
+	_build_button(skip_button, Vector2(left + btn.x + gap, y), btn, lay["btn_size"], "건너뛰기", "광물 +%d" % skip_reward, true)
+
+
+func _new_button(on_press: Callable) -> Button:
+	var b := Button.new()
+	b.flat = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(on_press)
+	MenuPanel.add_press_feel(b)
+	add_child(b)
+	return b
+
+
+## 판 그림 버튼 + "제목 값" (값은 노란 글자). 꺼지면 어둡게. 좁아서 안 들어가면 값의 앞 단어("광물")를 뺀다
+func _build_button(button: Button, pos: Vector2, btn: Vector2i, font_size: int, title: String, count: String, on: bool) -> void:
+	for child in button.get_children():
+		button.remove_child(child)
+		child.queue_free()
+	button.disabled = not on
+	button.size = btn
+	button.position = pos
 	var plate := NinePatchRect.new()
 	var art := LevelCard.tex("button")
 	plate.texture = art
@@ -387,24 +420,24 @@ func _build_button(lay: Dictionary, y: int, view_w: int) -> void:
 	if not on:
 		plate.material = LevelCard.grade_material(Upgrades.NORMAL)
 		plate.modulate = OFF_MODULATE
-	reroll_button.add_child(plate)
-	var font_size: int = lay["btn_size"]
-	var title := "다시 뽑기"
-	var count := "%d회" % rerolls_left
+	button.add_child(plate)
 	var font := LevelCard.FONT
+	var space := font_size / 2
 	var title_w := int(font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
 	var count_w := int(font.get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
-	var space := font_size / 2
+	if title_w + space + count_w > btn.x - font_size and count.contains(" "):
+		count = count.get_slice(" ", 1)
+		count_w = int(font.get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
 	var x := (btn.x - title_w - space - count_w) / 2
 	var label_y := (btn.y - int(font.get_height(font_size))) / 2
-	_button_label(title, Vector2(x, label_y), font_size, LABEL_INK if on else OFF_COLOR)
-	_button_label(count, Vector2(x + title_w + space, label_y), font_size, COUNT_COLOR if on else OFF_COLOR)
+	_button_label(button, title, Vector2(x, label_y), font_size, LABEL_INK if on else OFF_COLOR)
+	_button_label(button, count, Vector2(x + title_w + space, label_y), font_size, COUNT_COLOR if on else OFF_COLOR)
 
 
-func _button_label(text: String, pos: Vector2, font_size: int, color: Color) -> void:
+func _button_label(button: Button, text: String, pos: Vector2, font_size: int, color: Color) -> void:
 	var label := Label.new()
 	label.text = text
 	label.position = pos
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
-	reroll_button.add_child(label)
+	button.add_child(label)

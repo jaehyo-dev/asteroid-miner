@@ -59,7 +59,7 @@ static func describe(id: String, grade: int = NORMAL, short: bool = false) -> St
 				return "%d발 더" % int(v) if extra <= 0.0 else "%d발 더, 피해 +%d%%" % [int(v), roundi(extra * 100.0)]
 			return "한 번에 %d발 더" % int(v) if extra <= 0.0 else "한 번에 %d발 더, 탄 피해 +%d%%" % [int(v), roundi(extra * 100.0)]
 		"damage":
-			return "탄 피해 +%s" % _num(v)
+			return "탄 피해 +%d%%" % roundi(v * 100.0 / Balance.BULLET_DAMAGE)
 		"range":
 			return "공격 사거리 +%s%%" % _num(v * 100.0)
 		"max_hp":
@@ -77,6 +77,33 @@ static func describe(id: String, grade: int = NORMAL, short: bool = false) -> St
 
 static func _num(v: float) -> String:
 	return str(roundi(v)) if is_equal_approx(v, roundf(v)) else str(snappedf(v, 0.01))
+
+
+## 이미 가진 효과 강화 카드의 "지금 → 다음" 문구 (bonus: 지금 누적값). 다음 값은 add_bonus를 그대로 돌려 계산한다.
+static func describe_next(id: String, grade: int, bonus: Dictionary, short: bool = false) -> String:
+	var next := bonus.duplicate()
+	add_bonus(next, id, grade)
+	var now_v := float(bonus.get(id, 0.0))
+	var next_v := float(next.get(id, 0.0))
+	match id:
+		"pierce":
+			return "관통 %d개 → %d개" % [now_v, next_v]
+		"ricochet":
+			return "튕김 %d번 → %d번" % [now_v, next_v] if short else "튕김 %d번 → %d번 (피해 70%%)" % [now_v, next_v]
+		"explosive":
+			var r := "폭발 반경 %d → %d" % [bonus.get("explosive_radius", 0.0), next["explosive_radius"]]
+			var a := roundi(float(bonus.get("explosive_share", 0.0)) * 100.0)
+			var b := roundi(float(next["explosive_share"]) * 100.0)
+			return r if short or a == b else r + ", 피해 %d%% → %d%%" % [a, b]
+		"crit":
+			return "치명타 %d%% → %d%%" % [roundi(now_v * 100.0), roundi(next_v * 100.0)] if short else "치명타 확률 %d%% → %d%% (2배 피해)" % [roundi(now_v * 100.0), roundi(next_v * 100.0)]
+		"shield":
+			return "%d초 → %d초마다 막음" % [now_v, next_v] if short else "%d초 → %d초마다 피해 1번을 막음" % [now_v, next_v]
+		"drone":
+			return "드론 %d기 → %d기" % [now_v, next_v] if short else "드론 %d기 → %d기 (함께 공격)" % [now_v, next_v]
+		"mining_laser":
+			return "운석 광물 +%d%% → +%d%%" % [roundi(now_v * 100.0), roundi(next_v * 100.0)]
+	return describe(id, grade, short)
 
 
 ## 시간에 따른 등급 확률: RISK_RAMP_TIME까지 직선으로 오르고 그 뒤로는 고정
@@ -99,12 +126,30 @@ static func roll_grade(random: RandomNumberGenerator, time: float, epic_bonus :=
 	return random.rand_weighted(grade_weights(time, epic_bonus))
 
 
-## 목록 중 아직 최대 단계가 아닌 강화 id
-static func available_in(list: Array, levels: Dictionary) -> PackedStringArray:
+## 효과 강화의 누적 상한 (이만큼 쌓였으면 더 찍어도 0이라 카드를 뽑지 않는다)
+static func cap_of(id: String) -> float:
+	match id:
+		"pierce":
+			return Balance.PIERCE_CAP
+		"ricochet":
+			return Balance.RICOCHET_CAP
+		"crit":
+			return Balance.CRIT_CAP
+		"drone":
+			return Balance.DRONE_CAP
+		"mining_laser":
+			return Balance.MINING_CAP
+	return INF
+
+
+## 목록 중 아직 최대 단계가 아니고 상한에 닿지 않은 강화 id (bonus: 지금 누적값)
+static func available_in(list: Array, levels: Dictionary, bonus: Dictionary = {}) -> PackedStringArray:
 	var result: PackedStringArray = []
 	for u in list:
 		if u.has("blocked_by") and levels.has(u["blocked_by"]):
 			continue  # 더 강한 레전드리를 이미 가졌으면 쓸모없는 카드는 뺀다 (궤도 관통 가속기 → 관통탄)
+		if float(bonus.get(u["id"], 0.0)) >= cap_of(u["id"]):
+			continue
 		if int(u["max"]) <= 0 or int(levels.get(u["id"], 0)) < int(u["max"]):
 			result.append(u["id"])
 	return result
@@ -121,12 +166,13 @@ static func _take(random: RandomNumberGenerator, pool: PackedStringArray) -> Str
 ## 레벨업 카드 뽑기: 서로 다른 강화 count장. 최대 단계는 빼고, 남은 강화가 없으면 있는 만큼만 (수리는 항상 남는다).
 ## effects_on이 꺼져 있으면 효과·레전드리는 나오지 않고, 레전드리로 뽑힌 칸은 유니크가 된다.
 ## force_effect: 화면에 효과 카드가 없으면 레전드리가 아닌 한 장을 에픽 효과로 바꾼다 (효과 카드 보정).
-## repair_on: 수리를 뽑기에 넣을지 (체력이 넉넉할 때 빈칸이 되지 않게). 다른 수치 강화가 다 찼으면 그래도 나온다.
-static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true, epic_bonus := 0.0) -> Array:
+## repair_on: 수리를 뽑기에 넣을지 (체력이 넉넉하면 빼고, 고를 카드가 없으면 빈 목록 = 건너뛰기만).
+## bonus: 지금 누적값. 상한에 닿은 효과는 빼고, 이미 가진 효과 카드에는 "지금 → 다음" 문구(desc·short)를 붙인다.
+static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true, epic_bonus := 0.0, bonus: Dictionary = {}) -> Array:
 	var stats := available_in(Balance.UPGRADES, levels)
-	if not repair_on and stats.size() > 1:
+	if not repair_on and stats.has(REPAIR):
 		stats.remove_at(stats.find(REPAIR))
-	var effects := available_in(Balance.EFFECT_UPGRADES, levels) if effects_on else PackedStringArray()
+	var effects := available_in(Balance.EFFECT_UPGRADES, levels, bonus) if effects_on else PackedStringArray()
 	var legends := available_in(Balance.LEGENDARY_UPGRADES, levels) if effects_on else PackedStringArray()
 	var result: Array = []
 	var has_legend := false
@@ -150,7 +196,16 @@ static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, coun
 				slots.append(i)
 		if not slots.is_empty():
 			result[slots[random.randi_range(0, slots.size() - 1)]] = {"id": _take(random, effects), "grade": EPIC}
+	for c in result:
+		if is_effect(c["id"]) and levels.has(c["id"]):
+			c["desc"] = describe_next(c["id"], c["grade"], bonus)
+			c["short"] = describe_next(c["id"], c["grade"], bonus, true)
 	return result
+
+
+## 카드에 붙은 문구가 있으면 그것, 없으면 기본 문구
+static func card_text(card: Dictionary, short: bool = false) -> String:
+	return str(card.get("short" if short else "desc", describe(card["id"], card["grade"], short)))
 
 
 static func is_effect(id: String) -> bool:

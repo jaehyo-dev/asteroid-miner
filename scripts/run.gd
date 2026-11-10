@@ -85,6 +85,7 @@ func _ready() -> void:
 	$UI.add_child(cards)
 	cards.chosen.connect(_on_card_chosen)
 	cards.reroll_pressed.connect(_on_reroll)
+	cards.skip_pressed.connect(_on_skip_pick)
 	Music.set_run_time(0.0)
 	# 폰을 세로로 들면 일시 정지 (가로로 돌리면 일시 정지 메뉴에서 이어서 한다)
 	App.portrait_changed.connect(_on_portrait_changed)
@@ -188,7 +189,7 @@ func _process(delta: float) -> void:
 		danger.time = sim.time
 		if not sim.alive:
 			_show_game_over()
-		elif not sim.choices.is_empty() and slowmo <= 0.0:
+		elif sim.choosing() and slowmo <= 0.0:
 			_show_level_up()
 	elif current_menu == Menu.NONE and sim.returned:
 		# 귀환 성공 연출: 우주선이 빨려 들어가고 화면이 하얗게 번쩍인 뒤 기지로 (착륙 → 결과 화면)
@@ -219,16 +220,18 @@ func _input(event: InputEvent) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if intro_t >= 0.0:
 		return
-	# 레벨업 카드: 숫자키 1, 2, 3으로 고르고 R로 다시 뽑는다. 다 펼쳐지기 전이면 건너뛰기만 한다.
+	# 레벨업 카드: 숫자키 1, 2, 3으로 고르고 R로 다시 뽑고 S로 건너뛴다(광물). 다 펼쳐지기 전이면 연출 넘기기만 한다.
 	if current_menu == Menu.LEVEL_UP and event is InputEventKey and event.pressed and not event.echo:
 		var key: Key = event.physical_keycode
 		var index := number_key_index(key)
-		var known: bool = (index >= 0 and index < sim.choices.size()) or key == KEY_R or event.is_action("confirm")
+		var known: bool = (index >= 0 and index < sim.choices.size()) or key == KEY_R or key == KEY_S or event.is_action("confirm")
 		if known:
 			if cards.is_revealing():
 				cards.skip()
 			elif key == KEY_R:
 				cards.reroll()
+			elif key == KEY_S:
+				cards.skip_pick()
 			else:
 				cards.choose(index)
 			get_viewport().set_input_as_handled()
@@ -258,6 +261,8 @@ func _announce(events: PackedStringArray) -> void:
 	for e in events:
 		if e == "new_barrage":
 			hud.show_banner("??? 의 포격", BARRAGE_BANNER_COLOR)
+		elif e == "enemy_damage_up":
+			hud.show_banner("적 피해 +%d%%" % roundi((RunSim.enemy_damage_mult(sim.time) - 1.0) * 100.0), Hud.COLOR_DANGER)
 		elif e == "cargo_heavy":
 			hud.show_banner("화물이 무거워 느려져요", Hud.COLOR_FULL)
 			Sfx.play("cargo_heavy")
@@ -345,15 +350,21 @@ func _play_sounds() -> void:
 			db = 0.0  # 큰·황금 운석은 멈칫하는 순간이므로 몰려도 소리를 그대로 낸다 (수에는 들어감)
 		if db > -INF:
 			Sfx.play(break_sound(a), -1.0, 1.0, db)
-	# 줍기: 같은 등급은 한 프레임에 한 번만, 1초 안에 연속으로 주우면 음이 올라감
+	# 광물 합치기: 한 프레임에 한 번, 만들어진 등급의 줍기 소리를 조금 높게 (등급이 오를수록 밝게)
+	var merged_top := -1
+	for m in sim.merged:
+		merged_top = maxi(merged_top, int(m["grade"]))
+	if merged_top >= 0:
+		Sfx.play_pickup(merged_top, PickupCombo.pitch_of(Juice.MERGE_SOUND_SEMITONES * merged_top), -3.0)
+	# 줍기: 짧은 시간 안에 주운 것은 한 번으로 묶고, 많이 주울수록 한 번을 작게 (PickupCombo)
 	if sim.picked.is_empty():
 		return
-	var pitch := PickupCombo.pitch_of(_combo.pick(sim.time))
-	var played := {}
+	var grades := []
 	for p in sim.picked:
-		if not played.has(p["grade"]):
-			played[p["grade"]] = true
-			Sfx.play("pickup_%d" % p["grade"], 0.0, pitch)
+		grades.append(p["grade"])
+	var s := _combo.pick(sim.time, grades)
+	if not s.is_empty():
+		Sfx.play_pickup(s["grade"], PickupCombo.pitch_of(s["semi"]), s["db"])
 
 
 ## 적 소리의 몰림 보정(dB). 내지 말아야 하면 -INF
@@ -463,6 +474,8 @@ func result_body() -> String:
 		Hud.format_time(sim.time), sim.level, sim.kills, kept, Hud.minerals_text(home),
 		RunSim.value_of(home), earned - RunSim.value_of(home), RiskBonus.percent(sim.time), earned]
 	body += "\n기지로 +%d → 보유 광물 %d" % [earned, save.credits]
+	if sim.skip_banked > 0:
+		body += "\n(건너뛰기로 금고에 +%d 받음)" % sim.skip_banked
 	return body
 
 
@@ -480,7 +493,7 @@ func bank_result() -> int:
 ## 레벨업 카드 화면을 연다
 func _show_level_up() -> void:
 	_enter_menu(Menu.LEVEL_UP)
-	cards.show_cards(sim.choices, sim.upgrade_levels, sim.rerolls_left)
+	cards.show_cards(sim.choices, sim.upgrade_levels, sim.rerolls_left, false, sim.skip_reward())
 
 
 func _open_menu(kind: Menu, title: String, body: String, options: PackedStringArray) -> void:
@@ -540,4 +553,13 @@ func _on_card_chosen(index: int) -> void:
 
 func _on_reroll() -> void:
 	if sim.reroll():
-		cards.show_cards(sim.choices, sim.upgrade_levels, sim.rerolls_left, true)
+		cards.show_cards(sim.choices, sim.upgrade_levels, sim.rerolls_left, true, sim.skip_reward())
+
+
+## 건너뛰기: 광물을 금고(저장)에 바로 더하고 저장한다. 화물칸·사망과 상관없이 남는다.
+func _on_skip_pick() -> void:
+	var reward := sim.skip()
+	save.add_credits(reward)
+	save.save_file()
+	hud.show_banner("광물 +%d 금고로" % reward, Hud.COLOR_VALUE)
+	_close_menu()  # 남은 레벨업이 있으면 다음 프레임에 다시 뜬다
