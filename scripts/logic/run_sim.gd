@@ -193,6 +193,7 @@ var _drone_angle := 0.0
 var _damage_mult := 1.0
 ## 합치기 검사를 이어 갈 광물 번호 (한 프레임에 MERGE_CHECKS_PER_FRAME개씩 돌아가며 본다)
 var _merge_cursor := 0
+var _merge_timer := 0.0
 
 var _spawn_timer := 0.0
 ## 다음 황금 운석까지 남은 시간
@@ -1031,7 +1032,10 @@ func _update_minerals(delta: float) -> void:
 		else:
 			kept.append(m)
 	minerals = kept
-	_merge_minerals()
+	_merge_timer += delta
+	if _merge_timer >= Balance.MERGE_CHECK_INTERVAL:
+		_merge_timer = 0.0
+		_merge_minerals()
 
 
 ## 광물 합치기: 같은 등급이 MERGE_RADIUS 안에 MERGE_COUNT개 이상, 모두 MERGE_REST초 넘게 놓여 있으면 가운데에 한 단계 위 1개로.

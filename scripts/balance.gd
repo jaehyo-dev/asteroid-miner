@@ -240,7 +240,9 @@ const MAX_MINERALS := 300
 const MERGE_COUNT := [5, 4, 5, 0]
 const MERGE_RADIUS := 24.0
 const MERGE_REST := 1.5
-## 한 프레임에 합치기 후보로 살펴보는 광물 수 (많을 때 프레임마다 돌아가며 나눠 본다: 폰 성능)
+## 합치기 검사는 MERGE_CHECK_INTERVAL초마다 한 번, 한 번에 후보로 살펴보는 광물은 MERGE_CHECKS_PER_FRAME개
+## (많을 때 돌아가며 나눠 본다. 매 프레임 검사하면 후반 웹에서 스크립트 시간이 약 1ms(15%) 늘어 줄임: review/v070_balance/apply/perf)
+const MERGE_CHECK_INTERVAL := 0.2
 const MERGE_CHECKS_PER_FRAME := 40
 
 # ── 경험치와 레벨업 강화 ─────────────────────────────

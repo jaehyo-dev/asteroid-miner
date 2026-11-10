@@ -269,11 +269,25 @@ func test_연쇄_합치기와_전설_도감() -> void:
 	for i in 6:
 		for id in Discovery.seen_now(sim):
 			seen[id] = true
-		sim._update_minerals(0.05)
+		sim._update_minerals(Balance.MERGE_CHECK_INTERVAL)
 	assert_eq(_value(sim), value, "가치 그대로")
 	assert_eq(sim.minerals.size(), 1, "일반 20 → 희귀 4, 희귀 16 → 영웅 4, 영웅 5 → 전설 1")
 	assert_eq(sim.minerals[0].grade, 3)
 	assert_true(seen.has("mineral_3"), "합쳐 생긴 전설도 발견")
+
+
+func test_합치기_검사는_정해진_간격마다() -> void:
+	var sim := _sim()
+	_pile(sim, 0, 5)
+	sim._update_minerals(1.6)  # 놓인 시간은 넘었고 첫 검사로 합쳐짐
+	assert_eq(sim.minerals.size(), 1)
+	_pile(sim, 0, 5, Vector2(800, 0))
+	for m in sim.minerals:
+		m.rest = 2.0  # 놓인 시간은 이미 넘김
+	sim._update_minerals(Balance.MERGE_CHECK_INTERVAL * 0.5)
+	assert_eq(sim.minerals.size(), 6, "간격 전에는 검사 안 함")
+	sim._update_minerals(Balance.MERGE_CHECK_INTERVAL * 0.6)
+	assert_eq(sim.minerals.size(), 2, "간격이 차면 검사")
 
 
 func test_한_프레임_검사_수_제한() -> void:
