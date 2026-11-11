@@ -69,7 +69,7 @@ class Bullet:
 	var pierce := 0  ## 더 뚫을 수 있는 수 (-1이면 사거리 끝까지)
 	var bounces := 0  ## 더 튕길 수 있는 수
 	var hits: Array[Enemy] = []  ## 이미 맞힌 적 (관통·튕김 탄이 같은 적을 두 번 맞히지 않게)
-	var style := ""  ## 기본 무기 탄 모양 (그리기용): "" 펄스, shotgun, rail, plasma
+	var style := ""  ## 기본 무기 탄 모양 (그리기용): "" 펄스, shotgun, rail, plasma, beam(빔 피해 계산용 가짜 탄)
 	var blast := 0.0  ## 맞거나 사거리 끝에서 터지는 반경 (플라스마 대포)
 
 
@@ -142,6 +142,8 @@ var weapon: Dictionary = Balance.WEAPONS[0]
 ## 채굴 빔이 이번 프레임에 닿은 적 (그리기용)
 var beam_targets: Array[Enemy] = []
 var fire_interval := Balance.FIRE_INTERVAL
+## 마지막으로 쏜 방향 (그리기용: 총구 섬광·반동)
+var aim_angle := 0.0
 var fire_range := Balance.FIRE_RANGE
 var bullet_damage := Balance.BULLET_DAMAGE
 var bullet_count := Balance.BULLET_COUNT
@@ -620,6 +622,7 @@ func _auto_fire(delta: float) -> void:
 	var speed := float(weapon["speed"])
 	# 움직이는 운석이 탄과 만날 지점을 노린다.
 	var base_angle := intercept_angle(player_pos, target.pos, target.vel, speed)
+	aim_angle = base_angle
 	var life := fire_range / speed * Balance.BULLET_LIFETIME_FACTOR
 	_shots_fired += 1
 	var shot_damage := bullet_damage * float(weapon["damage"]) * (Balance.RES_OVER_MULT if _base("over") and _shots_fired % Balance.RES_OVER_EVERY == 0 else 1.0)
@@ -658,6 +661,7 @@ func _fire_beam(delta: float) -> void:
 	if beam_targets.is_empty():
 		_fire_timer = maxf(_fire_timer, 0.0)
 		return
+	aim_angle = (beam_targets[0].pos - player_pos).angle()
 	while _fire_timer <= 0.0:
 		_fire_timer += current_fire_interval()
 		_shots_fired += 1
@@ -667,6 +671,7 @@ func _fire_beam(delta: float) -> void:
 			if t.hp <= 0.0:
 				continue
 			var b := Bullet.new()
+			b.style = "beam"
 			b.pos = player_pos
 			b.vel = (t.pos - player_pos).normalized()
 			b.damage = damage * (1.0 if t.kind == ROCK else float(weapon.get("enemy_mult", 1.0)))
@@ -675,6 +680,11 @@ func _fire_beam(delta: float) -> void:
 				t.flash = 0.0  # 0.1초마다 하얗게 번쩍이면 눈이 아파서 소리와 같이 세 번에 한 번만
 		if loud:
 			events.append("shoot")
+
+
+## 다음 발사까지 남은 시간 (그리기용: 레일건 충전 빛)
+func fire_wait() -> float:
+	return _fire_timer
 
 
 ## 지금 발사 간격: 과부하 반응로는 체력이 낮으면 더 빠르다
@@ -851,6 +861,8 @@ func _hit_enemy(b: Bullet, a: Enemy, sound := true) -> void:
 	a.hit_time = Balance.HIT_KNOCK_TIME
 	if sound:
 		events.append("hit_" + a.kind)
+	if not b.drone:  # 기본 무기 맞은 자리 (그리기용: 무기마다 튐·불꽃)
+		fx.append({"type": "hit", "pos": a.pos + (b.pos - a.pos).limit_length(a.radius), "dir": b.vel.normalized(), "style": b.style})
 	if mineral_bonus > 0.0 and a.kind == ROCK:
 		fx.append({"type": "laser", "pos": a.pos + (b.pos - a.pos).limit_length(a.radius)})
 

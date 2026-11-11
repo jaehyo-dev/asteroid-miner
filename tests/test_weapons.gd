@@ -45,12 +45,10 @@ func test_무기_5종_이름과_해금_가격() -> void:
 	assert_eq([Weapons.cost("pulse"), Weapons.cost("shotgun"), Weapons.cost("rail"), Weapons.cost("plasma"), Weapons.cost("beam")], [0, 600, 900, 1200, 1500])
 
 
-func test_해금_칸은_모두_연구소_무기_가지에_있음() -> void:
-	for w: Dictionary in Balance.WEAPONS:
-		if w.has("research"):
-			assert_true(Research.tree("weapon").has(w["research"]), w["research"])
-			assert_eq(BaseUpgrades.max_level(w["research"]), 1)
-			assert_false(Research.is_soon(w["research"]), "살 수 있음")
+func test_무기는_연구소가_아니라_격납고에서_삼() -> void:
+	for id in Weapons.ids():
+		assert_false(Research.tree("weapon").has("w_" + id), "연구소 무기 가지에 %s 해금 칸 없음" % id)
+		assert_true(BaseUpgrades.info("w_" + id).is_empty() or not BaseUpgrades.info("w_" + id).has("cost"), "연구소 칸 표에도 없음")
 
 
 func test_펄스_연사포는_예전_수치_그대로() -> void:
@@ -70,23 +68,39 @@ func test_무기를_바꾸면_간격과_사거리가_바뀌고_강화가_곱해�
 
 # ── 해금·장착·저장 ────────────────────────────────
 
-func test_연구소에서_사야_장착할_수_있음() -> void:
+func test_사야_장착할_수_있고_사면_바로_장착() -> void:
 	var s := SaveData.new()
-	s.credits = 100000
+	s.credits = 1000
 	assert_true(Weapons.unlocked(s, "pulse"))
 	assert_false(Weapons.unlocked(s, "shotgun"))
 	assert_false(Weapons.equip(s, "shotgun"), "잠긴 무기는 장착 못 함")
 	assert_eq(Weapons.equipped(s), "pulse")
-	Research.buy(s, "weapon", 0)
-	assert_true(Research.buy(s, "weapon", Research.tree("weapon").find("w_shotgun")))
-	assert_true(Weapons.unlocked(s, "shotgun"))
-	assert_true(Weapons.equip(s, "shotgun"))
-	assert_eq(Weapons.equipped(s), "shotgun")
+	assert_true(Weapons.buy(s, "rail"), "순서 제한 없음 (산탄포 먼저 안 사도 됨)")
+	assert_eq(s.credits, 100)
+	assert_eq(Weapons.equipped(s), "rail", "사면 바로 장착")
+	assert_false(Weapons.buy(s, "rail"), "이미 있음")
+	assert_false(Weapons.buy(s, "shotgun"), "광물 부족 (100 < 600)")
+	assert_eq(s.credits, 100, "못 사면 광물 그대로")
+	assert_false(Weapons.buy(s, "pulse"), "처음부터 있는 무기")
+	assert_false(Weapons.buy(s, "laser_sword"), "모르는 무기")
+	assert_true(Weapons.equip(s, "pulse"))
+	assert_true(Weapons.equip(s, "rail"), "산 무기는 다시 장착")
+
+
+func test_예전_연구소_해금과_산_무기는_저장에_남음() -> void:
+	var old := SaveData.from_dict({"upgrades": {"w_plasma": 1, "w_beam": 0}, "weapon": "plasma"})
+	assert_eq(old.weapons_owned, ["plasma"], "2단계 저장의 연구소 해금은 산 것으로")
+	assert_eq(Weapons.equipped(old), "plasma")
+	assert_false(old.upgrades.has("w_plasma"), "연구소 칸은 없어짐")
+	var back := SaveData.from_dict(JSON.parse_string(JSON.stringify(old.to_dict())))
+	assert_eq(back.weapons_owned, ["plasma"], "다시 저장해도 남음")
+	assert_eq(SaveData.from_dict({"weapons_owned": ["rail", "rail", "pulse", "laser", 3]}).weapons_owned, ["rail"], "모르는 값·중복·기본 무기는 버림")
+	assert_eq(SaveData.from_dict({"weapons_owned": "rail"}).weapons_owned, [], "목록이 아님")
 
 
 func test_장착한_무기는_저장되고_모르는_값은_펄스() -> void:
 	var s := SaveData.new()
-	s.upgrades["w_beam"] = 1
+	s.weapons_owned = ["beam"]
 	assert_true(Weapons.equip(s, "beam"))
 	var back := SaveData.from_dict(JSON.parse_string(JSON.stringify(s.to_dict())))
 	assert_eq(back.weapon, "beam")
@@ -245,7 +259,7 @@ func test_출격하면_장착한_무기로_시작() -> void:
 	var old := SaveData.path
 	SaveData.path = "user://test_weapons_save.json"
 	var s := SaveData.new()
-	s.upgrades["w_plasma"] = 1
+	s.weapons_owned = ["plasma"]
 	s.weapon = "plasma"
 	s.warp_seen = true
 	s.save_file()
@@ -282,3 +296,32 @@ func test_효과_없는_카드는_그_무기에서_안_나옴() -> void:
 		pulse.call("_roll_choices")
 		any_pierce = any_pierce or pulse.choices.any(func(c: Dictionary) -> bool: return c["id"] == "pierce")
 	assert_true(any_pierce, "펄스는 관통 카드가 나옴")
+
+
+# ── 공격 이펙트 후보 (?fxtest) ──────────────────────
+
+func test_무기마다_이펙트_후보_3개와_공통_수치() -> void:
+	for id in Weapons.ids():
+		assert_eq(Juice.WEAPON_FX[id].size(), 3, id)
+		for p: Dictionary in Juice.WEAPON_FX[id]:
+			for key in ["muzzle", "muzzle_time", "muzzle_color", "recoil", "hit_n", "hit_speed", "hit_life", "hit_size", "hit_colors", "hit_ring", "hit_flash"]:
+				assert_true(p.has(key), "%s %s" % [id, key])
+	assert_eq(Weapons.fx("rail"), 1, "고르기 전엔 후보 1")
+
+
+func test_맞으면_hit_효과가_나오고_효과_수는_상한을_넘지_않음() -> void:
+	for id in Weapons.ids():
+		for cand in [1, 2, 3]:
+			Weapons.fx_pick[id] = cand
+			var sim := _sim(id)
+			var fx := WeaponFx.new(sim)
+			var hits := 0
+			for i in 20:
+				_rock(sim, Vector2(40 + i * 3, (i % 5) * 6 - 12))
+			for i in 240:
+				sim.update(1.0 / 60.0, Vector2.ZERO)
+				hits += sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "hit").size()
+				fx.step(1.0 / 60.0)
+				assert_true(fx._parts.size() <= Juice.WEAPON_PARTICLE_MAX and fx._trails.size() <= Juice.WEAPON_TRAIL_MAX and fx._blasts.size() <= Juice.WEAPON_BLAST_MAX, "%s %d 상한" % [id, cand])
+			assert_true(hits > 0, "%s 후보 %d 맞은 자리 효과" % [id, cand])
+	Weapons.fx_pick.clear()

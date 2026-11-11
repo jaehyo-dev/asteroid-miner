@@ -36,6 +36,8 @@
 - 건물 창 시안 그림 6장 `assets/raw/base_panel/`(틀 키트, 노드·코어 키트, 노드 아이콘 9개, 정비 베이, 저장 탱크·금고 문, 진열장): Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-09. 시안 단계라 게임에 포함되지 않음. 정리본 `review/v070_fix/parts/`, 요청문 [ASSET_PROMPTS.md](ASSET_PROMPTS.md)
 - 건물 창 시안 2차 그림 3장 `assets/raw/base_panel2/`(노드 아이콘 2장, 홀로그램 받침대·정비 거치대·광석 수레): Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-09. 시안 단계라 게임에 포함되지 않음. 요청문은 ASSET_PROMPTS.md.
 - 격납고 회전 모형 시안 `review/v070_fix2/spin3d/`: Foozle Main Ship(위 CC0)의 Base·Engine을 합쳐 복셀로 만들고(수정함) 시트로 구움. 창 소리 2차 후보 `review/v070_fix/listen2/`: Kenney Impact·Sci-Fi 녹음(위 CC0) + numpy 합성. 모두 시안이라 게임에 포함되지 않음.
+- 기본 무기 그림 후보 4장 `assets/raw/weapons_v080/`(산탄포·레일건·플라스마 대포·채굴 빔, 장마다 후보 3개): Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-11, 요청문은 ASSET_PROMPTS.md. `review/v080_step3/art/make_art.py`가 `tools/pixelate.py` 함수로 36x17 후보 12장으로 줄임(수정함). 사용자 선택 전 후보라 게임에 포함되지 않음.
+- 기본 무기 공격 이펙트 후보 15개(`scripts/weapon_fx.gd`, 수치 `scripts/juice.gd` WEAPON_FX): v0.8.0 3단계, 코드로 직접 그림. 고른 후보만 남기고 나머지는 v0.8.0 배포 전에 지움.
 
 - 기본 무기 그림 4개(산탄포·레일건·플라스마 대포·채굴 빔, `assets/sprites/window/weapon_*.png` 36x17, 연구소 칸 아이콘 `icon_w_*.png` 24x24)와 출격 화면 무기 효과(산탄 알갱이, 레일 빛줄·자국, 플라스마 구슬·폭발, 채굴 빔, `scripts/world_view.gd`): v0.8.0, `tools/export_weapon_art.py`·코드로 직접 그림 (펄스 연사포 그림과 같은 팔레트, 2026-11-11)
 

@@ -30,6 +30,8 @@ var forks_owned: Dictionary = {}
 var forks_on: Dictionary = {}
 ## 장착한 기본 무기 id (Balance.WEAPONS). 출격하면 이 무기로 시작한다 (v0.8.0)
 var weapon := "pulse"
+## 격납고에서 산 기본 무기 id 목록 (처음부터 있는 펄스 연사포는 넣지 않음)
+var weapons_owned: Array = []
 
 
 func level_of(id: String) -> int:
@@ -43,7 +45,7 @@ func add_credits(amount: int) -> void:
 
 func to_dict() -> Dictionary:
 	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen, "warp_seen": warp_seen, "drag_hint_seen": drag_hint_seen,
-		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys(), "forks_owned": forks_owned.duplicate(), "forks_on": forks_on.duplicate(), "weapon": weapon}
+		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys(), "forks_owned": forks_owned.duplicate(), "forks_on": forks_on.duplicate(), "weapon": weapon, "weapons_owned": weapons_owned.duplicate()}
 
 
 ## 판에서 가져온 광물(등급별 개수)을 누적한다
@@ -94,6 +96,12 @@ static func from_dict(d: Variant) -> SaveData:
 				if lv > 0:
 					s.upgrades[u["id"]] = lv
 	s._read_forks(d.get("forks_owned", {}), d.get("forks_on", {}))
+	# 산 무기: 모르는 id·중복은 버린다. 예전(2단계) 저장은 연구소 칸 "w_<무기>"으로 해금했으니 산 것으로 옮긴다
+	var owned: Variant = d.get("weapons_owned", [])
+	for id in Weapons.ids():
+		var old: Variant = ups.get("w_" + id, 0) if typeof(ups) == TYPE_DICTIONARY else 0
+		if Weapons.cost(id) > 0 and ((typeof(owned) == TYPE_ARRAY and owned.has(id)) or _to_int(old) > 0):
+			s.weapons_owned.append(id)
 	var wp: Variant = d.get("weapon", "pulse")
 	s.weapon = wp if typeof(wp) == TYPE_STRING and Weapons.has(wp) else "pulse"  # 모르는 무기는 기본 무기로 (해금 여부는 Weapons.equipped가 본다)
 	return s

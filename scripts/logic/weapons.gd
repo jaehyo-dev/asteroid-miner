@@ -1,11 +1,17 @@
 class_name Weapons
 extends RefCounted
-## 기본 무기 규칙: 목록, 해금(연구소 칸), 장착, 격납고 능력치 칸. 화면과 분리해 테스트한다. 수치는 Balance.WEAPONS.
+## 기본 무기 규칙: 목록, 구매(격납고, 광물), 장착, 격납고 능력치 칸. 화면과 분리해 테스트한다. 수치는 Balance.WEAPONS.
 
 const DEFAULT := "pulse"
-## 확인용 숨은 스위치(웹 주소 ?weapontest): 모든 무기 해금 + 판 중 숫자키 1~5로 바꾸기.
-## shortcut: v0.8.0 배포 전에 이 스위치와 쓰는 곳(main.gd·run.gd)을 지운다 (review/PLAN_v0.8.0.md 메모)
+## 확인용 숨은 스위치(웹 주소 ?fxtest): 모든 무기 해금 + 판 중 숫자키 1~5로 무기, Q/W/E로 이펙트 후보 1/2/3.
+## shortcut: v0.8.0 배포 전에 이 스위치·fx_pick과 쓰는 곳(app.gd·run.gd·world_view.gd)을 지운다 (review/PLAN_v0.8.0.md 11장)
 static var test_mode := false
+## 무기별 이펙트 후보 번호(1~3) id → 번호. 후보를 고르기 전까지만 쓴다 (없으면 1)
+static var fx_pick := {}
+
+
+static func fx(id: String) -> int:
+	return int(fx_pick.get(id, 1))
 
 
 static func ids() -> Array:
@@ -24,15 +30,23 @@ static func has(id: String) -> bool:
 	return ids().has(id)
 
 
-## 해금 가격 (연구소 칸 가격). 기본 무기는 0
+## 격납고 구매 가격 (광물). 처음부터 있는 무기는 0
 static func cost(id: String) -> int:
-	var w := info(id)
-	return int(BaseUpgrades.info(w["research"])["cost"]) if w.has("research") else 0
+	return int(info(id).get("cost", 0))
 
 
 static func unlocked(save: SaveData, id: String) -> bool:
-	var w := info(id)
-	return test_mode or not w.has("research") or save.level_of(w["research"]) > 0
+	return test_mode or cost(id) == 0 or save.weapons_owned.has(id)
+
+
+## 격납고에서 산다: 광물을 내고 바로 장착한다. 모르는 무기·이미 있음·광물 부족이면 false
+static func buy(save: SaveData, id: String) -> bool:
+	if not has(id) or unlocked(save, id) or save.credits < cost(id):
+		return false
+	save.credits -= cost(id)
+	save.weapons_owned.append(id)
+	save.weapon = id
+	return true
 
 
 ## 장착한 무기 (해금이 풀렸거나 모르는 값이면 기본 무기)

@@ -92,7 +92,14 @@ func test_격납고_능력치는_업그레이드를_반영함() -> void:
 	for u in Balance.BASE_UPGRADES:
 		maxed[u["id"]] = u["max"]
 	for s in Hangar.stats(maxed):
-		assert_eq(s["ratio"], 1.0, s["name"] + " 최대면 막대 가득")
+		if not s["name"] in ["공격력", "공격 속도", "사거리"]:
+			assert_eq(s["ratio"], 1.0, s["name"] + " 최대면 막대 가득")
+	# 무기에 따라 바뀌는 줄은 그 줄이 가장 센 무기를 끼면 가득
+	for row in [1, 2, 3]:
+		var best := 0.0
+		for id in Weapons.ids():
+			best = maxf(best, Hangar.stats(maxed, null, id)[row]["ratio"])
+		assert_eq(best, 1.0, "%d줄 가장 센 무기면 막대 가득" % row)
 
 
 func test_격납고_화면() -> void:

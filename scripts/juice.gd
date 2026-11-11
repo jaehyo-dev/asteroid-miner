@@ -65,29 +65,65 @@ const HIT_FLASH_TIME := 0.2
 
 # ── 효과 강화 연출 ─────────────────────
 ## 효과 하나의 지속 시간(초): 관통 불꽃, 튕김 궤적, 폭발 고리, 치명타 숫자, 채굴 레이저 반짝임, 광물 더 나옴
-const EFFECT_TIME := {"pierce": 0.16, "bounce": 0.14, "explode": 0.3, "crit": 0.6, "laser": 0.14, "drop_extra": 0.4, "plasma": 0.4, "rail": 0.22}
+const EFFECT_TIME := {"pierce": 0.16, "bounce": 0.14, "explode": 0.3, "crit": 0.6, "laser": 0.14, "drop_extra": 0.4}
 
-# ── 기본 무기 효과 (v0.8.0) ─────────────────
-## 그리는 순서: 내 무기 효과(빔·폭발·레일 자국)는 적·운석 아래, 적 탄은 그 위에 어두운 테두리를 둘러 어떤 효과 위에서도 보이게.
-## 플라스마 폭발: 안쪽 빛 진하기(최대), 바깥 고리 진하기. 내 효과는 반투명으로 둔다
-const PLASMA_FILL_ALPHA := 0.5
-const PLASMA_RING_ALPHA := 0.95
-## 폭발 처음 이 비율 동안 가운데가 하얗게 번쩍인다
-const PLASMA_FLASH := 0.3
-## 플라스마 탄: 빛 반지름, 속 반지름
-const PLASMA_GLOW := 7.0
-const PLASMA_CORE := 4.0
-## 레일 자국: 굵기(시작), 바깥 빛 추가 굵기, 진하기. 레일 탄 줄 길이
-const RAIL_WIDTH := 3.0
-const RAIL_GLOW := 4.0
-const RAIL_ALPHA := 0.75
-const RAIL_STREAK := 22.0
-## 채굴 빔: 바깥 빛 굵기·진하기, 속 굵기, 맥동 빠르기(초당), 닿는 곳 불꽃 반지름
-const BEAM_GLOW_WIDTH := 5.0
-const BEAM_GLOW_ALPHA := 0.35
-const BEAM_CORE_WIDTH := 1.0
-const BEAM_PULSE := 9.0
-const BEAM_SPARK := 4.0
+# ── 기본 무기 효과 (v0.8.0, scripts/weapon_fx.gd) ─────────────────
+## 그리는 순서: 내 무기 효과(빔·폭발·레일 자국)는 적·운석 아래, 튐·섬광은 내 탄 위·적 탄 아래. 적 탄은 어두운 테두리로 어떤 효과 위에서도 보이게.
+## 무기마다 후보 3개 [1 깔끔하고 가벼움, 2 화려함, 3 묵직함] (?fxtest의 Q/W/E). 고르면 고른 것만 남긴다.
+## 공통: muzzle 총구 섬광 반지름(0 없음)·muzzle_time 시간·muzzle_color, recoil 반동(픽셀), hit_n 맞은 곳 튐 수·hit_speed·hit_life·hit_size(픽셀)·hit_colors,
+## hit_ring 맞은 곳 고리 반지름(0 없음), hit_flash 맞은 곳 흰 번쩍임 반지름(0 없음)
+## 펄스·산탄: size 탄 크기(산탄 알갱이 픽셀), glow 탄 빛 반지름, trail 탄 꼬리 길이, cone 총구 불꽃 부채꼴 길이, smoke 쏠 때 연기 수
+## 레일: charge 충전 빛 반지름·charge_time 쏘기 전 충전 시간, width 빛줄기 굵기·glow_w 바깥 빛 굵기·fade 잔상 시간·core_time 흰 속줄 시간, dots 잔상이 점선으로 흩어짐
+## 플라스마: orb 구슬 반지름·orb_glow 빛 반지름, tail 꼬리 점 수·tail_step(초 전 위치), rings 충격파 고리 수·blast_time, embers 잔불 수·ember_life, scorch 그을음 진하기
+## 빔: core 속줄 굵기·glow_w 바깥 빛 굵기·pulse_hz 맥동, travel 빔을 따라 흐르는 빛 점 수, sparks·chips 닿는 곳 불꽃·광물 부스러기(초당), wobble 굵기 흔들림
+const WEAPON_FX := {
+	"pulse": [
+		{"muzzle": 2.0, "muzzle_time": 0.05, "muzzle_color": Color("#99e9e6"), "recoil": 1.0, "glow": 0.0, "trail": 0.0,
+			"hit_n": 3, "hit_speed": 45.0, "hit_life": 0.14, "hit_size": 1.0, "hit_colors": [Color("#99e9e6"), Color("#fef8e5")], "hit_ring": 0.0, "hit_flash": 0.0},
+		{"muzzle": 4.0, "muzzle_time": 0.07, "muzzle_color": Color("#99e9e6"), "recoil": 2.0, "glow": 3.0, "trail": 9.0,
+			"hit_n": 6, "hit_speed": 80.0, "hit_life": 0.22, "hit_size": 1.0, "hit_colors": [Color("#30e1b9"), Color("#99e9e6"), Color("#fef8e5"), Color("#a884f3")], "hit_ring": 6.0, "hit_flash": 0.0},
+		{"muzzle": 5.0, "muzzle_time": 0.08, "muzzle_color": Color("#f6ce50"), "recoil": 3.0, "glow": 4.0, "trail": 4.0,
+			"hit_n": 4, "hit_speed": 35.0, "hit_life": 0.3, "hit_size": 2.0, "hit_colors": [Color("#f89419"), Color("#f6ce50")], "hit_ring": 0.0, "hit_flash": 4.0},
+	],
+	"shotgun": [
+		{"muzzle": 3.0, "muzzle_time": 0.05, "muzzle_color": Color("#fef8e5"), "recoil": 2.0, "size": 2.0, "glow": 0.0, "trail": 0.0, "cone": 0.0, "smoke": 0,
+			"hit_n": 2, "hit_speed": 40.0, "hit_life": 0.12, "hit_size": 1.0, "hit_colors": [Color("#99e9e6")], "hit_ring": 0.0, "hit_flash": 0.0},
+		{"muzzle": 4.0, "muzzle_time": 0.08, "muzzle_color": Color("#f6ce50"), "recoil": 3.0, "size": 2.0, "glow": 0.0, "trail": 7.0, "cone": 16.0, "smoke": 0,
+			"hit_n": 4, "hit_speed": 70.0, "hit_life": 0.2, "hit_size": 1.0, "hit_colors": [Color("#f6ce50"), Color("#fef8e5"), Color("#99e9e6")], "hit_ring": 4.0, "hit_flash": 0.0},
+		{"muzzle": 6.0, "muzzle_time": 0.1, "muzzle_color": Color("#f89419"), "recoil": 5.0, "size": 3.0, "glow": 3.0, "trail": 3.0, "cone": 11.0, "smoke": 4,
+			"hit_n": 3, "hit_speed": 30.0, "hit_life": 0.32, "hit_size": 2.0, "hit_colors": [Color("#f89419"), Color("#dc7f47")], "hit_ring": 0.0, "hit_flash": 3.0},
+	],
+	"rail": [
+		{"muzzle": 3.0, "muzzle_time": 0.06, "muzzle_color": Color("#99e9e6"), "recoil": 2.0, "charge": 2.0, "charge_time": 0.25, "width": 1.0, "glow_w": 3.0, "fade": 0.18, "core_time": 0.05, "dots": false,
+			"hit_n": 3, "hit_speed": 60.0, "hit_life": 0.14, "hit_size": 1.0, "hit_colors": [Color("#30e1b9"), Color("#fef8e5")], "hit_ring": 0.0, "hit_flash": 0.0},
+		{"muzzle": 5.0, "muzzle_time": 0.08, "muzzle_color": Color("#99e9e6"), "recoil": 3.0, "charge": 5.0, "charge_time": 0.4, "width": 3.0, "glow_w": 8.0, "fade": 0.5, "core_time": 0.08, "dots": false,
+			"hit_n": 6, "hit_speed": 90.0, "hit_life": 0.22, "hit_size": 1.0, "hit_colors": [Color("#30e1b9"), Color("#99e9e6"), Color("#fef8e5"), Color("#f6ce50")], "hit_ring": 5.0, "hit_flash": 0.0},
+		{"muzzle": 6.0, "muzzle_time": 0.1, "muzzle_color": Color("#fef8e5"), "recoil": 5.0, "charge": 4.0, "charge_time": 0.5, "width": 5.0, "glow_w": 6.0, "fade": 0.7, "core_time": 0.12, "dots": true,
+			"hit_n": 4, "hit_speed": 45.0, "hit_life": 0.35, "hit_size": 2.0, "hit_colors": [Color("#f6ce50"), Color("#f89419"), Color("#fef8e5")], "hit_ring": 0.0, "hit_flash": 5.0},
+	],
+	"plasma": [
+		{"muzzle": 3.0, "muzzle_time": 0.06, "muzzle_color": Color("#a884f3"), "recoil": 2.0, "orb": 3.0, "orb_glow": 6.0, "tail": 3, "tail_step": 0.03, "rings": 1, "blast_time": 0.35, "embers": 4, "ember_life": 0.4, "scorch": 0.0,
+			"hit_n": 0, "hit_speed": 0.0, "hit_life": 0.1, "hit_size": 1.0, "hit_colors": [Color("#a884f3")], "hit_ring": 0.0, "hit_flash": 0.0},
+		{"muzzle": 5.0, "muzzle_time": 0.08, "muzzle_color": Color("#a884f3"), "recoil": 3.0, "orb": 4.0, "orb_glow": 8.0, "tail": 7, "tail_step": 0.025, "rings": 2, "blast_time": 0.5, "embers": 12, "ember_life": 0.7, "scorch": 0.0,
+			"hit_n": 2, "hit_speed": 50.0, "hit_life": 0.2, "hit_size": 1.0, "hit_colors": [Color("#fef8e5"), Color("#a884f3")], "hit_ring": 0.0, "hit_flash": 0.0},
+		{"muzzle": 6.0, "muzzle_time": 0.12, "muzzle_color": Color("#6b3e75"), "recoil": 5.0, "orb": 5.0, "orb_glow": 9.0, "tail": 4, "tail_step": 0.04, "rings": 1, "blast_time": 0.6, "embers": 8, "ember_life": 1.1, "scorch": 0.35,
+			"hit_n": 0, "hit_speed": 0.0, "hit_life": 0.1, "hit_size": 1.0, "hit_colors": [Color("#a884f3")], "hit_ring": 0.0, "hit_flash": 0.0},
+	],
+	"beam": [
+		{"muzzle": 2.0, "muzzle_time": 0.0, "muzzle_color": Color("#f6ce50"), "recoil": 0.0, "core": 1.0, "glow_w": 3.0, "pulse_hz": 0.0, "travel": 0, "sparks": 12.0, "chips": 0.0, "wobble": 0.0,
+			"hit_n": 0, "hit_speed": 50.0, "hit_life": 0.15, "hit_size": 1.0, "hit_colors": [Color("#f6ce50"), Color("#fef8e5")], "hit_ring": 0.0, "hit_flash": 0.0},
+		{"muzzle": 4.0, "muzzle_time": 0.0, "muzzle_color": Color("#f6ce50"), "recoil": 0.0, "core": 1.0, "glow_w": 6.0, "pulse_hz": 9.0, "travel": 3, "sparks": 30.0, "chips": 10.0, "wobble": 1.0,
+			"hit_n": 0, "hit_speed": 80.0, "hit_life": 0.25, "hit_size": 1.0, "hit_colors": [Color("#f6ce50"), Color("#fef8e5"), Color("#f89419")], "hit_ring": 0.0, "hit_flash": 0.0},
+		{"muzzle": 5.0, "muzzle_time": 0.0, "muzzle_color": Color("#f89419"), "recoil": 0.0, "core": 3.0, "glow_w": 7.0, "pulse_hz": 4.0, "travel": 0, "sparks": 14.0, "chips": 16.0, "wobble": 2.0,
+			"hit_n": 0, "hit_speed": 40.0, "hit_life": 0.4, "hit_size": 2.0, "hit_colors": [Color("#f89419"), Color("#dc7f47"), Color("#f6ce50")], "hit_ring": 0.0, "hit_flash": 0.0},
+	],
+}
+## 광물 부스러기 색 (채굴 빔이 닿는 곳에서 튐)
+const CHIP_COLORS := [Color("#625565"), Color("#966c6c"), Color("#f6ce50")]
+## 무기 효과 상한 (폰 성능용): 튐·잔불 파티클 수, 레일 자국 수, 플라스마 폭발 수
+const WEAPON_PARTICLE_MAX := 140
+const WEAPON_TRAIL_MAX := 8
+const WEAPON_BLAST_MAX := 8
 ## 적 탄 어두운 테두리: 탄 반지름보다 이만큼 크게, 진하기
 const ENEMY_SHOT_RIM := 2.0
 const ENEMY_SHOT_RIM_ALPHA := 0.75

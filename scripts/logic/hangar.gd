@@ -11,31 +11,55 @@ static func slots() -> Array:
 	return result
 
 
-## 지금 우주선 능력치 [{name, value(글자), ratio(0~1: 기지 업그레이드를 모두 올렸을 때 대비)}]
-## 출격 규칙(RunSim.apply_base)으로 계산해서 실제 출격과 같다.
-static func stats(levels: Dictionary, save: SaveData = null) -> Array:
+## 지금 우주선 능력치 [{name, value(글자), num(비교용 수), ratio(0~1: 기지 업그레이드를 모두 올리고 가장 센 무기를 낀 것 대비)}]
+## 출격 규칙(RunSim.apply_base)으로 계산해서 실제 출격과 같다. weapon을 주면 그 무기로 바꿨을 때 값 (격납고 ▲▼ 미리 보기)
+static func stats(levels: Dictionary, save: SaveData = null, weapon := "") -> Array:
 	var now := RunSim.new(1)
 	now.apply_base(levels)
+	if not Weapons.has(weapon):
+		weapon = Weapons.equipped(save) if save != null else Weapons.DEFAULT
+	now.set_weapon(weapon)
 	if save != null:
-		now.set_weapon(Weapons.equipped(save))  # 공격 속도는 장착한 무기 기준
 		now.apply_codex(save)
-	var top := RunSim.new(1)
 	var maxed := {}
 	for u in Balance.BASE_UPGRADES:
 		maxed[u["id"]] = u["max"]
-	top.apply_base(maxed)
-	var rows := [
-		["체력", now.max_hp, top.max_hp, "%d"],
-		["공격력", now.bullet_damage * 100.0, top.bullet_damage * 100.0, "%d%%"],
-		["공격 속도", 1.0 / now.fire_interval, 1.0 / top.fire_interval, "%.1f발/초"],
-		["이동 속도", now.move_speed, top.move_speed, "%d"],
-		["화물칸", now.cargo.capacity, top.cargo.capacity, "%d칸"],
-		["자석 범위", now.magnet_radius, top.magnet_radius, "%d"],
-		["사망 보존", now.keep_ratio() * 100.0, top.keep_ratio() * 100.0, "%d%%"],
-	]
+	var rows := _rows(now)
+	var tops := []  # 줄마다 가장 큰 값 (모든 기지 업그레이드 + 그 줄이 가장 센 무기)
+	for id in Weapons.ids():
+		var t := _rows(_sim(maxed, id))
+		for i in t.size():
+			if i >= tops.size():
+				tops.append(t[i][1])
+			else:
+				tops[i] = maxf(tops[i], t[i][1])
 	var result := []
-	for r in rows:
+	for i in rows.size():
+		var r: Array = rows[i]
 		var value: float = r[1]
-		var fmt: String = r[3]
-		result.append({"name": r[0], "value": fmt % (value if fmt.contains(".") else roundi(value)), "ratio": clampf(value / maxf(r[2], 0.001), 0.0, 1.0)})
+		var fmt: String = r[2]
+		result.append({"name": r[0], "value": (fmt % (value if fmt.contains(".") else roundi(value))) + r[3], "num": snappedf(value, 0.01),
+			"ratio": clampf(value / maxf(tops[i], 0.001), 0.0, 1.0)})
 	return result
+
+
+static func _sim(levels: Dictionary, weapon: String) -> RunSim:
+	var sim := RunSim.new(1)
+	sim.apply_base(levels)
+	sim.set_weapon(weapon)
+	return sim
+
+
+## 능력치 줄 [이름, 값, 글자 형식, 덧붙임]. 공격력은 한 발 피해 ×100 (산탄은 "×알갱이 수"), 공격 속도·사거리는 장착 무기 기준
+static func _rows(sim: RunSim) -> Array:
+	var pellets := int(sim.weapon.get("pellets", 1))
+	return [
+		["체력", sim.max_hp, "%d", ""],
+		["공격력", sim.bullet_damage * float(sim.weapon["damage"]) * 100.0, "%d", "×%d" % pellets if pellets > 1 else ""],
+		["공격 속도", 1.0 / sim.fire_interval, "%.1f발/초", ""],
+		["사거리", sim.fire_range, "%d", ""],
+		["이동 속도", sim.move_speed, "%d", ""],
+		["화물칸", sim.cargo.capacity, "%d칸", ""],
+		["자석 범위", sim.magnet_radius, "%d", ""],
+		["사망 보존", sim.keep_ratio() * 100.0, "%d%%", ""],
+	]

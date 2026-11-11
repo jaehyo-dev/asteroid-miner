@@ -72,17 +72,9 @@ const SHIELD_GOLD := Color("#f6ce50")
 const SHIELD_SHARD := Color("#f89419")
 const OVERLOAD_COLOR := Color("#f25c76")
 const BEACON_COLOR := Color("#99e9e6")
-## 기본 무기 색: 산탄 알갱이, 레일(청록), 플라스마(보라), 채굴 빔(금빛)
-const SHOTGUN_COLOR := Color("#99e9e6")
-const RAIL_COLOR := Color("#30e1b9")
-const RAIL_CORE := Color("#fef8e5")
-const PLASMA_COLOR := Color("#a884f3")
-const PLASMA_DEEP := Color("#6b3e75")
-const BEAM_COLOR := Color("#f6ce50")
-const BEAM_CORE := Color("#fef8e5")
 const RIM_COLOR := Color("#14111c")
-## 적·운석 아래에 그리는 내 효과
-const UNDER_FX := ["explode", "plasma", "rail"]
+## 기본 무기 효과가 따로 쓰는 fx (WeaponFx가 그림)
+const WEAPON_FX_TYPES := ["hit", "rail", "plasma"]
 
 var sim: RunSim
 ## 워프 게이트 연출 (귀환할 때 우주선이 빨려 들어가는 모습에 씀)
@@ -123,6 +115,8 @@ var _beacon_t := -1.0
 ## 실드: 완충 뒤 지난 시간(광택·반짝임), 막은 뒤 지난 시간(번쩍임), 음수면 없음
 var _shield_full_t := -1.0
 var _shield_break_t := -1.0
+## 기본 무기 효과 (총구 섬광, 탄, 튐, 레일 자국, 플라스마 폭발, 채굴 빔)
+var _wfx: WeaponFx
 
 
 func _ready() -> void:
@@ -141,6 +135,9 @@ func step(delta: float) -> void:
 		return
 	_time += delta
 	_cannon_t = 0.0 if sim.events.has("shoot") else _cannon_t + delta
+	if _wfx == null or _wfx.sim != sim:
+		_wfx = WeaponFx.new(sim)
+	_wfx.step(delta)
 	_step_effects(delta)
 	for a in sim.destroyed + sim.crashed:
 		_add_boom(a)
@@ -185,13 +182,14 @@ func step(delta: float) -> void:
 ## 효과 강화 연출을 새로 받고 시간을 흘린다.
 func _step_effects(delta: float) -> void:
 	for f in sim.fx:
+		if f["type"] in WEAPON_FX_TYPES:
+			continue
 		if _effects.size() < Juice.EFFECT_FX_MAX:
 			f["t"] = 0.0
 			_effects.append(f)
-		if f["type"] in ["explode", "plasma"]:
-			var color := EXPLODE_COLOR if f["type"] == "explode" else PLASMA_COLOR
+		if f["type"] == "explode":
 			for i in 8:
-				_spawn_debris(f["pos"], Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.5, 1.0) * float(f["radius"]) * 2.5, 0.3, color, 1.0)
+				_spawn_debris(f["pos"], Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.5, 1.0) * float(f["radius"]) * 2.5, 0.3, EXPLODE_COLOR, 1.0)
 	var kept: Array[Dictionary] = []
 	for f in _effects:
 		f["t"] += delta
@@ -306,6 +304,8 @@ func _draw() -> void:
 		if sim.orbit_pierce:
 			_draw_orbit_tail(b)
 		_draw_bullet(b, bullet_frame)
+	if _wfx != null:
+		_wfx.draw_over(self)
 	_draw_barrages()
 	for fx in _pickups:
 		_draw_pickup_fx(fx)
@@ -319,58 +319,24 @@ func _draw() -> void:
 	_flash_layer.queue_redraw()
 
 
-## 내 탄: 펄스·드론은 그림, 산탄은 작은 알갱이, 레일은 빛줄, 플라스마는 보라 구슬
+## 내 탄: 기본 무기는 WeaponFx, 드론은 그림
 func _draw_bullet(b: RunSim.Bullet, frame: int) -> void:
-	match b.style:
-		"shotgun":
-			RunSprites.rect(self, Rect2(b.pos.round() - Vector2.ONE, Vector2(2, 2)), SHOTGUN_COLOR)
-		"rail":
-			var tail := b.pos - b.vel.normalized() * Juice.RAIL_STREAK
-			RunSprites.line(self, tail.round(), b.pos.round(), RAIL_CORE, 2.0)
-		"plasma":
-			var pulse := 0.5 + 0.5 * sin(_time * TAU * 3.0)
-			RunSprites.disc(self, b.pos.round(), Juice.PLASMA_GLOW + pulse, Color(PLASMA_COLOR, 0.45))
-			RunSprites.disc(self, b.pos.round(), Juice.PLASMA_CORE, PLASMA_COLOR)
-			RunSprites.rect(self, Rect2(b.pos.round() - Vector2.ONE, Vector2(2, 2)), BEAM_CORE)
-		_:
-			RunSprites.draw(self, "drone_bullet" if b.drone else "bullet", frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
+	if _wfx == null or not _wfx.draw_bullet(self, b, frame):
+		RunSprites.draw(self, "drone_bullet" if b.drone else "bullet", frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
 
 
-## 적·운석 아래 내 효과: 채굴 빔, 레일 자국, 플라스마·고폭 폭발 (반투명이라 적과 적 탄을 가리지 않는다)
+## 적·운석 아래 내 효과: 고폭 폭발, 기본 무기(레일 자국·플라스마 폭발·채굴 빔) (반투명이라 적과 적 탄을 가리지 않는다)
 func _draw_under_effects() -> void:
 	for f in _effects:
-		if not f["type"] in UNDER_FX:
+		if f["type"] != "explode":
 			continue
 		var pos: Vector2 = (f["pos"] as Vector2).round()
 		var k: float = f["t"] / Juice.EFFECT_TIME[f["type"]]
-		match f["type"]:
-			"explode":
-				var r: float = float(f["radius"]) * (1.0 - (1.0 - k) * (1.0 - k))
-				RunSprites.disc(self, pos, r * 0.7, Color(EXPLODE_COLOR, 0.35 * (1.0 - k)))
-				RunSprites.ring(self, pos, r, Color(PIERCE_COLOR, 1.0 - k))
-			"plasma":
-				var r: float = float(f["radius"]) * (1.0 - (1.0 - k) * (1.0 - k) * (1.0 - k))
-				RunSprites.disc(self, pos, r, Color(PLASMA_DEEP, Juice.PLASMA_FILL_ALPHA * (1.0 - k)))
-				RunSprites.disc(self, pos, r * 0.55, Color(PLASMA_COLOR, Juice.PLASMA_FILL_ALPHA * (1.0 - k)))
-				RunSprites.ring(self, pos, r, Color(PLASMA_COLOR, Juice.PLASMA_RING_ALPHA * (1.0 - k)))
-				RunSprites.ring(self, pos, r - 2.0, Color(BEAM_CORE, 0.5 * (1.0 - k) * (1.0 - k)))
-				if k < Juice.PLASMA_FLASH:
-					RunSprites.disc(self, pos, r * 0.4, Color(BEAM_CORE, 0.8 * (1.0 - k / Juice.PLASMA_FLASH)))
-			"rail":
-				var to: Vector2 = (f["to"] as Vector2).round()
-				var w := maxf(1.0, Juice.RAIL_WIDTH * (1.0 - k))
-				RunSprites.line(self, pos, to, Color(RAIL_COLOR, Juice.RAIL_ALPHA * 0.35 * (1.0 - k)), w + Juice.RAIL_GLOW)
-				RunSprites.line(self, pos, to, Color(RAIL_COLOR, Juice.RAIL_ALPHA * (1.0 - k)), w)
-	if sim.alive and not sim.returned:
-		var pulse := 0.5 + 0.5 * sin(_time * TAU * Juice.BEAM_PULSE)
-		var from := sim.player_pos.round()
-		for t in sim.beam_targets:
-			var to := t.pos.round()
-			var hit := to + (from - to).limit_length(t.radius * 0.6)  # 운석 겉에서 멈춘다
-			RunSprites.line(self, from, hit, Color(BEAM_COLOR, Juice.BEAM_GLOW_ALPHA * (0.7 + 0.3 * pulse)), Juice.BEAM_GLOW_WIDTH + pulse)
-			RunSprites.line(self, from, hit, Color(BEAM_COLOR, 0.85), Juice.BEAM_CORE_WIDTH + 1.0)
-			RunSprites.line(self, from, hit, BEAM_CORE, Juice.BEAM_CORE_WIDTH)
-			RunSprites.disc(self, hit, Juice.BEAM_SPARK + pulse * 2.0, Color(BEAM_COLOR, 0.45))
+		var r: float = float(f["radius"]) * (1.0 - (1.0 - k) * (1.0 - k))
+		RunSprites.disc(self, pos, r * 0.7, Color(EXPLODE_COLOR, 0.35 * (1.0 - k)))
+		RunSprites.ring(self, pos, r, Color(PIERCE_COLOR, 1.0 - k))
+	if _wfx != null:
+		_wfx.draw_under(self)
 
 
 ## 궤도 관통 가속기: 탄 뒤로 긴 빛 꼬리
@@ -738,7 +704,7 @@ func _draw_ship() -> void:
 	if sim.invuln > 0.0 and int(sim.invuln / Juice.BLINK_INTERVAL) % 2 == 1:
 		return
 	var dir := maxi(_ship_dir, 0)
-	var center := (sim.player_pos + ship_offset + recoil_offset(_cannon_t, _ship_angle)).round()
+	var center := (sim.player_pos + ship_offset + recoil_offset(_cannon_t, sim.aim_angle, _wfx.recoil_px() if _wfx != null else Juice.RECOIL_PX)).round()
 	# 과부하 반응로: 체력이 낮을 때 붉게 맥동하고, 쏠 때 총구 불꽃이 커진다
 	var tint := Color.WHITE
 	if sim.overload_active():
@@ -784,10 +750,10 @@ func _draw_levelup_light() -> void:
 
 
 ## 쏜 뒤 반동 위치: 바라보는 반대쪽으로 RECOIL_PX 밀렸다가 RECOIL_TIME 동안 돌아온다
-static func recoil_offset(since_shot: float, facing: float) -> Vector2:
+static func recoil_offset(since_shot: float, facing: float, px := Juice.RECOIL_PX) -> Vector2:
 	if since_shot >= Juice.RECOIL_TIME:
 		return Vector2.ZERO
-	return -Vector2.from_angle(facing) * Juice.RECOIL_PX * (1.0 - since_shot / Juice.RECOIL_TIME)
+	return -Vector2.from_angle(facing) * px * (1.0 - since_shot / Juice.RECOIL_TIME)
 
 
 ## 자동 포 프레임: 쏜 직후 1번부터 끝까지 빠르게, 그 뒤엔 0번(쉼)

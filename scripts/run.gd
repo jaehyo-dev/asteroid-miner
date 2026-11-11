@@ -62,6 +62,8 @@ var intro_t := -1.0
 var tunnel := WarpTunnel.new()
 var _white := ColorRect.new()
 var _arrived := false
+## 확인용 숨은 스위치(?fxtest): 화면 구석에 지금 무기와 이펙트 후보 ("산탄포 · 후보 2"). v0.8.0 배포 전에 지운다
+var fx_label: Label
 
 
 func _ready() -> void:
@@ -95,6 +97,25 @@ func _ready() -> void:
 	if App.warp_intro:
 		App.warp_intro = false
 		_start_intro()
+	if Weapons.test_mode:
+		fx_label = Label.new()
+		fx_label.add_theme_font_override("font", WorldView.FONT)
+		fx_label.add_theme_font_size_override("font_size", 12)
+		fx_label.add_theme_color_override("font_outline_color", Color("#14111c"))
+		fx_label.add_theme_constant_override("outline_size", 3)
+		fx_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, 6)
+		fx_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		fx_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		fx_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		$UI.add_child(fx_label)
+		_update_fx_label()
+
+
+## ?fxtest 표시 글자: "산탄포 · 후보 2  [1~5 무기, Q/W/E 후보]"
+func _update_fx_label() -> void:
+	if fx_label != null:
+		var id: String = sim.weapon["id"]
+		fx_label.text = "%s · 후보 %d   [1~5 무기 · Q/W/E 후보]" % [sim.weapon["name"], Weapons.fx(id)]
 
 
 ## 워프 터널로 판을 시작한다: 시뮬레이션은 멈춰 있고, HUD와 조이스틱은 도착할 때까지 없다.
@@ -237,11 +258,16 @@ func _unhandled_input(event: InputEvent) -> void:
 				cards.choose(index)
 			get_viewport().set_input_as_handled()
 			return
-	# 확인용 숨은 스위치(?weapontest): 판 중 숫자키 1~5로 기본 무기 바꾸기. v0.8.0 배포 전에 지운다
+	# 확인용 숨은 스위치(?fxtest): 판 중 숫자키 1~5로 기본 무기, Q/W/E로 이펙트 후보 1/2/3. v0.8.0 배포 전에 지운다
 	if Weapons.test_mode and current_menu == Menu.NONE and event is InputEventKey and event.pressed and not event.echo:
 		var slot := number_key_index(event.physical_keycode)
+		var cand: int = [KEY_Q, KEY_W, KEY_E].find(event.physical_keycode)
 		if slot >= 0 and slot < Weapons.ids().size():
 			sim.set_weapon(Weapons.ids()[slot])
+		elif cand >= 0:
+			Weapons.fx_pick[sim.weapon["id"]] = cand + 1
+		if (slot >= 0 and slot < Weapons.ids().size()) or cand >= 0:
+			_update_fx_label()
 			get_viewport().set_input_as_handled()
 			return
 	if event.is_action_pressed("pause"):

@@ -2,12 +2,18 @@ class_name HangarView
 extends WindowView
 ## 격납고: 아래 탭 [전투기 | 기본 무기] (v0.8.0 시안 B 수정안).
 ## 전투기 탭: 우주선 능력치 + 홀로그램 받침 위 회전 우주선(카메라 35도) + 설명 + 전투기 칸.
-## 기본 무기 탭: 무기 능력치 4칸(공격력·사거리·연사·채굴량) + 받침 위 무기 그림 + 설명(장착 / 장착 중 / 가격과 [연구소로]) + 무기 카드 5장.
+## 기본 무기 탭: 고른 무기로 바꿨을 때 우주선 능력치(오르면 초록 ▲, 내리면 빨강 ▼) + 받침 위 우주선(탭과 상관없이 항상)
+## + 설명(무기 그림, 작은 4칸 막대, 장착 / 장착 중 / [구매 ◆가격]) + 무기 카드 5장.
 
 const SPIN := Vector2i(64, 56)
 const FRAMES := 40
 const SPIN_FPS := 13.33  # 3초에 한 바퀴
-const STAT_COLOR := {"체력": "hull", "사망 보존": "hull", "공격력": "weapon", "공격 속도": "weapon", "이동 속도": "mine", "화물칸": "mine", "자석 범위": "mine"}
+const STAT_COLOR := {"체력": "hull", "사망 보존": "hull", "공격력": "weapon", "공격 속도": "weapon", "사거리": "weapon", "이동 속도": "mine", "화물칸": "mine", "자석 범위": "mine"}
+## 무기를 바꿨을 때 능력치가 오르면 ▲, 내리면 ▼
+const UP_COLOR := Color("#a5cc5f")
+const DOWN_COLOR := Color("#f25c76")
+## 무기를 샀을 때 설명 칸 번쩍임 (초)
+const BUY_FLASH := 0.3
 const PLAY := {"pioneer": "무엇이든 무난하게 해내는 전투기."}
 ## 무기 능력치 4칸 색 (모든 화면 같은 순서: Weapons.bars)
 const BAR_COLOR := {"공격력": Color("#dc7f47"), "사거리": Color("#99e9e6"), "연사": Color("#f25c76"), "채굴량": Color("#f6ce50")}
@@ -37,6 +43,8 @@ const GRAIN_COLORS := [[0.3, "#99e9e6"], [0.55, "#30e1b9"], [1.0, "#1da775"]]
 
 var _t := 0.0
 var _stats: Array = []
+var _pick_stats: Array = []  # 고른 무기로 바꿨을 때 (무기 탭 ▲▼)
+var _flash := 0.0
 var _fighter: Dictionary
 var _beam: ImageTexture
 var _beam_key := Vector2i.ZERO
@@ -45,13 +53,12 @@ static var tab := "fighter"
 static var picked := ""
 var tab_buttons: Array[Button] = []
 var cards: Array[Button] = []
-## 설명 칸 버튼: 장착 / 장착 중(꺼짐) / 연구소로
+## 설명 칸 버튼: 장착 / 장착 중(꺼짐) / 구매(광물 부족이면 꺼짐)
 var action_button: WinButton
 var _l := {}  # 배치 (_layout)
 
 
 func setup() -> void:
-	_stats = Hangar.stats(Research.run_levels(win.save), win.save)
 	_fighter = Hangar.slots()[0]
 	if not Weapons.has(picked):
 		picked = Weapons.equipped(win.save)
@@ -75,6 +82,7 @@ func setup() -> void:
 	action_button.denied.connect(func() -> void: Sfx.play("deny"))
 	add_child(action_button)
 	_place()
+	_refresh_stats()
 
 
 ## 배치: PC는 탭이 왼쪽 능력치 아래(카드 줄 위), 폰은 능력치 줄과 붙지 않게 가운데 받침 칸 위쪽
@@ -85,7 +93,7 @@ func _layout() -> void:
 	var slot_h := 36 if small else 44
 	var tab_h := 20
 	var area_h := h - slot_h - 4
-	var stats_w := 118 if small else 146
+	var stats_w := 130 if small else 146  # 폰: "공격 속도 0.6발/초 ▼"가 한 줄에 들어가게
 	var desc_w := 132 if small else 170
 	_l = {"w": w, "h": h, "slot_h": slot_h, "tab_h": tab_h, "area_h": area_h, "stats_w": stats_w, "desc_w": desc_w,
 		"stats_h": area_h if small else area_h - tab_h - 6, "stage_top": tab_h + 4 if small else 0}
@@ -123,7 +131,8 @@ func _refresh_action() -> void:
 		"open":
 			action_button.set_info("장착")
 		_:
-			action_button.set_info("연구소로 ▶")
+			var price := Weapons.cost(picked)
+			action_button.set_info("구매", price, win.save.credits < price)  # 모자라면 꺼짐 + 위에 "광물 부족"
 
 
 ## 무기 상태: on 장착 중, open 해금됨, lock 잠김
@@ -153,34 +162,39 @@ func _on_card(id: String) -> void:
 
 func pick(id: String) -> void:
 	picked = id
+	_pick_stats = Hangar.stats(Research.run_levels(win.save), win.save, id)
 	_refresh_action()
 	for c in cards:
 		c.queue_redraw()
 	queue_redraw()
 
 
-## 설명 칸 버튼: 해금한 무기는 장착(저장), 잠긴 무기는 연구소 무기 가지의 그 칸으로
+## 설명 칸 버튼: 해금한 무기는 장착, 잠긴 무기는 광물로 사서 바로 장착 (둘 다 저장)
 func _on_action() -> void:
-	Sfx.play("click")
 	match weapon_state(picked):
 		"open":
+			Sfx.play("click")
 			Weapons.equip(win.save, picked)
-			win.save.save_file()
-			_stats = Hangar.stats(Research.run_levels(win.save), win.save)
-			pick(picked)
 		"lock":
-			go_research(picked)
+			if not Weapons.buy(win.save, picked):
+				return
+			Sfx.play("upgrade")
+			_flash = BUY_FLASH
+			win.refresh_head()  # 머리줄 광물 수
+		_:
+			return
+	win.save.save_file()
+	_refresh_stats()
 
 
-func go_research(id: String) -> void:
-	var node: String = Weapons.info(id)["research"]
-	win.open("research")
-	var rv := win.view as ResearchView
-	rv.show_cell("weapon", "%dc" % Research.tree("weapon").find(node))
+func _refresh_stats() -> void:
+	_stats = Hangar.stats(Research.run_levels(win.save), win.save)
+	pick(picked if Weapons.has(picked) else Weapons.equipped(win.save))
 
 
 func _process(delta: float) -> void:
 	_t += delta
+	_flash = maxf(_flash - delta, 0.0)
 	queue_redraw()
 
 
@@ -191,50 +205,67 @@ func _draw() -> void:
 	var w: int = _l["w"]
 	var h: int = _l["h"]
 	var top: int = _l["stage_top"]
+	_draw_stats(4, 2, stats_w - 8, int(_l["stats_h"]) - 2)
+	_draw_stage(stats_w, top, w - stats_w - desc_w, area_h - top)
 	if tab == "fighter":
-		_draw_stats(4, 2, stats_w - 8, int(_l["stats_h"]) - 2)
-		_draw_stage(stats_w, top, w - stats_w - desc_w, area_h - top)
 		_draw_desc(w - desc_w, 0, desc_w, area_h)
 		var slots := Hangar.slots()
 		var sw := (w - 3 * 4) / 4
 		for i in 4:
 			_draw_slot(i * (sw + 4), h - int(_l["slot_h"]), sw, int(_l["slot_h"]), slots[i] if i < slots.size() else {"locked": true}, i == 0)
 	else:
-		_draw_weapon_stats(4, 2, stats_w - 8, int(_l["stats_h"]) - 2)
-		_draw_stage(stats_w, top, w - stats_w - desc_w, area_h - top)
 		_draw_weapon_desc(w - desc_w, 0, desc_w, area_h)
 
 
+## 우주선 능력치. 무기 탭에서는 고른 무기로 바꿨을 때 값이고, 지금과 다르면 값 오른쪽에 ▲(초록)·▼(빨강)
 func _draw_stats(x: int, y: int, w: int, h: int) -> void:
-	var gap := h / _stats.size()
+	var rows := _pick_stats if tab == "weapon" and not _pick_stats.is_empty() else _stats
+	var gap := h / rows.size()
 	var bar_at := 12
-	for i in _stats.size():
-		var st: Dictionary = _stats[i]
+	for i in rows.size():
+		var st: Dictionary = rows[i]
 		var ry := y + i * gap
 		var light: Color = WindowArt.BRANCH[STAT_COLOR[st["name"]]][1]
+		var d := stat_delta(i)
+		var vx := x + w - (7 if d != 0 else 0)  # 화살표 자리
 		WindowArt.text(self, Vector2i(x, ry - 2), st["name"], light)
-		WindowArt.text(self, Vector2i(x + w, ry - 2), st["value"], WindowArt.INK, 1)
+		WindowArt.text(self, Vector2i(vx, ry - 2), st["value"], WindowArt.INK if d == 0 else (UP_COLOR if d > 0 else DOWN_COLOR), 1)
+		if d != 0:
+			_arrow(x + w - 5, ry + 2, d > 0)
 		draw_rect(Rect2(x, ry + bar_at, w, 3), WindowArt.DARK)  # 글자 바로 아래, 다음 줄과 띄움
 		draw_rect(Rect2(x + 1, ry + bar_at + 1, int((w - 2) * float(st["ratio"])), 1), light)
 
 
+## 능력치 i줄: 고른 무기로 바꾸면 오르는지(1) 내리는지(-1) 같은지(0). 전투기 탭은 늘 0
+func stat_delta(i: int) -> int:
+	if tab != "weapon" or _pick_stats.size() != _stats.size():
+		return 0
+	return signi(roundi((float(_pick_stats[i]["num"]) - float(_stats[i]["num"])) * 100.0))
 
-## 무기 능력치 4칸: 이름 + "n / 5", 아래 5칸 막대
-func _draw_weapon_stats(x: int, y: int, w: int, h: int) -> void:
-	var rows := Weapons.bars(picked)
-	var gap := h / rows.size()
-	var seg := (w - 4 * 2) / 5
-	for i in rows.size():
-		var row: Dictionary = rows[i]
-		var ry := y + i * gap
+
+## 5칸 너비 삼각형 (위쪽 ▲ 또는 아래쪽 ▼), 왼쪽 위가 (x, y)
+func _arrow(x: int, y: int, up: bool) -> void:
+	var color := UP_COLOR if up else DOWN_COLOR
+	for r in 3:
+		var half := r if up else 2 - r
+		draw_rect(Rect2(x + 2 - half, y + r * 2, half * 2 + 1, 2), color)
+
+
+## 작은 무기 능력치 4칸 (설명 칸 안): 이름 + 5칸 막대 한 줄씩
+func _draw_weapon_bars(x: int, y: int, w: int) -> int:
+	var label_w := 42
+	var row_h := 13 if win.compact else 15
+	var seg := (w - label_w - 4 * 2) / 5
+	for row: Dictionary in Weapons.bars(picked):
 		var color: Color = BAR_COLOR[row["name"]]
-		WindowArt.text(self, Vector2i(x, ry), row["name"], color)
-		WindowArt.text(self, Vector2i(x + w, ry), "%d / 5" % row["level"], WindowArt.INK, 1)
+		WindowArt.text(self, Vector2i(x, y), row["name"], color)
 		for j in 5:
-			var r := Rect2(x + j * (seg + 2), ry + 16, seg, 3)
+			var r := Rect2(x + label_w + j * (seg + 2), y + 5, seg, 3)
 			draw_rect(r, WindowArt.DARK)
 			if j < int(row["level"]):
 				draw_rect(Rect2(r.position.x + 1, r.position.y + 1, r.size.x - 2, 1), color)
+		y += row_h
+	return y
 
 
 func _draw_stage(x: int, y: int, w: int, h: int) -> void:
@@ -251,9 +282,6 @@ func _draw_stage(x: int, y: int, w: int, h: int) -> void:
 	var top := y + 2
 	_draw_beam(cx, mid, top, k)
 	draw_texture_rect(WindowArt.tex("pedestal_ring"), Rect2(cx - pw / 2, py, pw, ph), false)  # 고리는 빛 앞에 다시
-	if tab == "weapon":
-		_draw_weapon_holo(cx, mid, k)
-		return
 	var src := Rect2(i % 8 * SPIN.x, i / 8 * SPIN.y, SPIN.x, SPIN.y)
 	# 그림자는 받침과 같은 배율로 윗면 타원 안에만 놓고, 기둥 위·우주선 아래에 그린다
 	var shw := SPIN.x * k
@@ -264,24 +292,6 @@ func _draw_stage(x: int, y: int, w: int, h: int) -> void:
 	var bob := int(round(sin(_t * TAU / 4.0) * 3.0))
 	var lift := (LIFT_SMALL if win.compact else LIFT)
 	draw_texture_rect_region(WindowArt.tex("spin_gold" if Discovery.gold_paint(win.save) else "spin"), Rect2(cx - sw / 2, mid - lift - sh / 2 + bob, sw, sh), src)
-
-
-## 받침 위 무기 그림: 3배(폰 2배)로 떠서 위아래로 흔들린다. 잠긴 무기는 어두운 윤곽
-func _draw_weapon_holo(cx: int, mid: int, k: int) -> void:
-	var icon := WindowArt.tex("weapon_" + picked)
-	var wk := 2 if win.compact else 3
-	var iw := icon.get_width() * wk
-	var ih := icon.get_height() * wk
-	var bob := int(round(sin(_t * TAU / 4.0) * 3.0))
-	var lift := (LIFT_SMALL if win.compact else LIFT) - 8
-	# 그림자: 받침 윗면 가운데에 납작하게 (가운데가 넓은 두 줄)
-	draw_rect(Rect2(cx - iw * 3 / 10, mid - k, iw * 3 / 5, 2 * k), Color(WindowArt.DARK, 0.45))
-	draw_rect(Rect2(cx - iw / 5, mid - 2 * k, iw * 2 / 5, 4 * k), Color(WindowArt.DARK, 0.35))
-	var locked := weapon_state(picked) == "lock"
-	draw_texture_rect(icon, Rect2(cx - iw / 2, mid - lift - ih / 2 + bob, iw, ih), false, LOCKED_TINT if locked else Color.WHITE)
-	if locked:
-		var lock := WindowArt.tex("lock")
-		draw_texture(lock, Vector2(cx - lock.get_width() / 2, mid - lift - lock.get_height() / 2 + bob))
 
 
 ## 표에서 높이 s의 색 (넘으면 투명)
@@ -369,7 +379,7 @@ func _draw_beam(cx: int, mid: int, top: int, k: int) -> void:
 		draw_rect(Rect2(left + gx * k, mid - int(g * above) * k, k, k), band_color(GRAIN_COLORS, g / GRAIN_TOP))
 
 
-## 무기 설명 칸: 이름·상태, 그림(PC), 한 줄 설명. 잠기면 "연구소에서 해금 · 가격" (버튼은 action_button)
+## 무기 설명 칸: 이름·상태, 그림(PC), 작은 4칸 막대, 한 줄 설명. 버튼은 action_button (장착 / 장착 중 / 구매)
 func _draw_weapon_desc(x: int, y: int, w: int, h: int) -> void:
 	WindowArt.plate(self, "tab", Rect2(x, y, w, h))
 	var info := Weapons.info(picked)
@@ -384,22 +394,23 @@ func _draw_weapon_desc(x: int, y: int, w: int, h: int) -> void:
 	ty += 16
 	if not win.compact:
 		var icon := WindowArt.tex("weapon_" + picked)
-		draw_texture_rect(icon, Rect2(tx, ty, icon.get_width() * 2, icon.get_height() * 2), false, LOCKED_TINT if st == "lock" else Color.WHITE)
+		var ir := Rect2(tx, ty, icon.get_width() * 2, icon.get_height() * 2)
+		draw_texture_rect(icon, ir, false, LOCKED_TINT if st == "lock" else Color.WHITE)
+		if _flash > 0.0:  # 산 순간 짧게 번쩍임
+			draw_texture_rect(icon, ir, false, Color(1, 1, 1, _flash / BUY_FLASH))
 		ty += icon.get_height() * 2 + 6
-	var bottom := int(action_button.position.y) - (20 if st == "lock" else 4)
-	for line in WindowArt.wrap(info["desc"], tw):
-		if ty + 12 > bottom:
-			break
-		WindowArt.text(self, Vector2i(tx, ty), line, WindowArt.INK)
-		ty += 14
-	if st == "lock":
-		var price := Hud.thousands(Weapons.cost(picked))
-		var ore := RunSprites.mineral(3)
-		var ly := int(action_button.position.y) - 17
-		var lead := "연구소에서 해금" if not win.compact else "연구 비용"  # 폰은 좁고, "해금" 글자를 쓰지 않는다
-		WindowArt.text(self, Vector2i(tx, ly), lead, WindowArt.MUTED)
-		WindowArt.text(self, Vector2i(x + w - 10, ly), price, WindowArt.GOLD, 1)
-		draw_texture(ore, Vector2(x + w - 10 - WindowArt.width(price) - ore.get_width() - 2, ly + 2))
+	ty = _draw_weapon_bars(tx, ty, tw) + 3
+	var poor := st == "lock" and win.save.credits < Weapons.cost(picked)
+	var bottom := int(action_button.position.y) - (18 if poor else 4)
+	var lines := WindowArt.wrap(info["desc"], tw)
+	if ty + lines.size() * 14 - 2 <= bottom:  # 설명이 다 들어갈 때만 (폰은 좁아서 중간에 잘리면 안 씀)
+		for line in lines:
+			WindowArt.text(self, Vector2i(tx, ty), line, WindowArt.INK)
+			ty += 14
+	if poor:
+		WindowArt.text(self, Vector2i(x + w / 2, int(action_button.position.y) - 16), "광물 부족", WindowArt.RED, 0)
+	if _flash > 0.0:
+		draw_rect(Rect2(x + 2, y + 2, w - 4, h - 4), Color(1, 1, 1, 0.35 * _flash / BUY_FLASH))
 
 
 func _draw_desc(x: int, y: int, w: int, h: int) -> void:
@@ -475,7 +486,7 @@ class TabBtn extends Button:
 		WindowArt.focus_mark(self)
 
 
-## 무기 카드: 그림 + 상태(장착 중 / 장착 / 가격 ▶). PC는 아래 줄에 이름, 폰은 그림 아래 상태만
+## 무기 카드: 상태(장착 중 / 장착 / 가격). PC는 그림 + 아래 줄에 이름, 폰은 좁아서 짧은 이름 + 상태 두 줄
 class CardBtn extends Button:
 	var view: HangarView
 	var id := ""
@@ -498,8 +509,9 @@ class CardBtn extends Button:
 		var tint := HangarView.LOCKED_TINT if st == "lock" else Color.WHITE
 		var small := view.win.compact
 		if small:
-			draw_texture(icon, Vector2((w - icon.get_width()) / 2, 3), tint)
-			_status(w / 2, 18, st, 0)
+			var short: String = Weapons.info(id)["short"]
+			WindowArt.text(self, Vector2i(w / 2, 2), short, WindowArt.GOLD if st == "on" else (WindowArt.INK if st == "open" else WindowArt.MUTED), 0)
+			_status(w / 2, 17, st, 0)
 		else:
 			draw_texture(icon, Vector2(7, 5), tint)
 			_status(w - 7, 5, st, 1)
@@ -507,7 +519,7 @@ class CardBtn extends Button:
 			WindowArt.text(self, Vector2i(7, h - 19), info["name"], WindowArt.GOLD if st == "on" else (WindowArt.INK if st == "open" else WindowArt.MUTED))
 		WindowArt.focus_mark(self)
 
-	## 상태 글자 하나: 장착 중 / 장착 / [광물] 가격 ▶. align 0 가운데, 1 오른쪽 끝이 x
+	## 상태 글자 하나: 장착 중 / 장착 / [광물] 가격. align 0 가운데, 1 오른쪽 끝이 x
 	func _status(x: int, y: int, st: String, align: int) -> void:
 		if st != "lock":
 			var label := "장착 중" if st == "on" else "장착"
@@ -515,10 +527,7 @@ class CardBtn extends Button:
 			return
 		var price := Hud.thousands(Weapons.cost(id))
 		var ore := RunSprites.mineral(3)
-		var total := ore.get_width() + 2 + WindowArt.width(price) + 3 + 5
+		var total := ore.get_width() + 2 + WindowArt.width(price)
 		var left := x - (total / 2 if align == 0 else total)
 		draw_texture(ore, Vector2(left, y + 2))
 		WindowArt.text(self, Vector2i(left + ore.get_width() + 2, y), price, WindowArt.GOLD)
-		var ax := left + total - 5  # 연구소로 가는 화살표 ▶ (5칸 삼각형)
-		for i in 5:
-			draw_rect(Rect2(ax + i, y + 2 + i, 1, 9 - i * 2), WindowArt.TEAL2)
