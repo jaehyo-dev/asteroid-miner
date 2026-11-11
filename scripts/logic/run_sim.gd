@@ -671,6 +671,8 @@ func _fire_beam(delta: float) -> void:
 			b.vel = (t.pos - player_pos).normalized()
 			b.damage = damage * (1.0 if t.kind == ROCK else float(weapon.get("enemy_mult", 1.0)))
 			_hit_enemy(b, t, loud)
+			if not loud:
+				t.flash = 0.0  # 0.1초마다 하얗게 번쩍이면 눈이 아파서 소리와 같이 세 번에 한 번만
 		if loud:
 			events.append("shoot")
 
@@ -964,7 +966,7 @@ func skip() -> int:
 func _roll_choices() -> void:
 	var count: int = Balance.UPGRADE_CHOICE_COUNT + (1 if _base("luck") and rng.randf() < Balance.RES_LUCK_CHANCE else 0)
 	var epic_bonus := Balance.RES_CHIP_EPIC if _base("chip") else 0.0
-	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus, upgrade_bonus)
+	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus, upgrade_bonus, weapon.get("no_cards", []))
 
 
 ## 연구소 편향 실드 칸 수 (HUD 작은 칸): 실드 칸 단계, 실드 충전만 있으면 1칸
@@ -1333,12 +1335,16 @@ static func weapon_target(from: Vector2, list: Array[Enemy], max_range: float, a
 		"crowd":
 			var best: Enemy = null
 			var best_score := Vector2(-1.0, 0.0)  # (모인 수, -거리)
+			var near: Array[Enemy] = []  # 셀 만한 적만 먼저 (적이 많을 때 모두 × 모두로 세지 않게)
 			for a in list:
+				if from.distance_to(a.pos) <= max_range + blast + a.radius:
+					near.append(a)
+			for a in near:
 				var d := from.distance_to(a.pos)
 				if d > max_range:
 					continue
 				var crowd := 0
-				for o in list:
+				for o in near:
 					if o.pos.distance_to(a.pos) < blast + o.radius:
 						crowd += 1
 				var score := Vector2(crowd, -d)

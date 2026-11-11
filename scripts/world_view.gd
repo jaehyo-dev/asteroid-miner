@@ -329,7 +329,7 @@ func _draw_bullet(b: RunSim.Bullet, frame: int) -> void:
 			RunSprites.line(self, tail.round(), b.pos.round(), RAIL_CORE, 2.0)
 		"plasma":
 			var pulse := 0.5 + 0.5 * sin(_time * TAU * 3.0)
-			RunSprites.disc(self, b.pos.round(), Juice.PLASMA_GLOW + pulse, Color(PLASMA_COLOR, 0.35))
+			RunSprites.disc(self, b.pos.round(), Juice.PLASMA_GLOW + pulse, Color(PLASMA_COLOR, 0.45))
 			RunSprites.disc(self, b.pos.round(), Juice.PLASMA_CORE, PLASMA_COLOR)
 			RunSprites.rect(self, Rect2(b.pos.round() - Vector2.ONE, Vector2(2, 2)), BEAM_CORE)
 		_:
@@ -354,6 +354,8 @@ func _draw_under_effects() -> void:
 				RunSprites.disc(self, pos, r * 0.55, Color(PLASMA_COLOR, Juice.PLASMA_FILL_ALPHA * (1.0 - k)))
 				RunSprites.ring(self, pos, r, Color(PLASMA_COLOR, Juice.PLASMA_RING_ALPHA * (1.0 - k)))
 				RunSprites.ring(self, pos, r - 2.0, Color(BEAM_CORE, 0.5 * (1.0 - k) * (1.0 - k)))
+				if k < Juice.PLASMA_FLASH:
+					RunSprites.disc(self, pos, r * 0.4, Color(BEAM_CORE, 0.8 * (1.0 - k / Juice.PLASMA_FLASH)))
 			"rail":
 				var to: Vector2 = (f["to"] as Vector2).round()
 				var w := maxf(1.0, Juice.RAIL_WIDTH * (1.0 - k))
@@ -511,7 +513,7 @@ func _draw_barrages() -> void:
 	var frame := int(_time * ENGINE_FPS)
 	for s in sim.shots:
 		# 어두운 테두리: 플라스마 폭발·채굴 빔 같은 밝은 내 효과 위에서도 적 탄 윤곽이 보이게
-		RunSprites.disc(self, s.pos.round(), s.radius + Juice.ENEMY_SHOT_RIM, Color(RIM_COLOR, Juice.ENEMY_SHOT_RIM_ALPHA))
+		RunSprites.disc(self, s.pos.round(), s.radius + (0.0 if s.guard else Juice.ENEMY_SHOT_RIM), Color(RIM_COLOR, Juice.ENEMY_SHOT_RIM_ALPHA))
 		if s.guard:
 			# 경비선 탄: 빨간 Kla'ed 탄. 둘레 빛은 내 탄(주황)과 구분되는 색
 			RunSprites.disc(self, s.pos.round(), s.radius + 3.0, Color(GUARD_SHOT_GLOW, 0.3))

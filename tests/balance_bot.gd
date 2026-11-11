@@ -20,10 +20,11 @@ const RETURN_HP_RATIO := 0.35
 
 
 ## 한 판을 끝까지(또는 max_time까지) 돌리고 {time, level, value, alive}를 돌려준다.
-## base: 기지 공용 업그레이드 단계 (id → 단계)
-static func play(style: String, seed_value: int, max_time: float, base: Dictionary = {}, pick := "random") -> Dictionary:
+## base: 기지 공용 업그레이드 단계 (id → 단계), weapon: 기본 무기 id (Balance.WEAPONS)
+static func play(style: String, seed_value: int, max_time: float, base: Dictionary = {}, pick := "random", weapon := "pulse") -> Dictionary:
 	var sim := RunSim.new(seed_value)
 	sim.apply_base(base)
+	sim.set_weapon(weapon)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 31 + 7
 	var move := Vector2.ZERO
@@ -72,7 +73,7 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 			_:
 				move = Vector2.ZERO
 		sim.update(STEP, move)
-	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times, "picks": sim.upgrade_levels}
+	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times, "picks": sim.upgrade_levels, "kills": sim.kills, "collected": Array(sim.collected)}
 
 
 ## "가장 좋아 보이는" 카드 번호: 등급이 높은 것, 같으면 효과·레전드리가 수치보다 먼저 (사람이 눈에 띄는 카드를 고르는 플레이)

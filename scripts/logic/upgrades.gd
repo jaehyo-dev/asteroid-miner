@@ -168,12 +168,16 @@ static func _take(random: RandomNumberGenerator, pool: PackedStringArray) -> Str
 ## force_effect: 화면에 효과 카드가 없으면 레전드리가 아닌 한 장을 에픽 효과로 바꾼다 (효과 카드 보정).
 ## repair_on: 수리를 뽑기에 넣을지 (체력이 넉넉하면 빼고, 고를 카드가 없으면 빈 목록 = 건너뛰기만).
 ## bonus: 지금 누적값. 상한에 닿은 효과는 빼고, 이미 가진 효과 카드에는 "지금 → 다음" 문구(desc·short)를 붙인다.
-static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true, epic_bonus := 0.0, bonus: Dictionary = {}) -> Array:
+static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true, epic_bonus := 0.0, bonus: Dictionary = {}, skip: Array = []) -> Array:
 	var stats := available_in(Balance.UPGRADES, levels)
 	if not repair_on and stats.has(REPAIR):
 		stats.remove_at(stats.find(REPAIR))
 	var effects := available_in(Balance.EFFECT_UPGRADES, levels, bonus) if effects_on else PackedStringArray()
 	var legends := available_in(Balance.LEGENDARY_UPGRADES, levels) if effects_on else PackedStringArray()
+	for id in skip:  # 장착한 기본 무기에 효과가 없는 카드 (Balance.WEAPONS의 no_cards)
+		for pool: PackedStringArray in [stats, effects, legends]:
+			if pool.has(id):
+				pool.remove_at(pool.find(id))
 	var result: Array = []
 	var has_legend := false
 	for i in count:

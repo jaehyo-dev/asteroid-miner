@@ -261,3 +261,24 @@ func test_출격하면_장착한_무기로_시작() -> void:
 
 func assert_almost(actual: float, expected: float, tolerance := 0.001, message := "") -> void:
 	assert_true(absf(actual - expected) <= tolerance, "%s 기대값 %f, 실제값 %f" % [message, expected, actual])
+
+
+func test_효과_없는_카드는_그_무기에서_안_나옴() -> void:
+	for id in ["rail", "plasma", "beam"]:
+		var sim := _sim(id)
+		sim.time = 300.0  # 효과·레전드리 카드가 자주 나오는 때
+		var skip: Array = Weapons.info(id)["no_cards"]
+		var seen := {}
+		for i in 300:
+			sim.call("_roll_choices")
+			for c in sim.choices:
+				seen[c["id"]] = true
+		for bad in skip:
+			assert_false(seen.has(bad), "%s에 %s" % [id, bad])
+	var pulse := _sim("pulse")
+	pulse.time = 300.0
+	var any_pierce := false
+	for i in 300:
+		pulse.call("_roll_choices")
+		any_pierce = any_pierce or pulse.choices.any(func(c: Dictionary) -> bool: return c["id"] == "pierce")
+	assert_true(any_pierce, "펄스는 관통 카드가 나옴")

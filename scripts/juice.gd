@@ -70,11 +70,13 @@ const EFFECT_TIME := {"pierce": 0.16, "bounce": 0.14, "explode": 0.3, "crit": 0.
 # ── 기본 무기 효과 (v0.8.0) ─────────────────
 ## 그리는 순서: 내 무기 효과(빔·폭발·레일 자국)는 적·운석 아래, 적 탄은 그 위에 어두운 테두리를 둘러 어떤 효과 위에서도 보이게.
 ## 플라스마 폭발: 안쪽 빛 진하기(최대), 바깥 고리 진하기. 내 효과는 반투명으로 둔다
-const PLASMA_FILL_ALPHA := 0.32
-const PLASMA_RING_ALPHA := 0.8
+const PLASMA_FILL_ALPHA := 0.5
+const PLASMA_RING_ALPHA := 0.95
+## 폭발 처음 이 비율 동안 가운데가 하얗게 번쩍인다
+const PLASMA_FLASH := 0.3
 ## 플라스마 탄: 빛 반지름, 속 반지름
-const PLASMA_GLOW := 6.0
-const PLASMA_CORE := 3.0
+const PLASMA_GLOW := 7.0
+const PLASMA_CORE := 4.0
 ## 레일 자국: 굵기(시작), 바깥 빛 추가 굵기, 진하기. 레일 탄 줄 길이
 const RAIL_WIDTH := 3.0
 const RAIL_GLOW := 4.0
