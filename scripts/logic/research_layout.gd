@@ -57,14 +57,14 @@ static func links(branch: String, lay: Dictionary) -> Array:
 	return out
 
 
-## 칸에 빛이 들어왔는지. "곧 추가" 칸은 뒤 칸으로 가는 길이라 앞 칸을 지났으면 빛이 지나간다
+## 칸에 빛이 들어왔는지. "곧 추가" 칸은 찍을 수 없어 빛이 지나가지 않는다 (위 칸이 잠김)
 static func _lit(save: SaveData, branch: String, i: int, side: String) -> bool:
 	var node: Variant = Research.tree(branch)[i]
 	if Research.is_fork(node):
 		var on := Research.active(save, node)
 		return on == side if side != "" else on != ""
 	if Research.is_soon(node):
-		return Research.is_open(save, branch, i)
+		return false
 	return save.level_of(node) > 0
 
 

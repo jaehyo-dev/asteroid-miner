@@ -145,6 +145,8 @@ var fire_interval := Balance.FIRE_INTERVAL
 ## 마지막으로 쏜 방향 (그리기용: 총구 섬광·반동)
 var aim_angle := 0.0
 var fire_range := Balance.FIRE_RANGE
+## 레일건 빛줄기 굵기 (판정·그림 같은 값). 사거리를 올리는 강화가 레일건에서는 굵기를 올린다 (RAIL_WIDTH_MAX까지)
+var rail_width := 0.0
 var bullet_damage := Balance.BULLET_DAMAGE
 var bullet_count := Balance.BULLET_COUNT
 var magnet_radius := Balance.MAGNET_RADIUS
@@ -615,7 +617,7 @@ func _auto_fire(delta: float) -> void:
 	_fire_timer -= delta
 	if _fire_timer > 0.0:
 		return
-	var target := weapon_target(player_pos, enemies, fire_range, String(weapon["aim"]), float(weapon.get("blast", 0.0)))
+	var target := rail_target(player_pos, enemies, view_size) if weapon.get("hitscan", false) else weapon_target(player_pos, enemies, fire_range, String(weapon["aim"]), float(weapon.get("blast", 0.0)))
 	if target == null:
 		_fire_timer = 0.0  # 대상이 없으면 장전된 상태로 기다린다
 		return
@@ -652,18 +654,20 @@ func _fire_shots(target: Enemy, shot_damage: float) -> void:
 		b.blast = float(weapon.get("blast", 0.0))
 
 
-## 레일건: 탄 없이 aim_angle 쪽으로 사거리 끝까지 그은 선(굵기 width)에 걸친 적·운석을 모두 바로 맞힌다.
+## 레일건: 탄 없이 aim_angle 쪽으로 화면 끝 너머까지 그은 선(굵기 rail_width)에 걸친 적·운석을 모두 바로 맞힌다.
+## 사거리 개념이 없어 선 길이는 화면 대각선(어느 자리에서 어느 쪽으로 쏴도 화면 밖까지). 화면 밖 대상도 선이 지나가면 맞는다.
+## 걸침은 보이는 몸 크기로 본다(충돌 반지름 × RAIL_BODY_RADIUS_MULT). 빛줄기 그림은 fx의 from·to·width를 그대로 쓴다.
 ## 다중 포신이면 선이 여러 개지만, 한 번 쏠 때 같은 대상은 한 번만 맞는다
 func _fire_rail(shot_damage: float) -> void:
-	var half_w := float(weapon["width"]) / 2.0
+	var half_w := rail_width / 2.0
+	var length := view_size.length()
 	var hit: Array[Enemy] = []
 	for shot in shot_pattern(aim_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG), Balance.PARALLEL_SHOT_GAP):
-		var dir := Vector2.from_angle(shot.angle)
 		var from: Vector2 = player_pos + shot.offset
-		var to := from + dir * fire_range
-		fx.append({"type": "rail", "angle": shot.angle, "offset": shot.offset, "len": fire_range})
+		var to: Vector2 = from + Vector2.from_angle(shot.angle) * length
+		fx.append({"type": "rail", "from": from, "to": to, "width": rail_width})
 		for e in enemies:
-			if e.hp > 0.0 and not hit.has(e) and segment_distance(from, to, e.pos) <= e.radius + half_w:
+			if e.hp > 0.0 and not hit.has(e) and segment_distance(from, to, e.pos) <= rail_body_radius(e) + half_w:
 				hit.append(e)
 	for e in hit:
 		var b := Bullet.new()
@@ -672,6 +676,27 @@ func _fire_rail(shot_damage: float) -> void:
 		b.vel = Vector2.from_angle(aim_angle)
 		b.damage = shot_damage
 		_hit_enemy(b, e, e == hit[0])  # 한꺼번에 많이 맞아도 소리는 한 번
+
+
+## 레일건 굵기: 기본 굵기 × 사거리 배율, 상한 RAIL_WIDTH_MAX
+static func rail_width_for(base: float, range_mult: float) -> float:
+	return minf(base * range_mult, Balance.RAIL_WIDTH_MAX)
+
+
+## 레일건 선 판정에 쓰는 반지름: 보이는 몸 크기 (충돌 반지름은 몸보다 작게 잡혀 있다)
+static func rail_body_radius(e: Enemy) -> float:
+	return e.radius * Balance.RAIL_BODY_RADIUS_MULT
+
+
+## 레일건 조준: 화면 안에 보이는(몸이 조금이라도 걸친) 대상 중 가장 가까운 것. 화면 밖은 노리지 않는다
+static func rail_target(from: Vector2, list: Array[Enemy], view: Vector2) -> Enemy:
+	var half := view / 2.0
+	var seen: Array[Enemy] = []
+	for e in list:
+		var off := (e.pos - from).abs()
+		if off.x <= half.x + e.radius and off.y <= half.y + e.radius:
+			seen.append(e)
+	return pick_target(from, seen, INF)
 
 
 ## 채굴 빔: 사거리 안 운석(없으면 적)에 계속 닿아 interval마다 피해. 다중 포신이면 빔 수가 늘어 다른 대상에 닿는다
@@ -880,7 +905,7 @@ func _hit_enemy(b: Bullet, a: Enemy, sound := true) -> void:
 	var damage := b.damage
 	if crit_chance > 0.0 and rng.randf() < crit_chance:
 		damage *= Balance.CRIT_MULT
-		fx.append({"type": "crit", "pos": a.pos, "damage": damage})
+		fx.append({"type": "crit", "pos": a.pos, "damage": damage, "target": a})
 	a.hp -= damage
 	a.flash = Juice.ENEMY_FLASH_TIME
 	a.hit_dir = b.vel.normalized()
@@ -1005,6 +1030,17 @@ func _roll_choices() -> void:
 	var count: int = Balance.UPGRADE_CHOICE_COUNT + (1 if _base("luck") and rng.randf() < Balance.RES_LUCK_CHANCE else 0)
 	var epic_bonus := Balance.RES_CHIP_EPIC if _base("chip") else 0.0
 	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus, upgrade_bonus, weapon.get("no_cards", []))
+	if weapon.get("hitscan", false):  # 레일건은 사거리가 무한이라 사거리 카드가 빛줄기 굵기를 올린다
+		for c in choices:
+			if c["id"] == "range":
+				c["desc"] = rail_card_text(int(c["grade"]))
+				c["short"] = c["desc"]
+
+
+## 레일건일 때 사거리 카드 문구: "빛줄기 굵기 지금 → 다음"
+func rail_card_text(grade: int) -> String:
+	var next := rail_width_for(float(weapon["width"]), 1.0 + float(upgrade_bonus.get("range", 0.0)) + Upgrades.value("range", grade))
+	return "빛줄기 굵기 %s → %s" % [String.num(rail_width, 1), String.num(next, 1)]
 
 
 ## 연구소 편향 실드 칸 수 (HUD 작은 칸): 실드 칸 단계, 실드 충전만 있으면 1칸
@@ -1103,6 +1139,7 @@ func apply_upgrades() -> void:
 	move_speed = Balance.SHIP_SPEED * (1.0 + up.call("speed") + Balance.BASE_SPEED_ADD * blv.call("speed") + codex_speed + (Balance.RES_THICK_SPEED if blv.call("thick") else 0.0))
 	max_hp = Balance.SHIP_MAX_HP + up.call("max_hp") + Balance.BASE_MAX_HP_ADD * blv.call("max_hp") + (Balance.RES_THICK_HP if blv.call("thick") else 0.0)
 	fire_range = float(weapon["range"]) * (1.0 + up.call("range"))
+	rail_width = rail_width_for(float(weapon.get("width", 0.0)), fire_range / float(weapon["range"]))
 	hp = minf(hp, max_hp)
 	pierce_count = int(up.call("pierce"))
 	chain_matrix = up.call("chain_matrix") > 0.0

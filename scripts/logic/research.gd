@@ -25,7 +25,8 @@ static func is_soon(id: String) -> bool:
 	return bool(BaseUpgrades.info(id).get("soon", false))
 
 
-## 앞 칸을 지났는지. "곧 추가" 칸은 아직 찍을 수 없으니 그 앞 칸을 본다 (뒤 칸까지 막지 않게)
+## 앞 칸을 지났는지: 1단계 이상 연구함(갈림길은 한쪽 이상 해금). "곧 추가" 칸은 찍을 수 없으니 지나지 못한다 →
+## 그 위 칸들도 모두 잠긴다 (2026-11-12 사용자 결정, 모든 가지 같은 규칙)
 static func _passed(save: SaveData, branch: String, i: int) -> bool:
 	if i < 0:
 		return true
@@ -33,7 +34,7 @@ static func _passed(save: SaveData, branch: String, i: int) -> bool:
 	if is_fork(node):
 		return not owned(save, node).is_empty()
 	if is_soon(node):
-		return _passed(save, branch, i - 1)
+		return false
 	return save.level_of(node) > 0
 
 

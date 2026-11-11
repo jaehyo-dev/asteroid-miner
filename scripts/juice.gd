@@ -102,6 +102,8 @@ const EFFECT_FX_MAX := 80
 const CRIT_TEXT_MAX := 10
 const CRIT_COLOR := Color("#ff5a6e")
 const CRIT_RISE := 18.0
+## 같은 대상의 치명타가 이 시간(초) 안에 또 나오면 새 숫자를 띄우지 않고 떠 있는 숫자에 더한다 (채굴 빔)
+const CRIT_MERGE_TIME := 0.3
 ## 관통 불꽃 조각 수, 궤도 관통 가속기의 탄 꼬리 길이(그 시간 전 위치까지)
 const PIERCE_SPARKS := 4
 const ORBIT_TAIL_TIME := 0.05

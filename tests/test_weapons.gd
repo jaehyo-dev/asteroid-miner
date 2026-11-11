@@ -129,7 +129,7 @@ func test_능력치는_4칸_같은_순서() -> void:
 		for b: Dictionary in bars:
 			assert_true(int(b["level"]) >= 1 and int(b["level"]) <= 5, "%s %s" % [id, b])
 	var lv := func(id: String, i: int) -> int: return Weapons.bars(id)[i]["level"]
-	assert_eq(lv.call("rail", 1), 5, "레일건 사거리 최고")
+	assert_eq(lv.call("rail", 1), 5, "레일건 사거리 무한 = 가득")
 	assert_eq(lv.call("beam", 2), 5, "빔 연사 최고")
 	assert_eq(lv.call("beam", 3), 5, "빔 채굴량 최고")
 	assert_true(lv.call("plasma", 3) < lv.call("pulse", 3), "플라스마 채굴량 적음")
@@ -175,18 +175,73 @@ func test_레일건은_가장_가까운_대상을_노림() -> void:
 func test_레일건은_한_줄의_적과_운석을_한_발에_모두_맞히고_탄은_없음() -> void:
 	var sim := _sim("rail")
 	var line: Array = [_rock(sim, Vector2(40, 0), 2, 100.0), _creature(sim, Vector2(120, 0)), _rock(sim, Vector2(200, 0), 2, 100.0), _creature(sim, Vector2(290, 0))]
-	var r: float = line[0].radius
-	var edge := _rock(sim, Vector2(160, r + 2.0), 2, 100.0)  # 중심은 줄 밖이지만 빛줄기 굵기(반 2.5) 안에 걸침
-	var side := _rock(sim, Vector2(160, r + 4.0), 2, 100.0)  # 굵기 밖
-	var beyond := _rock(sim, Vector2(Weapons.info("rail")["range"] + 30.0, 0), 2, 100.0)  # 사거리 밖
+	var body: float = RunSim.rail_body_radius(line[0])  # 보이는 몸 반지름 (충돌 반지름 × 1.4)
+	var half := sim.rail_width / 2.0
+	var edge := _rock(sim, Vector2(160, body + half - 0.5), 2, 100.0)  # 중심은 줄 밖이지만 몸이 빛줄기 굵기 안에 걸침
+	var side := _rock(sim, Vector2(160, body + half + 1.0), 2, 100.0)  # 굵기 밖
+	var far := _rock(sim, Vector2(sim.view_size.x * 0.5 + 200.0, 0), 2, 100.0)  # 화면 밖이지만 선 위 (사거리 무한)
 	sim.update(0.02, Vector2.ZERO)
 	var dmg := 100.0 - (line[0] as RunSim.Enemy).hp
 	assert_true(dmg > 0.0, "맞음")
-	for a: RunSim.Enemy in line + [edge]:
+	for a: RunSim.Enemy in line + [edge, far]:
 		assert_almost(100.0 - a.hp, dmg, 0.001, "모두 한 번씩 같은 피해")
 	assert_eq(side.hp, 100.0, "굵기 밖은 안 맞음")
-	assert_eq(beyond.hp, 100.0, "사거리 밖은 안 맞음")
 	assert_eq(sim.bullets.size(), 0, "따로 날아가는 탄 없음")
+
+
+func test_레일건은_화면_밖_대상을_노리지_않음() -> void:
+	var sim := _sim("rail")
+	var off := _rock(sim, Vector2(0, -(sim.view_size.y / 2.0 + 40.0)), 2, 100.0)  # 화면 위쪽 밖, 가장 가까움
+	var seen := _rock(sim, Vector2(sim.view_size.x / 2.0 - 20.0, 0), 2, 100.0)  # 화면 오른쪽 안
+	sim.update(0.02, Vector2.ZERO)
+	assert_almost(sim.aim_angle, 0.0, 0.01, "화면 안 대상 쪽")
+	assert_true(seen.hp < 100.0)
+	assert_eq(off.hp, 100.0, "화면 밖은 노리지 않음")
+
+
+func test_레일_빛줄기는_어느_쪽으로_쏴도_화면_끝_너머까지() -> void:
+	for view: Vector2 in [Vector2(1280, 720), Vector2(844, 390)]:
+		var sim := _sim("rail")
+		sim.view_size = view
+		sim.apply_pick("multishot", 0)
+		sim.apply_pick("multishot", 0)
+		for target: Vector2 in [Vector2(view.x / 2.0 - 10.0, view.y / 2.0 - 10.0), Vector2(-50, 20), Vector2(0, view.y / 2.0 - 5.0)]:
+			sim.enemies.clear()
+			sim.fx.clear()
+			_rock(sim, target, 2, 1.0e6)
+			sim._fire_timer = 0.0
+			sim.update(0.02, Vector2.ZERO)
+			var screen := Rect2(sim.player_pos - view / 2.0, view)
+			var rails := sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "rail")
+			assert_true(rails.size() >= 3, "다중 포신 %d갈래" % rails.size())
+			for f: Dictionary in rails:
+				assert_false(screen.has_point(f["to"]), "%s %s 끝이 화면 밖 %s" % [view, target, f["to"]])
+
+
+func test_사거리_강화는_레일건_굵기를_올리고_상한이_있음() -> void:
+	var sim := _sim("rail")
+	var base: float = Weapons.info("rail")["width"]
+	assert_eq(sim.rail_width, base)
+	sim.apply_pick("range", Upgrades.NORMAL)
+	assert_almost(sim.rail_width, base * (1.0 + Upgrades.value("range", Upgrades.NORMAL)), 0.001, "사거리 카드 = 굵기")
+	for i in 6:
+		sim.apply_pick("range", Upgrades.LEGENDARY)
+	assert_eq(sim.rail_width, Balance.RAIL_WIDTH_MAX, "상한")
+	var big := _rock(sim, Vector2(40, 0), 2, 100.0)
+	sim.update(0.02, Vector2.ZERO)
+	var rail: Dictionary = sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "rail")[0]
+	assert_eq(rail["width"], Balance.RAIL_WIDTH_MAX, "그림 굵기 = 판정 굵기")
+	assert_true(big.hp < 100.0)
+
+
+func test_레일건_사거리_카드는_빛줄기_굵기_지금_다음() -> void:
+	var sim := _sim("rail")
+	sim.choices = [{"id": "range", "grade": Upgrades.NORMAL}]
+	var text := sim.rail_card_text(Upgrades.NORMAL)
+	assert_true(text.begins_with("빛줄기 굵기 5.0 → "), text)
+	var pulse := _sim("pulse")
+	assert_true(Upgrades.card_text({"id": "range", "grade": 0}).begins_with("공격 사거리"), "다른 무기는 그대로")
+	assert_eq(pulse.rail_width, 0.0)
 
 
 func test_레일건은_다중_포신이어도_같은_대상은_한_번만() -> void:
@@ -201,27 +256,63 @@ func test_레일건은_다중_포신이어도_같은_대상은_한_번만() -> v
 	assert_almost(100.0 - big.hp, 100.0 - ref.hp, 0.001, "피해는 한 번")
 
 
-func test_레일_빛줄기_시작점은_빨리_움직여도_총구와_같음() -> void:
+func test_레일_빛줄기_그림은_판정_선과_같고_빨리_움직여도_쏜_자리에_남음() -> void:
 	var sim := _sim("rail")
 	sim.apply_base({"speed": 5})  # 기지 분사 노즐 개조 최대
 	for i in 5:  # 레벨업 이동 속도 카드 최대
 		sim.apply_pick("speed", 0)
-	assert_eq(sim.upgrade_levels["speed"], 5)
+	sim.apply_pick("multishot", 0)
 	var fx := WeaponFx.new(sim)
-	_rock(sim, Vector2(40, 0), 2, 1.0e6)
-	sim.update(1.0 / 60.0, Vector2.ZERO)
+	_rock(sim, Vector2(40, 10), 2, 1.0e6)
+	sim.update(1.0 / 60.0, Vector2.DOWN)
+	var hits: Array = sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "rail")
 	fx.step(1.0 / 60.0)
-	assert_eq(fx._trails.size(), 1, "빛줄기")
+	assert_eq(fx._trails.size(), hits.size(), "갈래마다 빛줄기")
 	var start := sim.player_pos
 	for i in 30:  # 0.5초 동안 아래로 최고 속도
 		sim.update(1.0 / 60.0, Vector2.DOWN)
 		fx.step(1.0 / 60.0)
-		if fx._trails.is_empty():
-			break
-		var ends := fx.trail_ends(fx._trails[0])
-		assert_true(ends[0].distance_to(fx._nose()) < 0.001, "시작점 = 지금 총구")
-		assert_true(ends[0].distance_to(sim.player_pos) <= WeaponFx.NOSE + Juice.WEAPON_FX["rail"]["recoil"] + 0.01, "우주선 바로 앞")
+		for j in fx._trails.size():
+			var ends := fx.trail_ends(fx._trails[j])
+			assert_eq(ends[0], hits[j]["from"], "그림 시작 = 판정 시작")
+			assert_eq(ends[1], hits[j]["to"], "그림 끝 = 판정 끝 (방향 같음)")
+			assert_eq(fx._trails[j]["width"], hits[j]["width"], "굵기 같음")
 	assert_true(sim.player_pos.distance_to(start) > 50.0, "빠르게 움직임 %f" % sim.player_pos.distance_to(start))
+
+
+func test_채굴_빔_치명타는_피해가_0보다_크고_숫자도_0이_아님() -> void:
+	var sim := _sim("beam")
+	sim.crit_chance = 1.0
+	var rock := _rock(sim, Vector2(40, 0), 2, 100.0)
+	sim.update(0.02, Vector2.ZERO)
+	var crits: Array = sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "crit")
+	assert_true(crits.size() > 0, "치명타")
+	for f: Dictionary in crits:
+		assert_true(float(f["damage"]) > 0.0, "실제 피해 %f" % f["damage"])
+		assert_true(Weapons.shown_damage(f["damage"]) > 0, "숫자 0 아님")
+		assert_eq(Weapons.shown_damage(f["damage"]), roundi(float(f["damage"]) * 100.0), "표시 = 실제 피해 × 100 (격납고 공격력 단위)")
+	assert_almost(100.0 - rock.hp, crits.reduce(func(acc: float, f: Dictionary) -> float: return acc + float(f["damage"]), 0.0), 0.0001, "실제로 들어간 피해 = 숫자 합")
+	assert_eq(Weapons.shown_damage(0.001), 1, "아주 작아도 최소 1")
+	assert_eq(Weapons.shown_damage(0.0), 0)
+
+
+func test_빔_치명타_숫자는_같은_대상이면_모아서_보임() -> void:
+	var sim := _sim("beam")
+	sim.crit_chance = 1.0
+	_rock(sim, Vector2(40, 0), 2, 1.0e6)
+	var view := WorldView.new()
+	view.sim = sim
+	var total := 0.0
+	for i in 5:  # 0.1초마다 한 번, 0.3초 안
+		sim.update(0.05, Vector2.ZERO)
+		for f: Dictionary in sim.fx:
+			if f["type"] == "crit":
+				total += float(f["damage"])
+		view._step_effects(0.05)
+	var shown := view._effects.filter(func(f: Dictionary) -> bool: return f["type"] == "crit")
+	assert_true(shown.size() < 3, "숫자가 쌓이지 않음: %d개" % shown.size())
+	assert_almost(shown.reduce(func(acc: float, f: Dictionary) -> float: return acc + float(f["damage"]), 0.0), total, 0.0001, "모은 숫자 합 = 실제 피해 합")
+	view.free()
 
 
 func test_플라스마는_모인_곳을_노려_한꺼번에_터짐() -> void:

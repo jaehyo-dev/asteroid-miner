@@ -47,15 +47,58 @@ func test_옛_저장에서_앞_칸_없이_올린_칸은_잠그지_않음() -> vo
 	assert_true(Research.buy(s, "hull", 1))
 
 
-func test_곧_추가_칸은_못_사지만_뒤_칸을_막지_않음() -> void:
+func test_곧_추가_칸은_못_사고_그_위_칸도_모두_잠김() -> void:
 	var s := _rich()
 	assert_eq(Research.state(s, "weapon", 1), "soon")
 	assert_false(Research.buy(s, "weapon", 1))
-	assert_eq(Research.tree("weapon")[3], "over", "곧 추가 칸·갈림길 뒤는 증폭 탄창")
-	assert_eq(Research.state(s, "weapon", 3), "locked", "앞 칸(공격) 안 찍음")
-	assert_true(Research.buy(s, "weapon", 0))
-	assert_true(Research.unlock_fork(s, "weapon", 2, "a"))
-	assert_eq(Research.state(s, "weapon", 3), "can")
+	assert_true(Research.buy(s, "weapon", 0), "펄스 증폭기만 연구")
+	assert_eq(Research.fork_state(s, "weapon", 2, "a"), "locked", "보조 무기 해금(곧 추가) 위 갈림길 잠김")
+	assert_eq(Research.fork_state(s, "weapon", 2, "b"), "locked")
+	assert_false(Research.unlock_fork(s, "weapon", 2, "a"))
+	assert_eq(Research.state(s, "weapon", 3), "locked", "그 위 증폭 탄창도 잠김")
+	assert_false(Research.buy(s, "weapon", 3))
+
+
+## 2026-11-12 사용자 결정: 어떤 칸이든 바로 아래 칸을 1단계 이상 연구해야 열린다 (갈림길 포함, 모든 가지 같은 규칙)
+func test_모든_가지에서_아래_칸이_0단계면_위_칸은_잠기고_찍으면_열림() -> void:
+	for branch: String in Balance.RESEARCH_BRANCHES:
+		var nodes := Research.tree(branch)
+		for i in range(1, nodes.size()):
+			var s := _rich()
+			for j in i - 1:  # i-1 바로 아래 칸만 빼고 그 아래는 모두 연구 (곧 추가는 못 사니 저장에 직접)
+				_research(s, branch, j)
+			assert_false(Research.is_open(s, branch, i), "%s %d: 아래 칸 0단계면 잠김" % [branch, i])
+			if not _soon(nodes[i]):
+				assert_true(_state_of(s, branch, i) == "locked", "%s %d 상태 잠김" % [branch, i])
+			_research(s, branch, i - 1)
+			assert_eq(Research.is_open(s, branch, i), not _soon(nodes[i - 1]), "%s %d: 아래 칸 1단계면 열림 (곧 추가 위는 계속 잠김)" % [branch, i])
+
+
+func test_옛_저장에서_곧_추가_위에_산_갈림길은_그대로_둠() -> void:
+	var s := SaveData.from_dict({"credits": 9999, "upgrades": {"damage": 1}, "forks_owned": {"rapid_heavy": "a"}, "forks_on": {"rapid_heavy": "a"}})
+	assert_eq(Research.fork_state(s, "weapon", 2, "a"), "on", "산 쪽은 사용 중 그대로")
+	assert_eq(Research.run_levels(s).get("rapid"), 1, "효과도 그대로")
+	assert_eq(Research.fork_state(s, "weapon", 2, "b"), "locked", "안 산 쪽은 새 규칙대로 잠김")
+	assert_eq(Research.state(s, "weapon", 3), "can", "산 갈림길 위 칸은 열림")
+
+
+func _soon(node: Variant) -> bool:
+	return not Research.is_fork(node) and Research.is_soon(node)
+
+
+## 칸 하나를 1단계로 (갈림길은 a쪽, 곧 추가는 규칙상 못 사니 저장 값으로)
+func _research(s: SaveData, branch: String, i: int) -> void:
+	var node: Variant = Research.tree(branch)[i]
+	if Research.is_fork(node):
+		s.forks_owned[Research.fork_id(node)] = "a"
+		s.forks_on[Research.fork_id(node)] = "a"
+	else:
+		s.upgrades[node] = 1
+
+
+func _state_of(s: SaveData, branch: String, i: int) -> String:
+	var node: Variant = Research.tree(branch)[i]
+	return Research.fork_state(s, branch, i, "a") if Research.is_fork(node) else Research.state(s, branch, i)
 
 
 # ── 갈림길 ──────────────────────────────────────

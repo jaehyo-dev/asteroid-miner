@@ -93,9 +93,9 @@ func _ready() -> void:
 		var empty := StyleBoxEmpty.new()
 		for state in ["normal", "hover", "pressed", "disabled"]:
 			b.add_theme_stylebox_override(state, empty)
-		b.add_theme_stylebox_override("focus", empty)  # 고른 표시는 BaseView가 건물 윤곽선으로 그린다
+		b.add_theme_stylebox_override("focus", empty)  # 고른 표시는 BaseView가 건물 그림을 밝혀서 보인다 (테두리 없음)
 		b.pressed.connect(press.bind(id))
-		# 마우스를 올리거나 키보드로 고르면 윤곽선이 빛나고, 누르는 순간 번쩍인다
+		# 마우스를 올리거나 키보드로 고르면 건물이 밝아지고, 누르는 순간 번쩍인다
 		b.mouse_entered.connect(_set_hover.bind(id, true))
 		b.mouse_exited.connect(_set_hover.bind(id, false))
 		b.focus_entered.connect(_on_spot_focus.bind(id))

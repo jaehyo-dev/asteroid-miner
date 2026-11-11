@@ -106,13 +106,17 @@ func test_다른_무기를_고르면_능력치에_오르고_내림이_보임() -
 	hv.pick("rail")
 	assert_eq(hv.stat_delta(1), 0, "전투기 탭은 화살표 없음")
 	hv.select_tab("weapon")
-	hv.pick("rail")  # 레일건: 공격력 오름, 공격 속도 내림, 사거리 오름, 체력 그대로
-	assert_eq([hv.stat_delta(0), hv.stat_delta(1), hv.stat_delta(2), hv.stat_delta(3)], [0, 1, -1, 1])
+	hv.pick("rail")  # 레일건: 공격력 오름, 공격 속도 내림, 사거리는 "무한"이라 비교 안 함, 체력 그대로
+	assert_eq([hv.stat_delta(0), hv.stat_delta(1), hv.stat_delta(2), hv.stat_delta(3)], [0, 1, -1, 0])
+	assert_eq(hv._pick_stats[3]["value"], "무한")
+	assert_eq(hv._pick_stats[3]["ratio"], 1.0, "막대 가득")
 	hv.pick("pulse")
 	assert_true(range(8).all(func(i: int) -> bool: return hv.stat_delta(i) == 0), "장착한 무기는 화살표 없음")
 	hv.pick("rail")
 	hv.action_button.pressed.emit()  # 장착하면 왼쪽 값이 새 무기 값이 되고 화살표가 사라짐
-	assert_eq(hv._stats[3]["value"], "300")
+	assert_eq(hv._stats[3]["value"], "무한")
+	assert_eq(hv.stat_delta(3), 0)
+	hv.pick("pulse")  # 레일건을 낀 채 다른 무기를 골라도 사거리 ▲▼ 없음
 	assert_eq(hv.stat_delta(3), 0)
 	await _done(main)
 

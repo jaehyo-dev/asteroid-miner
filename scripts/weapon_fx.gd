@@ -75,7 +75,7 @@ func step(delta: float) -> void:
 				_on_hit(f, params_for(f["style"]))
 			"rail":
 				if _trails.size() < Juice.WEAPON_TRAIL_MAX:
-					_trails.append({"angle": f["angle"], "offset": f["offset"], "len": f["len"], "t": 0.0, "p": params_for("rail")})
+					_trails.append({"from": f["from"], "to": f["to"], "width": f["width"], "t": 0.0, "p": params_for("rail")})
 			"plasma":
 				_on_blast(f, params_for("plasma"))
 	if weapon_id() == "beam" and sim.alive and not sim.beam_targets.is_empty():
@@ -105,11 +105,9 @@ func _nose() -> Vector2:
 	return sim.player_pos + recoil + Vector2.from_angle(sim.aim_angle) * NOSE
 
 
-## 레일 빛줄기의 지금 시작·끝 (사거리는 우주선 가운데부터라 총구만큼 짧게)
+## 레일 빛줄기의 시작·끝: 쏜 순간 판정한 선 그대로 (쏜 자리에 남는다. 우주선을 따라 움직이면 맞지 않은 대상 위를 쓸고 지나가 보여서)
 func trail_ends(t: Dictionary) -> Array[Vector2]:
-	var dir := Vector2.from_angle(t["angle"])
-	var from: Vector2 = _nose() + t["offset"]
-	return [from, from + dir * (float(t["len"]) - NOSE)]
+	return [t["from"], t["to"]]
 
 
 func _spawn(pos: Vector2, vel: Vector2, life: float, color: Color, size: float, drag := 4.0) -> void:
@@ -185,14 +183,16 @@ func _draw_trail(ci: CanvasItem, t: Dictionary) -> void:
 	var a := ends[0].round()
 	var b := ends[1].round()
 	var fade := (1.0 - k) * (1.0 - k)
-	var w := maxf(1.0, float(Weapons.info("rail")["width"]) * (1.0 - k * 0.6))
+	var w := maxf(1.0, float(t["width"]) * (1.0 - k * 0.6))
 	if p["dots"] and k > 0.3:
 		# 묵직함: 잔상이 점선으로 부서지며 사라진다 (점 간격이 점점 벌어짐)
 		var gap := 3.0 + k * 10.0
 		var n := int(a.distance_to(b) / gap)
+		var screen := Rect2(sim.player_pos - sim.view_size / 2.0, sim.view_size).grow(4.0)  # 선이 화면 대각선만큼 길어 화면 밖 점은 그리지 않는다
 		for i in n:
 			var at := a.lerp(b, float(i) / maxf(n, 1)).round()
-			RunSprites.rect(ci, Rect2(at - Vector2.ONE, Vector2(2, 2)), Color(RAIL, 0.8 * fade))
+			if screen.has_point(at):
+				RunSprites.rect(ci, Rect2(at - Vector2.ONE, Vector2(2, 2)), Color(RAIL, 0.8 * fade))
 		return
 	RunSprites.line(ci, a, b, Color(RAIL, 0.3 * fade), w + float(p["glow_w"]))
 	RunSprites.line(ci, a, b, Color(RAIL, 0.8 * fade), w)

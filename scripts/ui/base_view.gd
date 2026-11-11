@@ -53,8 +53,9 @@ const BEACON_TOP_FOOT := 26.0
 const EDGE_THIN := 3.0
 const EDGE_FRONT := 4.0
 
-## 마우스를 올리거나 키보드로 고른 건물: 윤곽선이 빛나고, 누르는 순간 PRESS_TIME 동안 더 밝게 번쩍인다
-const HOVER_COLOR := Color("#9ff6ff")
+## 마우스를 올리거나 키보드로 고른 건물: 그림이 밝아지고, 누르는 순간 PRESS_TIME 동안 더 밝게 번쩍인다
+## 고른(마우스·키보드) 건물을 밝히는 정도. 선택 표시로 윤곽선·테두리 선을 쓰지 않는다 (ART_BIBLE)
+const LIT_SHADE := 1.2
 const PRESS_TIME := 0.18
 ## 지나가는 운석이 날아다니는 높이 (보이는 화면 위쪽 띠)
 const METEOR_BAND := 90.0
@@ -97,7 +98,6 @@ var hover_id := ""
 var pressed_id := ""
 var press_time := 0.0
 ## 그림 이름 → 윤곽선 칸 (그림 픽셀 좌표, 불투명한 픽셀과 맞닿은 투명한 칸)
-var _outlines: Dictionary = {}
 ## 그림 이름 → 창 자리 (그림 픽셀)
 var _windows: Dictionary = {}
 
@@ -326,10 +326,10 @@ func _draw_building(b: Array) -> void:
 	var t := tex(b[1])
 	var r := BaseLayout.building_rect(b[2], t.get_size())
 	var id: String = b[0]
-	var lit := _is_lit(id)
-	if lit:
-		_draw_outline(b[1], id, r)
 	var shade := Color.WHITE
+	if _is_lit(id):  # 고른(마우스·키보드) 건물: 윤곽선 대신 그림을 밝게, 천천히 맥박
+		shade = Color.WHITE * (LIT_SHADE + 0.05 * sin(time * 6.0))
+		shade.a = 1.0
 	if id == pressed_id and press_time > 0.0:
 		shade = Color(1.25, 1.25, 1.3)  # 누른 순간 번쩍
 	draw_texture_rect(t, r, false, shade)
@@ -407,35 +407,6 @@ func _draw_tag(text: String, pos: Vector2, font_size: int, color: Color) -> void
 	var h := 32.0 if large else 19.0
 	draw_style_box(_name_plate, Rect2((pos - Vector2(w, h) / 2.0).round(), Vector2(w, h).round()))
 	_draw_centered(text, pos, font_size, color)
-
-
-## 고른 건물의 윤곽선 (그림 테두리 바깥 1칸, 천천히 맥박)
-func _draw_outline(name: String, id: String, r: Rect2) -> void:
-	if not _outlines.has(name):
-		_outlines[name] = outline_cells(tex(name).get_image())
-	var a := 0.75 + 0.25 * sin(time * 6.0)
-	if id == pressed_id and press_time > 0.0:
-		a = 1.0
-	var color := Color(HOVER_COLOR, a)
-	for c: Vector2i in _outlines[name]:
-		draw_rect(Rect2(r.position + Vector2(c) * P, Vector2(P, P)), color)
-
-
-## 그림의 윤곽선 칸: 불투명한 픽셀과 맞닿은(상하좌우) 투명한 칸. 그림 밖 1칸까지 포함.
-static func outline_cells(img: Image) -> Array[Vector2i]:
-	img.decompress()
-	var w := img.get_width()
-	var h := img.get_height()
-	var solid := func(x: int, y: int) -> bool:
-		return x >= 0 and y >= 0 and x < w and y < h and img.get_pixel(x, y).a > 0.5
-	var cells: Array[Vector2i] = []
-	for y in range(-1, h + 1):
-		for x in range(-1, w + 1):
-			if solid.call(x, y):
-				continue
-			if solid.call(x - 1, y) or solid.call(x + 1, y) or solid.call(x, y - 1) or solid.call(x, y + 1):
-				cells.append(Vector2i(x, y))
-	return cells
 
 
 # ── 건물마다 바뀌는 부분 ────────────────────────────

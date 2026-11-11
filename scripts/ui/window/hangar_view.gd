@@ -8,6 +8,10 @@ extends WindowView
 const SPIN := Vector2i(64, 56)
 const FRAMES := 40
 const SPIN_FPS := 13.33  # 3초에 한 바퀴
+## 고른 카드·칸: 판 그림을 살짝 밝게 (선택 표시로 테두리 선을 쓰지 않는다, ART_BIBLE)
+const CHOSEN_SHADE := Color(1.25, 1.25, 1.25)
+## 고른 탭 바탕 채움 (팔레트 금색을 옅게)
+const TAB_FILL := Color(0.9647, 0.8078, 0.3137, 0.22)
 const STAT_COLOR := {"체력": "hull", "사망 보존": "hull", "공격력": "weapon", "공격 속도": "weapon", "사거리": "weapon", "이동 속도": "mine", "화물칸": "mine", "자석 범위": "mine"}
 ## 무기를 바꿨을 때 능력치가 오르면 ▲, 내리면 ▼
 const UP_COLOR := Color("#a5cc5f")
@@ -244,6 +248,8 @@ func _draw_stats(x: int, y: int, w: int, h: int) -> void:
 func stat_delta(i: int) -> int:
 	if tab != "weapon" or _pick_stats.size() != _stats.size():
 		return 0
+	if is_inf(float(_pick_stats[i]["num"])) or is_inf(float(_stats[i]["num"])):
+		return 0  # 레일건 사거리 "무한"은 다른 무기와 크기 비교를 하지 않는다
 	return signi(roundi((float(_pick_stats[i]["num"]) - float(_stats[i]["num"])) * 100.0))
 
 
@@ -461,9 +467,7 @@ func _draw_desc(x: int, y: int, w: int, h: int) -> void:
 
 
 func _draw_slot(x: int, y: int, w: int, h: int, fighter: Dictionary, chosen: bool) -> void:
-	WindowArt.plate(self, "tab", Rect2(x, y, w, h), -1, -1, Color.WHITE if chosen else Color(0.7, 0.7, 0.7))
-	if chosen:
-		draw_rect(Rect2(x + 1, y + 1, w - 2, h - 2), WindowArt.GOLD, false, 1.0)
+	WindowArt.plate(self, "tab", Rect2(x, y, w, h), -1, -1, CHOSEN_SHADE if chosen else Color(0.7, 0.7, 0.7))  # 고른 칸은 테두리 없이 바탕만 밝게
 	var locked := fighter.has("locked")
 	var tx := x + 8
 	if not win.compact:  # 폰은 칸이 좁아 글자만
@@ -483,7 +487,7 @@ func _draw_slot(x: int, y: int, w: int, h: int, fighter: Dictionary, chosen: boo
 		WindowArt.text(self, Vector2i(tx, ty + 14), fighter["style"], WindowArt.TEAL2)
 
 
-## [전투기 | 기본 무기] 탭: 고른 탭은 밝은 판 + 금빛 테두리
+## [전투기 | 기본 무기] 탭: 고른 탭은 밝은 판 + 바탕 채움 + 금빛 글자 (선택 표시로 테두리 선을 쓰지 않는다)
 class TabBtn extends Button:
 	var view: HangarView
 	var id := ""
@@ -496,7 +500,7 @@ class TabBtn extends Button:
 		var on := HangarView.tab == id
 		WindowArt.plate(self, "tab", Rect2(Vector2.ZERO, size), -1, -1, Color.WHITE if on else Color(0.65, 0.65, 0.65))
 		if on:
-			draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), WindowArt.GOLD, false, 1.0)
+			draw_rect(Rect2(2, 2, size.x - 4, size.y - 4), TAB_FILL)
 		WindowArt.text(self, Vector2i(int(size.x) / 2, (int(size.y) - WindowArt.FONT_SIZE) / 2 - 2), HangarView.TAB_NAME[id], WindowArt.GOLD if on else WindowArt.MUTED, 0)
 		WindowArt.focus_mark(self)
 
@@ -515,11 +519,8 @@ class CardBtn extends Button:
 		var chosen := HangarView.picked == id
 		var w := int(size.x)
 		var h := int(size.y)
-		WindowArt.plate(self, "tab", Rect2(0, 0, w, h), -1, -1, Color.WHITE if chosen or st == "on" else Color(0.7, 0.7, 0.7))
-		if st == "on":
-			draw_rect(Rect2(1, 1, w - 2, h - 2), WindowArt.GOLD, false, 1.0)
-		elif chosen:
-			draw_rect(Rect2(1, 1, w - 2, h - 2), WindowArt.TEAL2, false, 1.0)
+		# 고른 카드는 테두리 없이 바탕을 살짝 밝게. 장착 중은 "장착 중" 금빛 글자로 보인다
+		WindowArt.plate(self, "tab", Rect2(0, 0, w, h), -1, -1, HangarView.CHOSEN_SHADE if chosen else (Color.WHITE if st == "on" else Color(0.7, 0.7, 0.7)))
 		var icon := WindowArt.tex("weapon_" + id)
 		var tint := HangarView.LOCKED_TINT if st == "lock" else Color.WHITE
 		var small := view.win.compact

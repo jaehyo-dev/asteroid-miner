@@ -21,6 +21,8 @@ const PLATE_SHAPES := ["NE", "NW", "ES", "SW", "NEW", "ESW", "ENS", "NSW"]
 
 ## 지금 가지, 고른 칸 key ("" = 없음), 끌기(0 = 맨 아래가 보임, 클수록 위쪽을 봄, 띠가 열리면 음수까지)
 var branch := "weapon"
+## 고른 칸을 밝게 (선택 표시로 테두리 선을 쓰지 않는다, ART_BIBLE)
+const CHOSEN_SHADE := Color(1.35, 1.35, 1.35)
 var selected := ""
 var pan := 0
 var lay := {}
@@ -428,7 +430,9 @@ func action_info() -> Dictionary:
 
 func _prev_name(i: int) -> String:
 	var p: Variant = Research.tree(branch)[i - 1]
-	return "갈림길" if Research.is_fork(p) else Research.name_of(p)
+	if Research.is_fork(p):
+		return "갈림길"
+	return Research.name_of(p) + (" (곧 추가)" if Research.is_soon(p) else "")
 
 
 ## 효과 한 줄: 칸은 지금 → 다음, 갈림길은 효과
@@ -560,13 +564,12 @@ class Board extends Control:
 		var t := WindowArt.tex(s["tex"])
 		var at := c - Vector2i(t.get_width() / 2, t.get_height() / 2)
 		var chosen := v.selected == k
-		var glow_name: String = "glow_on" if chosen and s["glow"] == "" else s["glow"]
-		if glow_name != "" or chosen:
-			var g := WindowArt.tex(glow_name if glow_name != "" else "glow_on")
-			var tint: Color = WindowArt.INK if chosen else WindowArt.BRANCH[v.branch][1]
-			tint.a = 1.0 if chosen else (0.25 if s.has("faint") else 0.8)
-			draw_texture(g, Vector2(at - Vector2i(3, 3)), tint)
-		draw_texture(t, Vector2(at))
+		var glow_name: String = s["glow"]
+		if glow_name != "":  # 연구 상태 빛 (고른 표시가 아님)
+			var tint: Color = WindowArt.BRANCH[v.branch][1]
+			tint.a = 0.25 if s.has("faint") else 0.8
+			draw_texture(WindowArt.tex(glow_name), Vector2(at - Vector2i(3, 3)), tint)
+		draw_texture(t, Vector2(at), ResearchView.CHOSEN_SHADE if chosen else Color.WHITE)  # 고른 칸: 흰 테두리 빛 대신 칸을 밝게
 		var icon := v._icon_of(k)
 		draw_texture(icon, Vector2(c.x - icon.get_width() / 2, c.y + 1 - icon.get_height() / 2), s["icon"])
 		_draw_label(k, c, s)
@@ -878,8 +881,7 @@ class PopupPanel_ extends Control:
 		var light: Color = WindowArt.BRANCH[v.branch][1]
 		var picked := v.selected.right(1) == side
 		var dim := st == "locked"
-		draw_rect(Rect2(12, y, w, 58), WindowArt.DARK)
-		draw_rect(Rect2(12, y, w, 58), WindowArt.INK if picked else (light if st == "on" else Color("#5c5164")), false, 1.0)
+		draw_rect(Rect2(12, y, w, 58), WindowArt.GREY if picked else WindowArt.DARK)  # 고른 쪽은 테두리 없이 바탕을 밝게
 		var icon := WindowArt.tex("icon_" + node[side])
 		draw_texture(icon, Vector2(15, y + 3), Color(0.6, 0.6, 0.6) if dim else Color.WHITE)
 		WindowArt.text(self, Vector2i(43, y + 3), Research.name_of(node, side), light if st == "on" else (WindowArt.DIM if dim else WindowArt.INK))

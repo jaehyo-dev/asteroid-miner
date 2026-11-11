@@ -14,10 +14,10 @@ const NAME_COLORS: Array[Color] = [INK, Color("#99e9e6"), Color("#a884f3"), Colo
 ## 등급별 빛 색과 계단 빛의 알파 (0~255). 높은 등급일수록 띠가 많다
 const GLOW_COLORS: Array[Color] = [Color("#5c5164"), Color("#30e1b9"), Color("#a884f3"), Color("#f6ce50"), Color.WHITE]
 const GLOW_ALPHA: Array[Array] = [[], [80, 34], [110, 60, 24], [130, 80, 44, 18], [150, 100, 60, 30, 14]]
-## 번쩍일 때 더 퍼지는 빛 띠의 알파, 커서를 올렸을 때 빛
+## 번쩍일 때 더 퍼지는 빛 띠의 알파
 const GLOW_BOOST_ALPHA := 24.0 / 255.0
-const HOVER_ALPHA := 0.35
-const HOVER_BANDS := 2
+## 커서를 올린 카드: 테두리 빛 대신 카드 전체를 살짝 밝게 (선택 표시로 테두리 선을 쓰지 않는다, ART_BIBLE)
+const HOVER_MODULATE := Color(1.12, 1.12, 1.12)
 
 ## 발광 부분으로 쓰인 색 (등급 색으로 바뀌는 자리)
 const TEAL_LIKE: Array[String] = ["#30e1b9", "#125952", "#1da775", "#4d80cd"]
@@ -181,8 +181,10 @@ static func layout_for(view: Vector2, cards: Array) -> Dictionary:
 func _ready() -> void:
 	focus_mode = Control.FOCUS_NONE
 	action_mode = BaseButton.ACTION_MODE_BUTTON_RELEASE
-	mouse_entered.connect(queue_redraw)
-	mouse_exited.connect(queue_redraw)
+	mouse_entered.connect(func() -> void:
+		if not disabled and mouse_filter == Control.MOUSE_FILTER_STOP:
+			modulate = HOVER_MODULATE)
+	mouse_exited.connect(func() -> void: modulate = Color.WHITE)
 	MenuPanel.add_press_feel(self)
 	# 눌린 동안 카드 전체가 밝아진다 (add_press_feel은 위치만 내림: self_modulate는 자식에 안 먹음)
 	button_down.connect(func() -> void: modulate = Juice.BUTTON_PRESS_MODULATE)
@@ -375,9 +377,6 @@ func _draw() -> void:
 	for i in _boost_bands:
 		bands.append(GLOW_BOOST_ALPHA)
 	var base_color := GLOW_COLORS[grade]
-	if is_hovered() and not disabled and mouse_filter == Control.MOUSE_FILTER_STOP:
-		for i in HOVER_BANDS:
-			_band(i, Color(INK, HOVER_ALPHA))
 	for i in bands.size():
 		_band(i, Color(base_color, bands[i]))
 

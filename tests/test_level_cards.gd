@@ -156,3 +156,22 @@ func test_후광은_에픽부터_걸리고_고르면_사라짐() -> void:
 	screen._fx.clear_halos()
 	assert_true(screen._fx.halos.is_empty())
 	screen.queue_free()
+
+
+## 건너뛰기 버튼: 숫자가 광물 보상이라는 글자가 모든 화면에서 버튼 안에 다 들어가고, 두 버튼 줄이 화면 밖으로 안 나감
+func test_건너뛰기_버튼은_보상_광물_글자가_다_들어감() -> void:
+	var cards := LevelUpCards.new()
+	cards.skip_reward = 1234
+	assert_eq(cards.skip_text(), "(보상 광물 1234)")
+	for view in VIEWS + [Vector2(1280, 720), Vector2(640, 360)]:
+		var lay := LevelCard.layout_for(view, _worst_three(view))
+		var size: int = lay["btn_size"]
+		var text := cards.skip_text_for(int(view.x), 2, size, int(lay["gap"]))
+		assert_true(text.contains("광물"), "%s 광물 보상이라는 말: %s" % [view, text])
+		var btn := maxi(int(lay["btn"].x), LevelUpCards.button_width("건너뛰기", text, size))
+		assert_true(2 * btn + int(lay["gap"]) <= int(view.x) - 8, "%s 버튼 줄 폭 %d" % [view, 2 * btn + int(lay["gap"])])
+		var big_text := cards.skip_text_for(int(view.x), 1, size * 2, 0)
+		var big := maxi(int(lay["btn"].x) * 2, LevelUpCards.button_width("건너뛰기", big_text, size * 2))
+		assert_true(big <= int(view.x) - 8, "%s 카드 없을 때 큰 버튼 %d" % [view, big])
+	assert_eq(cards.skip_text_for(1280, 2, 24, 12), "(보상 광물 1234)", "PC는 긴 글자")
+	cards.free()

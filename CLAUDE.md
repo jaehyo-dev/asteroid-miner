@@ -69,6 +69,7 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 - 게임 테스트는 `godot ... -s res://tests/run_tests.gd`로 직접 부르지 말고 `tests/run_tests.sh`로 실행해. Godot는 실행기 스크립트가 파싱에 실패해도 종료 코드 0으로 끝나서, 래퍼가 "결과:" 줄이 있는지 확인해 실패로 바꿔 줘. 1)을 건너뛰면 실행기가 안내를 찍고 종료 코드 1로 끝나.
 - 게임 자동 테스트 작성법: `tests/test_이름.gd`에서 `extends TestCase`, `test_`로 시작하는 함수 안에서 `assert_eq`, `assert_true` 등을 써. 씬은 `instantiate()` 후 `add_child()`하고 `await wait_frames()`로 확인해.
 - 조작감·속도·난이도 같은 게임 플레이 수치는 `scripts/balance.gd` 한곳에 모아 둬 (색·여백 같은 화면 꾸밈 값은 각 화면 파일에 둬도 돼). 손맛(반동, 번쩍임, 히트스톱, 흔들림, 광물 튕김·자석 가속, 슬로모션, 카운트업 등)의 수치는 `scripts/juice.gd` 한곳에 둬.
+- 선택 표시로 테두리 선을 쓰지 않는다 (버튼·탭·카드를 고르면 생기는 노란·빨간 등 테두리 금지, 2026-11-12 사용자 결정). 고른 상태는 바탕·글자를 밝혀서 보인다. 자세한 건 ART_BIBLE.md 8장, 자동 검사는 `tests/test_no_select_border.gd`·`tools/test_ui_rules.py`.
 - 진행 기록: 단계를 끝낼 때마다 PROGRESS.md에 만든 것, 내가 판단한 것, 검토 결과, 플레이하며 확인할 부분을 짧게 기록해.
 - 게임 로직(데미지, 경험치, 귀환, 보존 비율, 배율, 비용 등)은 화면·노드와 분리된 스크립트(`scripts/logic/`)에 두고, 직접 호출해서 테스트해. 무작위 값은 시드를 받을 수 있게 만들어 테스트에서 결과를 고정해.
 - GAME_SPEC.md "9. 테스트할 로직"은 해당 기능을 만드는 단계에서 자동 테스트로 만들어.

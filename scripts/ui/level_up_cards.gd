@@ -369,7 +369,9 @@ func _apply_layout() -> void:
 	var lay := LevelCard.layout_for(view, _choices)
 	if cards.is_empty():  # 고를 카드가 없음: 건너뛰기만 2배 크기로 가운데
 		var big: Vector2i = lay["btn"] * 2
-		_build_button(skip_button, Vector2((int(view.x) - big.x) / 2, (int(view.y) - big.y) / 2), big, int(lay["btn_size"]) * 2, "건너뛰기", "광물 +%d" % skip_reward, true)
+		var text := skip_text_for(int(view.x), 1, int(lay["btn_size"]) * 2, 0)
+		big.x = maxi(big.x, button_width("건너뛰기", text, int(lay["btn_size"]) * 2))
+		_build_button(skip_button, Vector2((int(view.x) - big.x) / 2, (int(view.y) - big.y) / 2), big, int(lay["btn_size"]) * 2, "건너뛰기", text, true)
 		return
 	var w: int = lay["w"]
 	var gap: int = lay["gap"]
@@ -385,9 +387,29 @@ func _apply_layout() -> void:
 	# 버튼 줄: [다시 뽑기 N회] [건너뛰기 광물 +N], 카드 사이 간격만큼 떨어져 가운데 정렬
 	var y := top + int(lay["h"]) + int(lay["btn_gap"])
 	var btn: Vector2i = lay["btn"]
+	var text := skip_text_for(int(view.x), 2, lay["btn_size"], gap)
+	btn.x = maxi(btn.x, button_width("건너뛰기", text, lay["btn_size"]))  # 두 버튼은 같은 너비, 건너뛰기 글자가 다 들어가게
 	var left := (int(view.x) - 2 * btn.x - gap) / 2
 	_build_button(reroll_button, Vector2(left, y), btn, lay["btn_size"], "다시 뽑기", "%d회" % rerolls_left, rerolls_left > 0)
-	_build_button(skip_button, Vector2(left + btn.x + gap, y), btn, lay["btn_size"], "건너뛰기", "광물 +%d" % skip_reward, true)
+	_build_button(skip_button, Vector2(left + btn.x + gap, y), btn, lay["btn_size"], "건너뛰기", text, true)
+
+
+## 건너뛰기 버튼의 노란 글자: 숫자가 광물 보상이라는 걸 바로 알게. short면 좁은 화면용 "(광물 N)"
+func skip_text(short := false) -> String:
+	return ("(광물 %d)" if short else "(보상 광물 %d)") % skip_reward
+
+
+## 버튼 count개가 화면 폭(양옆 4픽셀 여백) 안에 들어가는 건너뛰기 글자: 긴 글자가 넘치면 짧은 글자
+func skip_text_for(view_w: int, count: int, font_size: int, gap: int) -> String:
+	var full := skip_text()
+	return full if count * button_width("건너뛰기", full, font_size) + (count - 1) * gap <= view_w - 8 else skip_text(true)
+
+
+## "제목 값"이 버튼 안에 다 들어가는 너비: 글자 + 판 그림 양 끝 장식(화살표) + 양옆 여백(글자 크기의 반씩)
+static func button_width(title: String, count: String, font_size: int) -> int:
+	var font := LevelCard.FONT
+	var text_w := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x + font_size / 2 + font.get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	return int(ceil(text_w)) + font_size + LevelCard.tex("button").get_width()
 
 
 func _new_button(on_press: Callable) -> Button:
@@ -400,7 +422,7 @@ func _new_button(on_press: Callable) -> Button:
 	return b
 
 
-## 판 그림 버튼 + "제목 값" (값은 노란 글자). 꺼지면 어둡게. 좁아서 안 들어가면 값의 앞 단어("광물")를 뺀다
+## 판 그림 버튼 + "제목 값" (값은 노란 글자). 꺼지면 어둡게. 너비는 부르는 쪽이 button_width로 글자가 들어가게 잡는다
 func _build_button(button: Button, pos: Vector2, btn: Vector2i, font_size: int, title: String, count: String, on: bool) -> void:
 	for child in button.get_children():
 		button.remove_child(child)
@@ -425,9 +447,6 @@ func _build_button(button: Button, pos: Vector2, btn: Vector2i, font_size: int, 
 	var space := font_size / 2
 	var title_w := int(font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
 	var count_w := int(font.get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
-	if title_w + space + count_w > btn.x - font_size and count.contains(" "):
-		count = count.get_slice(" ", 1)
-		count_w = int(font.get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
 	var x := (btn.x - title_w - space - count_w) / 2
 	var label_y := (btn.y - int(font.get_height(font_size))) / 2
 	_button_label(button, title, Vector2(x, label_y), font_size, LABEL_INK if on else OFF_COLOR)

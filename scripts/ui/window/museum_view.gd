@@ -147,8 +147,8 @@ func _draw_case(e: Dictionary, cx: int, y: int) -> void:
 	var t := WindowArt.tex("case_" + rank if known else "case_off")
 	var pad := 3 if known else 0
 	var kx := cx - CASE.x / 2
-	if e["id"] == selected:  # 흰 테두리는 칸 틀 바깥에서 그려 이름 글자를 덮지 않는다
-		draw_rect(Rect2(kx - 3, y + 2, CASE.x + 6, CASE.y - 1), WindowArt.INK, false, 1.0)
+	if e["id"] == selected:  # 고른 칸: 테두리 대신 칸 뒤 바탕을 옅게 밝힌다
+		draw_rect(Rect2(kx - 3, y + 2, CASE.x + 6, CASE.y - 1), Color(WindowArt.INK, 0.18))
 	draw_texture(t, Vector2(kx - pad, y - pad))
 	var icon := WindowArt.discovery_icon(e["id"])
 	var ix := cx - icon.get_width() / 2
@@ -174,17 +174,16 @@ func _draw_head(_w: int) -> void:
 	for r in Balance.CODEX_REWARDS:
 		var at := _reward_rect(r)
 		var pos := Vector2(at.position.x, bar.position.y + 4 - crate.get_height() / 2)
+		if reward == r["id"]:  # 고른 상자: 테두리 대신 뒤 바탕을 옅게 밝힌다
+			draw_rect(Rect2(pos - Vector2(2, 2), crate.get_size() + Vector2(4, 4)), Color(WindowArt.INK, 0.18))
 		if win.save.codex_claimed.has(r["id"]):
 			draw_texture(crate, pos, Color(0.6, 0.6, 0.6))
 			draw_line(pos + Vector2(3, 8), pos + Vector2(6, 11), WindowArt.TEAL2, 2.0)
 			draw_line(pos + Vector2(6, 11), pos + Vector2(12, 3), WindowArt.TEAL2, 2.0)
 		elif _found() >= Discovery.reward_needs(r):
-			draw_texture(crate, pos, Color(1.0, 1.0, 1.0).lerp(WindowArt.GOLD, 1.0 - pulse))
-			draw_rect(Rect2(pos - Vector2.ONE, crate.get_size() + Vector2(2, 2)), Color(WindowArt.GOLD, pulse), false, 1.0)
+			draw_texture(crate, pos, Color(1.0, 1.0, 1.0).lerp(WindowArt.GOLD, 1.0 - pulse))  # 받을 수 있음: 금빛으로 깜빡 (테두리 없이)
 		else:
 			draw_texture(crate, pos, Color(0.5, 0.5, 0.5))
-		if reward == r["id"]:
-			draw_rect(Rect2(pos - Vector2(2, 2), crate.get_size() + Vector2(4, 4)), WindowArt.INK, false, 1.0)
 
 
 func _draw_detail(w: int, h: int) -> void:

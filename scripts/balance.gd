@@ -366,6 +366,11 @@ const WEAPONS := [
 	{"id": "beam", "name": "채굴 빔", "desc": "가까운 운석에 계속 닿는 빔. 캐기는 최고, 싸움은 약함", "cost": 1500,
 		"interval": 0.1, "range": 95.0, "damage": 0.22, "speed": 0.0, "mining": 1.5, "aim": "rock", "beam": true, "enemy_mult": 0.5, "no_cards": ["pierce", "ricochet", "orbit_pierce", "chain_matrix"]},
 ]
+## 레일건 (2026-11-12 사용자 결정): 사거리 개념이 없다(무한, 빛줄기는 화면 대각선 길이). 레일건 "range"는 드론 사거리와 레벨업 사거리 배율의 기준으로만 쓴다.
+## 사거리를 올리는 강화는 레일건에서 빛줄기 굵기(width)를 같은 배율로 올린다. 굵기 상한(픽셀, 판정·그림 같은 값)
+const RAIL_WIDTH_MAX := 10.0
+## 레일건 선 판정은 보이는 몸 크기로 본다: 충돌 반지름이 보이는 몸의 약 70%(위 "충돌 반지름" 설명)라 1/0.7
+const RAIL_BODY_RADIUS_MULT := 1.4
 ## 격납고 무기 능력치 칸(1~5)의 눈금: 연사(초당 발사 수)가 이 값들을 넘을 때마다 한 칸 (빔은 끝 칸)
 const WEAPON_RATE_STEPS := [0.65, 0.9, 1.5, 5.0]
 

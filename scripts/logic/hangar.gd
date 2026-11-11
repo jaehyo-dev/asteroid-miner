@@ -29,15 +29,19 @@ static func stats(levels: Dictionary, save: SaveData = null, weapon := "") -> Ar
 	for id in Weapons.ids():
 		var t := _rows(_sim(maxed, id))
 		for i in t.size():
+			var v: float = 0.0 if is_inf(t[i][1]) else t[i][1]  # 무한은 눈금 기준에서 뺀다
 			if i >= tops.size():
-				tops.append(t[i][1])
+				tops.append(v)
 			else:
-				tops[i] = maxf(tops[i], t[i][1])
+				tops[i] = maxf(tops[i], v)
 	var result := []
 	for i in rows.size():
 		var r: Array = rows[i]
 		var value: float = r[1]
 		var fmt: String = r[2]
+		if is_inf(value):  # 무한(레일건 사거리): 막대 가득, ▲▼ 비교 안 함(num도 INF)
+			result.append({"name": r[0], "value": "무한", "num": INF, "ratio": 1.0})
+			continue
 		result.append({"name": r[0], "value": (fmt % (value if fmt.contains(".") else roundi(value))) + r[3], "num": snappedf(value, 0.01),
 			"ratio": clampf(value / maxf(tops[i], 0.001), 0.0, 1.0)})
 	return result
@@ -57,7 +61,7 @@ static func _rows(sim: RunSim) -> Array:
 		["체력", sim.max_hp, "%d", ""],
 		["공격력", sim.bullet_damage * float(sim.weapon["damage"]) * 100.0, "%d", "×%d" % pellets if pellets > 1 else ""],
 		["공격 속도", 1.0 / sim.fire_interval, "%.1f발/초", ""],
-		["사거리", sim.fire_range, "%d", ""],
+		["사거리", INF if sim.weapon.get("hitscan", false) else sim.fire_range, "%d", ""],  # 레일건은 무한
 		["이동 속도", sim.move_speed, "%d", ""],
 		["화물칸", sim.cargo.capacity, "%d칸", ""],
 		["자석 범위", sim.magnet_radius, "%d", ""],

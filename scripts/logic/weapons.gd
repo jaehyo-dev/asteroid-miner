@@ -63,7 +63,7 @@ static func bars(id: String) -> Array:
 	var top_range := 0.0
 	for o: Dictionary in Balance.WEAPONS:
 		top_power = maxf(top_power, _power(o))
-		top_range = maxf(top_range, float(o["range"]))
+		top_range = maxf(top_range, float(o["range"]))  # 레일건 range(300)도 눈금 기준으로 그대로 둔다 (다른 무기 막대가 안 바뀌게)
 	var rate := 1.0 / float(w["interval"])
 	var rate_lv := 1
 	for step: float in Balance.WEAPON_RATE_STEPS:
@@ -72,7 +72,7 @@ static func bars(id: String) -> Array:
 	var lv := func(r: float) -> int: return clampi(roundi(r * 5.0), 1, 5)
 	return [
 		{"name": "공격력", "level": lv.call(_power(w) / top_power)},
-		{"name": "사거리", "level": lv.call(float(w["range"]) / top_range)},
+		{"name": "사거리", "level": 5 if w.get("hitscan", false) else lv.call(float(w["range"]) / top_range)},  # 레일건은 사거리 무한
 		{"name": "연사", "level": rate_lv},
 		{"name": "채굴량", "level": clampi(roundi((float(w["mining"]) - 0.5) * 4.0) + 1, 1, 5)},
 	]
@@ -80,3 +80,8 @@ static func bars(id: String) -> Array:
 
 static func _power(w: Dictionary) -> float:
 	return float(w["damage"]) * int(w.get("pellets", 1))
+
+
+## 화면에 보여 줄 피해 숫자: 격납고 공격력과 같은 단위(실제 피해 × 100). 채굴 빔(0.22)처럼 작은 피해도 0이 되지 않게 최소 1
+static func shown_damage(damage: float) -> int:
+	return maxi(roundi(damage * 100.0), 1) if damage > 0.0 else 0

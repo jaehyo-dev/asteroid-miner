@@ -179,10 +179,21 @@ func step(delta: float) -> void:
 	_pickups = kept_fx
 
 
+## 같은 대상에 막 뜬 치명타 숫자가 있으면 거기에 더한다 (채굴 빔처럼 작게 자주 맞으면 숫자가 겹쳐 쌓이지 않게 모아 보인다)
+func _merge_crit(f: Dictionary) -> bool:
+	for e in _effects:
+		if e["type"] == "crit" and e["target"] == f["target"] and e["t"] < Juice.CRIT_MERGE_TIME:
+			e["damage"] = float(e["damage"]) + float(f["damage"])
+			return true
+	return false
+
+
 ## 효과 강화 연출을 새로 받고 시간을 흘린다.
 func _step_effects(delta: float) -> void:
 	for f in sim.fx:
 		if f["type"] in WEAPON_FX_TYPES:
+			continue
+		if f["type"] == "crit" and _merge_crit(f):
 			continue
 		if _effects.size() < Juice.EFFECT_FX_MAX:
 			f["t"] = 0.0
@@ -373,10 +384,10 @@ func _draw_effects() -> void:
 					if arm > 0:
 						RunSprites.rect(self, Rect2(pos + Vector2(-arm, 0), Vector2(arm * 2 + 1, 1)), Color(1, 1, 1, 1.0 - k))
 						RunSprites.rect(self, Rect2(pos + Vector2(0, -arm), Vector2(1, arm * 2 + 1)), Color(1, 1, 1, 1.0 - k))
-					var at := pos + Vector2(-18, -8 - Juice.CRIT_RISE * k)
-					var text := str(roundi(float(f["damage"])))
-					draw_string(FONT, (at + Vector2.ONE).round(), text, HORIZONTAL_ALIGNMENT_CENTER, 36, 24, Color(0, 0, 0, 1.0 - k))
-					draw_string(FONT, at.round(), text, HORIZONTAL_ALIGNMENT_CENTER, 36, 24, Color(Juice.CRIT_COLOR, 1.0 - k * k))
+					var at := pos + Vector2(-30, -8 - Juice.CRIT_RISE * k)  # 숫자가 피해×100이라 네 자리까지 가운데에
+					var text := str(Weapons.shown_damage(float(f["damage"])))
+					draw_string(FONT, (at + Vector2.ONE).round(), text, HORIZONTAL_ALIGNMENT_CENTER, 60, 24, Color(0, 0, 0, 1.0 - k))
+					draw_string(FONT, at.round(), text, HORIZONTAL_ALIGNMENT_CENTER, 60, 24, Color(Juice.CRIT_COLOR, 1.0 - k * k))
 			"laser":
 				var arm := 1 + roundi(2.0 * (1.0 - k))
 				RunSprites.rect(self, Rect2(pos + Vector2(-arm, 0), Vector2(arm * 2 + 1, 1)), Color(LASER_COLOR, 1.0 - k))
