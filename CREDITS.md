@@ -37,6 +37,8 @@
 - 건물 창 시안 2차 그림 3장 `assets/raw/base_panel2/`(노드 아이콘 2장, 홀로그램 받침대·정비 거치대·광석 수레): Codex(ChatGPT 구독) 내장 이미지 생성으로 만든 AI 그림, 2026-11-09. 시안 단계라 게임에 포함되지 않음. 요청문은 ASSET_PROMPTS.md.
 - 격납고 회전 모형 시안 `review/v070_fix2/spin3d/`: Foozle Main Ship(위 CC0)의 Base·Engine을 합쳐 복셀로 만들고(수정함) 시트로 구움. 창 소리 2차 후보 `review/v070_fix/listen2/`: Kenney Impact·Sci-Fi 녹음(위 CC0) + numpy 합성. 모두 시안이라 게임에 포함되지 않음.
 
+- 기본 무기 그림 4개(산탄포·레일건·플라스마 대포·채굴 빔, `assets/sprites/window/weapon_*.png` 36x17, 연구소 칸 아이콘 `icon_w_*.png` 24x24)와 출격 화면 무기 효과(산탄 알갱이, 레일 빛줄·자국, 플라스마 구슬·폭발, 채굴 빔, `scripts/world_view.gd`): v0.8.0, `tools/export_weapon_art.py`·코드로 직접 그림 (펄스 연사포 그림과 같은 팔레트, 2026-11-11)
+
 - `tools/key_asteroid.py`: 소행성 그림에서 우주 배경을 지우는 도구 (v0.6.4, 직접 만듦)
 
 - 프로젝트 아이콘 `icon.svg`, 별 배경: 이 프로젝트에서 직접 만듦

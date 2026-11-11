@@ -347,6 +347,27 @@ const CHAIN_DAMAGE := 0.8
 const OVERLOAD_HP_RATIO := 0.5
 const OVERLOAD_FIRE_MULT := 2.0
 const BEACON_INTERVAL := 8.0
+# ── 기본 무기 5종 (v0.8.0, 격납고에서 하나 장착, 판 중 바꾸지 않음) ─────
+## 펄스 연사포는 위 FIRE_*·BULLET_* 값 그대로. 수치는 임시 (6단계 밸런스에서 다시 맞춤).
+## interval 발사 간격(초), range 사거리, damage 한 발 피해(레벨업·기지 공격력 배율에 곱함), speed 탄 속도,
+## mining 운석 광물 배율(1보다 작으면 확률로 덜 나옴), aim: near 가장 가까운 적, far 가장 먼 적, crowd 많이 모인 곳, rock 가까운 운석 먼저.
+## pellets·fan_deg 산탄 수와 부채꼴 각도, pierce -1 끝까지 관통, blast 맞으면 터지는 반경(그 안 모두 같은 피해),
+## beam 계속 닿는 빔(interval마다 피해), enemy_mult 운석이 아닌 적에게 주는 피해 배율. research: 해금하는 연구소 칸 id (가격은 그 칸)
+const WEAPONS := [
+	{"id": "pulse", "name": "펄스 연사포", "desc": "가장 가까운 적에게 빠르게 연사한다. 무난한 기본기",
+		"interval": FIRE_INTERVAL, "range": FIRE_RANGE, "damage": BULLET_DAMAGE, "speed": BULLET_SPEED, "mining": 1.0, "aim": "near"},
+	{"id": "shotgun", "name": "산탄포", "desc": "가까운 적 쪽으로 부채꼴 다섯 발. 붙어서 싸울수록 세다", "research": "w_shotgun",
+		"interval": 0.95, "range": 110.0, "damage": 0.5, "speed": 300.0, "mining": 1.15, "aim": "near", "pellets": 5, "fan_deg": 40.0},
+	{"id": "rail", "name": "레일건", "desc": "가장 먼 적까지 일렬로 꿰뚫는 저격 한 발", "research": "w_rail",
+		"interval": 1.6, "range": 300.0, "damage": 3.0, "speed": 800.0, "mining": 1.0, "aim": "far", "pierce": -1},
+	{"id": "plasma", "name": "플라스마 대포", "desc": "적이 모인 곳에 느리게 날아가 크게 터진다", "research": "w_plasma",
+		"interval": 1.7, "range": 170.0, "damage": 2.0, "speed": 140.0, "mining": 0.75, "aim": "crowd", "blast": 34.0},
+	{"id": "beam", "name": "채굴 빔", "desc": "가까운 운석에 계속 닿는 빔. 캐기는 최고, 싸움은 약함", "research": "w_beam",
+		"interval": 0.1, "range": 95.0, "damage": 0.22, "speed": 0.0, "mining": 1.5, "aim": "rock", "beam": true, "enemy_mult": 0.5},
+]
+## 격납고 무기 능력치 칸(1~5)의 눈금: 연사(초당 발사 수)가 이 값들을 넘을 때마다 한 칸 (빔은 끝 칸)
+const WEAPON_RATE_STEPS := [0.65, 0.9, 1.5, 5.0]
+
 ## 화면에 한꺼번에 있을 수 있는 탄 수 (다중 포신·드론·관통이 겹칠 때 폰 성능용)
 const MAX_BULLETS := 160
 
@@ -411,7 +432,7 @@ const BASE_COST_GROWTH := 1.6
 ## 아래부터 위로 가는 순서. 글자는 기존·새 칸 id, Dictionary는 갈림길(a·b를 각각 cost로 해금).
 const RESEARCH_BRANCHES := ["weapon", "hull", "mine", "elec", "survey"]
 const RESEARCH_TREE := {
-	"weapon": ["damage", "sub", {"a": "rapid", "b": "heavy", "cost": 500}, "over"],
+	"weapon": ["damage", "sub", "w_shotgun", {"a": "rapid", "b": "heavy", "cost": 500}, "w_rail", "over", "w_plasma", "w_beam"],
 	"hull": ["max_hp", "insurance", {"a": "thick", "b": "dodge", "cost": 500}, "repair"],
 	"mine": ["magnet", "cargo", "speed", {"a": "wide", "b": "fast", "cost": 500}, "drill"],
 	"elec": ["shield", "reroll", {"a": "chip", "b": "bolt", "cost": 500}, "luck"],
@@ -420,6 +441,10 @@ const RESEARCH_TREE := {
 ## 새 칸 (임시, 나중에 밸런스 조정). effect: 효과 글. step이 있으면 단계마다 값 %d 또는 %.0f에 넣는다. soon: 기능이 아직 없어 잠김.
 const RESEARCH_NODES := [
 	{"id": "sub", "name": "보조 무기 해금", "max": 1, "cost": 300, "effect": "보조 무기 칸 1개", "soon": true},
+	{"id": "w_shotgun", "name": "산탄포", "max": 1, "cost": 600, "effect": "기본 무기 산탄포 해금"},
+	{"id": "w_rail", "name": "레일건", "max": 1, "cost": 900, "effect": "기본 무기 레일건 해금"},
+	{"id": "w_plasma", "name": "플라스마 대포", "max": 1, "cost": 1200, "effect": "기본 무기 플라스마 대포 해금"},
+	{"id": "w_beam", "name": "채굴 빔", "max": 1, "cost": 1500, "effect": "기본 무기 채굴 빔 해금"},
 	{"id": "over", "name": "증폭 탄창", "max": 1, "cost": 800, "effect": "6발마다 공격력 1.6배 탄"},
 	{"id": "repair", "name": "긴급 수리", "max": 1, "cost": 800, "effect": "판마다 1번 체력 30% 회복"},
 	{"id": "drill", "name": "정밀 드릴", "max": 1, "cost": 800, "effect": "10% 확률로 광물 +1개"},

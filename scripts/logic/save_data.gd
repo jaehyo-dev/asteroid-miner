@@ -28,6 +28,8 @@ var codex_claimed: Dictionary = {}
 ## 갈림길: 갈림길 id → 해금한 쪽("a", "b", "ab") / 사용 중인 쪽("a", "b")
 var forks_owned: Dictionary = {}
 var forks_on: Dictionary = {}
+## 장착한 기본 무기 id (Balance.WEAPONS). 출격하면 이 무기로 시작한다 (v0.8.0)
+var weapon := "pulse"
 
 
 func level_of(id: String) -> int:
@@ -41,7 +43,7 @@ func add_credits(amount: int) -> void:
 
 func to_dict() -> Dictionary:
 	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen, "warp_seen": warp_seen, "drag_hint_seen": drag_hint_seen,
-		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys(), "forks_owned": forks_owned.duplicate(), "forks_on": forks_on.duplicate()}
+		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys(), "forks_owned": forks_owned.duplicate(), "forks_on": forks_on.duplicate(), "weapon": weapon}
 
 
 ## 판에서 가져온 광물(등급별 개수)을 누적한다
@@ -92,6 +94,8 @@ static func from_dict(d: Variant) -> SaveData:
 				if lv > 0:
 					s.upgrades[u["id"]] = lv
 	s._read_forks(d.get("forks_owned", {}), d.get("forks_on", {}))
+	var wp: Variant = d.get("weapon", "pulse")
+	s.weapon = wp if typeof(wp) == TYPE_STRING and Weapons.has(wp) else "pulse"  # 모르는 무기는 기본 무기로 (해금 여부는 Weapons.equipped가 본다)
 	return s
 
 

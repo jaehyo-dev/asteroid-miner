@@ -68,6 +68,7 @@ func _ready() -> void:
 	sim = RunSim.new()
 	save = SaveData.load_file()
 	sim.apply_base(Research.run_levels(save))
+	sim.set_weapon(Weapons.equipped(save))
 	sim.apply_codex(save)
 	world.sim = sim
 	world.ship_sheet = "ship_gold" if Discovery.gold_paint(save) else "ship"
@@ -234,6 +235,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				cards.skip_pick()
 			else:
 				cards.choose(index)
+			get_viewport().set_input_as_handled()
+			return
+	# 확인용 숨은 스위치(?weapontest): 판 중 숫자키 1~5로 기본 무기 바꾸기. v0.8.0 배포 전에 지운다
+	if Weapons.test_mode and current_menu == Menu.NONE and event is InputEventKey and event.pressed and not event.echo:
+		var slot := number_key_index(event.physical_keycode)
+		if slot >= 0 and slot < Weapons.ids().size():
+			sim.set_weapon(Weapons.ids()[slot])
 			get_viewport().set_input_as_handled()
 			return
 	if event.is_action_pressed("pause"):

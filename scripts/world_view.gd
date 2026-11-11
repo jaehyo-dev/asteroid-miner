@@ -72,6 +72,17 @@ const SHIELD_GOLD := Color("#f6ce50")
 const SHIELD_SHARD := Color("#f89419")
 const OVERLOAD_COLOR := Color("#f25c76")
 const BEACON_COLOR := Color("#99e9e6")
+## 기본 무기 색: 산탄 알갱이, 레일(청록), 플라스마(보라), 채굴 빔(금빛)
+const SHOTGUN_COLOR := Color("#99e9e6")
+const RAIL_COLOR := Color("#30e1b9")
+const RAIL_CORE := Color("#fef8e5")
+const PLASMA_COLOR := Color("#a884f3")
+const PLASMA_DEEP := Color("#6b3e75")
+const BEAM_COLOR := Color("#f6ce50")
+const BEAM_CORE := Color("#fef8e5")
+const RIM_COLOR := Color("#14111c")
+## 적·운석 아래에 그리는 내 효과
+const UNDER_FX := ["explode", "plasma", "rail"]
 
 var sim: RunSim
 ## 워프 게이트 연출 (귀환할 때 우주선이 빨려 들어가는 모습에 씀)
@@ -177,9 +188,10 @@ func _step_effects(delta: float) -> void:
 		if _effects.size() < Juice.EFFECT_FX_MAX:
 			f["t"] = 0.0
 			_effects.append(f)
-		if f["type"] == "explode":
+		if f["type"] in ["explode", "plasma"]:
+			var color := EXPLODE_COLOR if f["type"] == "explode" else PLASMA_COLOR
 			for i in 8:
-				_spawn_debris(f["pos"], Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.5, 1.0) * float(f["radius"]) * 2.5, 0.3, EXPLODE_COLOR, 1.0)
+				_spawn_debris(f["pos"], Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.5, 1.0) * float(f["radius"]) * 2.5, 0.3, color, 1.0)
 	var kept: Array[Dictionary] = []
 	for f in _effects:
 		f["t"] += delta
@@ -259,6 +271,8 @@ static func enemy_dir(e: RunSim.Enemy) -> int:
 func _draw() -> void:
 	if sim == null:
 		return
+	# 그리는 순서: 내 무기 효과 → 적·운석 → 광물·파편 → 내 탄 → 적 탄 → 작은 효과 → 내 우주선 (적 탄은 내 효과 위)
+	_draw_under_effects()
 	# 그리기 호출을 줄이려고 같은 아틀라스끼리 몰아 그린다: 운석(아틀라스 1) → 나머지(아틀라스 0)
 	for a in sim.enemies:
 		if a.kind == RunSim.ROCK:
@@ -287,12 +301,12 @@ func _draw() -> void:
 		_draw_merge_fx(fx)
 	for d in _debris:
 		RunSprites.rect(self, Rect2((d[0] as Vector2).round(), Vector2.ONE * d[4]), d[3])
-	_draw_barrages()
 	var bullet_frame := int(_time * BULLET_FPS)
 	for b in sim.bullets:
 		if sim.orbit_pierce:
 			_draw_orbit_tail(b)
-		RunSprites.draw(self, "drone_bullet" if b.drone else "bullet", bullet_frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
+		_draw_bullet(b, bullet_frame)
+	_draw_barrages()
 	for fx in _pickups:
 		_draw_pickup_fx(fx)
 	_draw_effects()
@@ -303,6 +317,58 @@ func _draw() -> void:
 		_draw_ship()
 		_draw_shield()
 	_flash_layer.queue_redraw()
+
+
+## 내 탄: 펄스·드론은 그림, 산탄은 작은 알갱이, 레일은 빛줄, 플라스마는 보라 구슬
+func _draw_bullet(b: RunSim.Bullet, frame: int) -> void:
+	match b.style:
+		"shotgun":
+			RunSprites.rect(self, Rect2(b.pos.round() - Vector2.ONE, Vector2(2, 2)), SHOTGUN_COLOR)
+		"rail":
+			var tail := b.pos - b.vel.normalized() * Juice.RAIL_STREAK
+			RunSprites.line(self, tail.round(), b.pos.round(), RAIL_CORE, 2.0)
+		"plasma":
+			var pulse := 0.5 + 0.5 * sin(_time * TAU * 3.0)
+			RunSprites.disc(self, b.pos.round(), Juice.PLASMA_GLOW + pulse, Color(PLASMA_COLOR, 0.35))
+			RunSprites.disc(self, b.pos.round(), Juice.PLASMA_CORE, PLASMA_COLOR)
+			RunSprites.rect(self, Rect2(b.pos.round() - Vector2.ONE, Vector2(2, 2)), BEAM_CORE)
+		_:
+			RunSprites.draw(self, "drone_bullet" if b.drone else "bullet", frame, PixelArt.dir8(b.vel.angle() + PI / 2.0), b.pos)
+
+
+## 적·운석 아래 내 효과: 채굴 빔, 레일 자국, 플라스마·고폭 폭발 (반투명이라 적과 적 탄을 가리지 않는다)
+func _draw_under_effects() -> void:
+	for f in _effects:
+		if not f["type"] in UNDER_FX:
+			continue
+		var pos: Vector2 = (f["pos"] as Vector2).round()
+		var k: float = f["t"] / Juice.EFFECT_TIME[f["type"]]
+		match f["type"]:
+			"explode":
+				var r: float = float(f["radius"]) * (1.0 - (1.0 - k) * (1.0 - k))
+				RunSprites.disc(self, pos, r * 0.7, Color(EXPLODE_COLOR, 0.35 * (1.0 - k)))
+				RunSprites.ring(self, pos, r, Color(PIERCE_COLOR, 1.0 - k))
+			"plasma":
+				var r: float = float(f["radius"]) * (1.0 - (1.0 - k) * (1.0 - k) * (1.0 - k))
+				RunSprites.disc(self, pos, r, Color(PLASMA_DEEP, Juice.PLASMA_FILL_ALPHA * (1.0 - k)))
+				RunSprites.disc(self, pos, r * 0.55, Color(PLASMA_COLOR, Juice.PLASMA_FILL_ALPHA * (1.0 - k)))
+				RunSprites.ring(self, pos, r, Color(PLASMA_COLOR, Juice.PLASMA_RING_ALPHA * (1.0 - k)))
+				RunSprites.ring(self, pos, r - 2.0, Color(BEAM_CORE, 0.5 * (1.0 - k) * (1.0 - k)))
+			"rail":
+				var to: Vector2 = (f["to"] as Vector2).round()
+				var w := maxf(1.0, Juice.RAIL_WIDTH * (1.0 - k))
+				RunSprites.line(self, pos, to, Color(RAIL_COLOR, Juice.RAIL_ALPHA * 0.35 * (1.0 - k)), w + Juice.RAIL_GLOW)
+				RunSprites.line(self, pos, to, Color(RAIL_COLOR, Juice.RAIL_ALPHA * (1.0 - k)), w)
+	if sim.alive and not sim.returned:
+		var pulse := 0.5 + 0.5 * sin(_time * TAU * Juice.BEAM_PULSE)
+		var from := sim.player_pos.round()
+		for t in sim.beam_targets:
+			var to := t.pos.round()
+			var hit := to + (from - to).limit_length(t.radius * 0.6)  # 운석 겉에서 멈춘다
+			RunSprites.line(self, from, hit, Color(BEAM_COLOR, Juice.BEAM_GLOW_ALPHA * (0.7 + 0.3 * pulse)), Juice.BEAM_GLOW_WIDTH + pulse)
+			RunSprites.line(self, from, hit, Color(BEAM_COLOR, 0.85), Juice.BEAM_CORE_WIDTH + 1.0)
+			RunSprites.line(self, from, hit, BEAM_CORE, Juice.BEAM_CORE_WIDTH)
+			RunSprites.disc(self, hit, Juice.BEAM_SPARK + pulse * 2.0, Color(BEAM_COLOR, 0.45))
 
 
 ## 궤도 관통 가속기: 탄 뒤로 긴 빛 꼬리
@@ -332,10 +398,6 @@ func _draw_effects() -> void:
 					RunSprites.rect(self, Rect2((pos + side * (4.0 + 16.0 * k)).round(), Vector2.ONE * (2.0 if f["legend"] else 1.0)), Color(PIERCE_COLOR, 1.0 - k))
 			"bounce":
 				_draw_bounce(pos, (f["to"] as Vector2).round(), bool(f["chain"]), k)
-			"explode":
-				var r: float = float(f["radius"]) * (1.0 - (1.0 - k) * (1.0 - k))
-				RunSprites.disc(self, pos, r * 0.7, Color(EXPLODE_COLOR, 0.35 * (1.0 - k)))
-				RunSprites.ring(self, pos, r, Color(PIERCE_COLOR, 1.0 - k))
 			"crit":
 				if texts < Juice.CRIT_TEXT_MAX:
 					texts += 1
@@ -448,6 +510,8 @@ func _draw_barrages() -> void:
 		RunSprites.line(self, start, end, Color(BARRAGE_HOT, alpha * (0.4 + 0.6 * b.charge_progress())), maxf(1.0, width * 0.35))
 	var frame := int(_time * ENGINE_FPS)
 	for s in sim.shots:
+		# 어두운 테두리: 플라스마 폭발·채굴 빔 같은 밝은 내 효과 위에서도 적 탄 윤곽이 보이게
+		RunSprites.disc(self, s.pos.round(), s.radius + Juice.ENEMY_SHOT_RIM, Color(RIM_COLOR, Juice.ENEMY_SHOT_RIM_ALPHA))
 		if s.guard:
 			# 경비선 탄: 빨간 Kla'ed 탄. 둘레 빛은 내 탄(주황)과 구분되는 색
 			RunSprites.disc(self, s.pos.round(), s.radius + 3.0, Color(GUARD_SHOT_GLOW, 0.3))

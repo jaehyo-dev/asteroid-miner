@@ -65,7 +65,30 @@ const HIT_FLASH_TIME := 0.2
 
 # ── 효과 강화 연출 ─────────────────────
 ## 효과 하나의 지속 시간(초): 관통 불꽃, 튕김 궤적, 폭발 고리, 치명타 숫자, 채굴 레이저 반짝임, 광물 더 나옴
-const EFFECT_TIME := {"pierce": 0.16, "bounce": 0.14, "explode": 0.3, "crit": 0.6, "laser": 0.14, "drop_extra": 0.4}
+const EFFECT_TIME := {"pierce": 0.16, "bounce": 0.14, "explode": 0.3, "crit": 0.6, "laser": 0.14, "drop_extra": 0.4, "plasma": 0.4, "rail": 0.22}
+
+# ── 기본 무기 효과 (v0.8.0) ─────────────────
+## 그리는 순서: 내 무기 효과(빔·폭발·레일 자국)는 적·운석 아래, 적 탄은 그 위에 어두운 테두리를 둘러 어떤 효과 위에서도 보이게.
+## 플라스마 폭발: 안쪽 빛 진하기(최대), 바깥 고리 진하기. 내 효과는 반투명으로 둔다
+const PLASMA_FILL_ALPHA := 0.32
+const PLASMA_RING_ALPHA := 0.8
+## 플라스마 탄: 빛 반지름, 속 반지름
+const PLASMA_GLOW := 6.0
+const PLASMA_CORE := 3.0
+## 레일 자국: 굵기(시작), 바깥 빛 추가 굵기, 진하기. 레일 탄 줄 길이
+const RAIL_WIDTH := 3.0
+const RAIL_GLOW := 4.0
+const RAIL_ALPHA := 0.75
+const RAIL_STREAK := 22.0
+## 채굴 빔: 바깥 빛 굵기·진하기, 속 굵기, 맥동 빠르기(초당), 닿는 곳 불꽃 반지름
+const BEAM_GLOW_WIDTH := 5.0
+const BEAM_GLOW_ALPHA := 0.35
+const BEAM_CORE_WIDTH := 1.0
+const BEAM_PULSE := 9.0
+const BEAM_SPARK := 4.0
+## 적 탄 어두운 테두리: 탄 반지름보다 이만큼 크게, 진하기
+const ENEMY_SHOT_RIM := 2.0
+const ENEMY_SHOT_RIM_ALPHA := 0.75
 ## 한꺼번에 그리는 효과 상한과 치명타 숫자 상한 (글자는 그리기 호출을 따로 쓴다)
 const EFFECT_FX_MAX := 80
 const CRIT_TEXT_MAX := 10

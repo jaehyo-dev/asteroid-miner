@@ -230,6 +230,14 @@ func _click(p: Vector2i) -> void:
 	board.queue_redraw()
 
 
+## 다른 창에서 넘어올 때: 가지를 바꾸고 그 칸이 판 가운데 보이게 끌어 둔 뒤 고른다 (격납고 [연구소로])
+func show_cell(b: String, k: String) -> void:
+	_select_branch(b)
+	pan = clampi(_board_size.y / 2 - int(lay["cells"][k].y), 0, lay["max_pan"])
+	_pan_target = pan
+	select_cell(k)
+
+
 ## 칸을 고르고 설명을 연다
 func select_cell(k: String) -> void:
 	selected = k

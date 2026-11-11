@@ -17,6 +17,7 @@ static func stats(levels: Dictionary, save: SaveData = null) -> Array:
 	var now := RunSim.new(1)
 	now.apply_base(levels)
 	if save != null:
+		now.set_weapon(Weapons.equipped(save))  # 공격 속도는 장착한 무기 기준
 		now.apply_codex(save)
 	var top := RunSim.new(1)
 	var maxed := {}

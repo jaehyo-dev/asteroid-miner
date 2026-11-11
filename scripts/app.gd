@@ -69,6 +69,9 @@ func _ready() -> void:
 	fit_screen()
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval(LOCK_LANDSCAPE_JS)
+	# 확인용 숨은 스위치: 웹 주소 ?weapontest (데스크톱은 -- --weapontest). v0.8.0 배포 전에 지운다
+	var search := str(JavaScriptBridge.eval("location.search")) if OS.has_feature("web") else ""
+	Weapons.test_mode = search.contains("weapontest") or OS.get_cmdline_user_args().has("--weapontest")
 
 
 ## 설정의 효과음·배경음 크기를 각 버스(SFX, Music)에 적용한다. 0단계는 음소거.

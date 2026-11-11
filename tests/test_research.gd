@@ -51,9 +51,10 @@ func test_곧_추가_칸은_못_사지만_뒤_칸을_막지_않음() -> void:
 	var s := _rich()
 	assert_eq(Research.state(s, "weapon", 1), "soon")
 	assert_false(Research.buy(s, "weapon", 1))
-	assert_eq(Research.fork_state(s, "weapon", 2, "a"), "locked", "앞 칸(공격) 안 찍음")
+	assert_eq(Research.tree("weapon")[2], "w_shotgun", "곧 추가 칸 뒤는 산탄포 해금")
+	assert_eq(Research.state(s, "weapon", 2), "locked", "앞 칸(공격) 안 찍음")
 	assert_true(Research.buy(s, "weapon", 0))
-	assert_eq(Research.fork_state(s, "weapon", 2, "a"), "can")
+	assert_eq(Research.state(s, "weapon", 2), "can")
 
 
 # ── 갈림길 ──────────────────────────────────────

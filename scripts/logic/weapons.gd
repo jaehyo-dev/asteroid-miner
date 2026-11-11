@@ -1,0 +1,74 @@
+class_name Weapons
+extends RefCounted
+## 기본 무기 규칙: 목록, 해금(연구소 칸), 장착, 격납고 능력치 칸. 화면과 분리해 테스트한다. 수치는 Balance.WEAPONS.
+
+const DEFAULT := "pulse"
+## 확인용 숨은 스위치(웹 주소 ?weapontest): 모든 무기 해금 + 판 중 숫자키 1~5로 바꾸기.
+## shortcut: v0.8.0 배포 전에 이 스위치와 쓰는 곳(main.gd·run.gd)을 지운다 (review/PLAN_v0.8.0.md 메모)
+static var test_mode := false
+
+
+static func ids() -> Array:
+	return Balance.WEAPONS.map(func(w: Dictionary) -> String: return w["id"])
+
+
+## 무기 표 한 줄. 모르는 id면 펄스 연사포
+static func info(id: String) -> Dictionary:
+	for w: Dictionary in Balance.WEAPONS:
+		if w["id"] == id:
+			return w
+	return Balance.WEAPONS[0]
+
+
+static func has(id: String) -> bool:
+	return ids().has(id)
+
+
+## 해금 가격 (연구소 칸 가격). 기본 무기는 0
+static func cost(id: String) -> int:
+	var w := info(id)
+	return int(BaseUpgrades.info(w["research"])["cost"]) if w.has("research") else 0
+
+
+static func unlocked(save: SaveData, id: String) -> bool:
+	var w := info(id)
+	return test_mode or not w.has("research") or save.level_of(w["research"]) > 0
+
+
+## 장착한 무기 (해금이 풀렸거나 모르는 값이면 기본 무기)
+static func equipped(save: SaveData) -> String:
+	return save.weapon if has(save.weapon) and unlocked(save, save.weapon) else DEFAULT
+
+
+## 장착. 잠겼거나 모르는 무기면 false
+static func equip(save: SaveData, id: String) -> bool:
+	if not has(id) or not unlocked(save, id):
+		return false
+	save.weapon = id
+	return true
+
+
+## 격납고 능력치 4칸 [{name, level(1~5)}]: 공격력(한 번 쏠 때 피해 합), 사거리, 연사, 채굴량. 모든 화면이 이 순서·이름을 쓴다
+static func bars(id: String) -> Array:
+	var w := info(id)
+	var top_power := 0.0
+	var top_range := 0.0
+	for o: Dictionary in Balance.WEAPONS:
+		top_power = maxf(top_power, _power(o))
+		top_range = maxf(top_range, float(o["range"]))
+	var rate := 1.0 / float(w["interval"])
+	var rate_lv := 1
+	for step: float in Balance.WEAPON_RATE_STEPS:
+		if rate > step:
+			rate_lv += 1
+	var lv := func(r: float) -> int: return clampi(roundi(r * 5.0), 1, 5)
+	return [
+		{"name": "공격력", "level": lv.call(_power(w) / top_power)},
+		{"name": "사거리", "level": lv.call(float(w["range"]) / top_range)},
+		{"name": "연사", "level": rate_lv},
+		{"name": "채굴량", "level": clampi(roundi((float(w["mining"]) - 0.5) * 4.0) + 1, 1, 5)},
+	]
+
+
+static func _power(w: Dictionary) -> float:
+	return float(w["damage"]) * int(w.get("pellets", 1))
