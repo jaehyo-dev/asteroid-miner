@@ -255,7 +255,8 @@ const UPGRADE_CHOICE_COUNT := 3
 ## 한 판에 쓸 수 있는 다시 뽑기 횟수 (3장을 한꺼번에 새로 뽑음)
 const REROLLS_PER_RUN := 2
 ## 건너뛰기: 카드를 고르지 않고 넘기면 다음 레벨 필요 경험치의 이 비율만큼 광물 가치를 기지 금고에 바로 더한다 (경험치 없음)
-const SKIP_REWARD_RATIO := 0.15
+## 위험 없이 금고로 바로 들어가고 레벨이 오를수록 커져서 15% → 5%로 낮춤
+const SKIP_REWARD_RATIO := 0.05
 ## 등급 확률(%): 노멀·레어·에픽·유니크·레전드리. RISK_RAMP_TIME에 걸쳐 시작값 → 끝값으로 오르고 그 뒤로는 고정
 const GRADE_WEIGHTS_START := [55.0, 27.0, 12.0, 5.0, 1.0]
 const GRADE_WEIGHTS_END := [35.0, 30.0, 20.0, 12.0, 3.0]

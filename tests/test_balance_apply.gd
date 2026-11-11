@@ -122,7 +122,7 @@ func test_경험치는_떨어질_때_등급_기준() -> void:
 
 # ── 3) 건너뛰기 ────────────────────────────────
 
-func test_건너뛰기는_필요_경험치의_15퍼센트를_금고로_경험치_없음() -> void:
+func test_건너뛰기는_필요_경험치의_5퍼센트를_금고로_경험치_없음() -> void:
 	var sim := _sim()
 	assert_eq(sim.skip(), 0, "레벨업 중이 아니면 없음")
 	sim.level = 3
@@ -130,7 +130,7 @@ func test_건너뛰기는_필요_경험치의_15퍼센트를_금고로_경험치
 	assert_true(sim.choosing())
 	var xp := sim.xp
 	var reward := sim.skip()
-	assert_eq(reward, roundi(Upgrades.xp_to_next(4) * 0.15))
+	assert_eq(reward, roundi(Upgrades.xp_to_next(4) * 0.05))
 	assert_eq(sim.skip_banked, reward)
 	assert_eq(sim.xp, xp, "경험치 없음")
 	assert_eq(sim.cargo.value(), 0, "화물칸이 아님")
