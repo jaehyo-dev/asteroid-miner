@@ -1,7 +1,7 @@
 class_name WeaponFx
 extends RefCounted
 ## 기본 무기 5종의 공격 효과: 총구 섬광, 반동, 탄 모양, 맞은 곳 튐, 레일 자국, 플라스마 폭발, 채굴 빔.
-## 수치는 Juice.WEAPON_FX[무기][후보]. 후보 번호는 Weapons.fx (?fxtest의 Q/W/E, 기본 1).
+## 수치는 Juice.WEAPON_FX[무기] (2026-11-12 고른 후보).
 ## WorldView가 그리는 순서: draw_under(적 아래) → … → draw_bullet(내 탄) → draw_over(튐·섬광, 적 탄 아래).
 
 const WHITE := Color("#fef8e5")
@@ -24,7 +24,7 @@ var sim: RunSim
 var _parts: Array = []
 ## 맞은 곳 고리·번쩍임 {pos, t, ring(반지름, 0 없음), flash(반지름, 0 없음), color}
 var _marks: Array[Dictionary] = []
-## 레일 자국 {from, to, t, p(그때 후보 수치)}
+## 레일 빛줄기 {angle(쏜 방향), offset(다중 포신 옆 간격), len, t, p}. 시작점은 그릴 때마다 지금 총구라 우주선과 같이 움직인다
 var _trails: Array[Dictionary] = []
 ## 플라스마 폭발 {pos, radius, t, p}
 var _blasts: Array[Dictionary] = []
@@ -40,15 +40,14 @@ func _init(run_sim: RunSim) -> void:
 	_rng.seed = 11
 
 
-## 지금 무기와 후보의 수치
+## 지금 무기의 수치
 func params() -> Dictionary:
 	return params_for(sim.weapon["id"])
 
 
-## 그 무기의 지금 후보 수치. 탄·폭발은 쏜 무기 기준 (판 중 무기를 바꿔도 날아가던 탄은 원래 모양으로)
+## 그 무기의 수치. 탄·폭발은 쏜 무기 기준 (판 중 무기를 바꿔도 날아가던 탄은 원래 모양으로)
 static func params_for(id: String) -> Dictionary:
-	id = "pulse" if id == "" else id  # 펄스 탄의 style은 ""
-	return Juice.WEAPON_FX[id][clampi(Weapons.fx(id), 1, 3) - 1]
+	return Juice.WEAPON_FX["pulse" if id == "" else id]  # 펄스 탄의 style은 ""
 
 
 func weapon_id() -> String:
@@ -76,7 +75,7 @@ func step(delta: float) -> void:
 				_on_hit(f, params_for(f["style"]))
 			"rail":
 				if _trails.size() < Juice.WEAPON_TRAIL_MAX:
-					_trails.append({"from": f["pos"], "to": f["to"], "t": 0.0, "p": params_for("rail")})
+					_trails.append({"angle": f["angle"], "offset": f["offset"], "len": f["len"], "t": 0.0, "p": params_for("rail")})
 			"plasma":
 				_on_blast(f, params_for("plasma"))
 	if weapon_id() == "beam" and sim.alive and not sim.beam_targets.is_empty():
@@ -100,8 +99,17 @@ func step(delta: float) -> void:
 	_parts = kept
 
 
+## 지금 총구 위치: 우주선 그림과 같은 반동을 넣어, 쏜 직후 우주선이 밀려도 빛이 총구에 붙어 있게 한다
 func _nose() -> Vector2:
-	return sim.player_pos + Vector2.from_angle(sim.aim_angle) * NOSE
+	var recoil := WorldView.recoil_offset(_muzzle_t, sim.aim_angle, recoil_px())
+	return sim.player_pos + recoil + Vector2.from_angle(sim.aim_angle) * NOSE
+
+
+## 레일 빛줄기의 지금 시작·끝 (사거리는 우주선 가운데부터라 총구만큼 짧게)
+func trail_ends(t: Dictionary) -> Array[Vector2]:
+	var dir := Vector2.from_angle(t["angle"])
+	var from: Vector2 = _nose() + t["offset"]
+	return [from, from + dir * (float(t["len"]) - NOSE)]
 
 
 func _spawn(pos: Vector2, vel: Vector2, life: float, color: Color, size: float, drag := 4.0) -> void:
@@ -173,10 +181,11 @@ func draw_under(ci: CanvasItem) -> void:
 func _draw_trail(ci: CanvasItem, t: Dictionary) -> void:
 	var p: Dictionary = t["p"]
 	var k: float = t["t"] / float(p["fade"])
-	var a: Vector2 = (t["from"] as Vector2).round()
-	var b: Vector2 = (t["to"] as Vector2).round()
+	var ends := trail_ends(t)
+	var a := ends[0].round()
+	var b := ends[1].round()
 	var fade := (1.0 - k) * (1.0 - k)
-	var w := maxf(1.0, float(p["width"]) * (1.0 - k * 0.6))
+	var w := maxf(1.0, float(Weapons.info("rail")["width"]) * (1.0 - k * 0.6))
 	if p["dots"] and k > 0.3:
 		# 묵직함: 잔상이 점선으로 부서지며 사라진다 (점 간격이 점점 벌어짐)
 		var gap := 3.0 + k * 10.0
@@ -246,8 +255,6 @@ func draw_bullet(ci: CanvasItem, b: RunSim.Bullet, frame: int) -> bool:
 			else:
 				var s := float(p["size"])
 				RunSprites.rect(ci, Rect2(pos - Vector2.ONE * floorf(s / 2.0), Vector2(s, s)), WHITE if s >= 3.0 else color)
-		"rail":
-			RunSprites.line(ci, (pos - dir * 22.0).round(), pos, WHITE, maxf(1.0, float(p["width"]) - 1.0))
 		"plasma":
 			var pulse := 0.5 + 0.5 * sin(_time * TAU * 3.0)
 			for i in range(int(p["tail"]), 0, -1):  # 꼬리: 지나온 자리에 작아지는 빛 점

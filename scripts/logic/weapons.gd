@@ -3,15 +3,9 @@ extends RefCounted
 ## 기본 무기 규칙: 목록, 구매(격납고, 광물), 장착, 격납고 능력치 칸. 화면과 분리해 테스트한다. 수치는 Balance.WEAPONS.
 
 const DEFAULT := "pulse"
-## 확인용 숨은 스위치(웹 주소 ?fxtest): 모든 무기 해금 + 판 중 숫자키 1~5로 무기, Q/W/E로 이펙트 후보 1/2/3.
-## shortcut: v0.8.0 배포 전에 이 스위치·fx_pick과 쓰는 곳(app.gd·run.gd·world_view.gd)을 지운다 (review/PLAN_v0.8.0.md 11장)
+## 확인용 숨은 스위치(웹 주소 ?fxtest): 모든 무기 해금 + 판 중 숫자키 1~5로 무기 바꾸기.
+## shortcut: v0.8.0 배포 전에 이 스위치와 쓰는 곳(app.gd·run.gd)을 지운다 (review/PLAN_v0.8.0.md 11장)
 static var test_mode := false
-## 무기별 이펙트 후보 번호(1~3) id → 번호. 후보를 고르기 전까지만 쓴다 (없으면 1)
-static var fx_pick := {}
-
-
-static func fx(id: String) -> int:
-	return int(fx_pick.get(id, 1))
 
 
 static func ids() -> Array:

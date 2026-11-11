@@ -162,27 +162,66 @@ func test_산탄포는_사거리가_짧아_먼_적은_안_쏨() -> void:
 	assert_eq(sim.bullets.size(), 0)
 
 
-func test_레일건은_가장_먼_적을_노리고_일렬을_모두_뚫음() -> void:
+func test_레일건은_가장_가까운_대상을_노림() -> void:
 	var sim := _sim("rail")
-	var near := _rock(sim, Vector2(40, 0), 2, 2.0)
-	var mid := _rock(sim, Vector2(120, 0), 2, 2.0)
-	var far := _rock(sim, Vector2(250, 0), 2, 2.0)
-	var side := _rock(sim, Vector2(0, 60), 2, 2.0)
-	_run(sim, 0.5)
-	for a in [near, mid, far]:
-		assert_true(a.hp <= 0.0, "일렬 관통")
-	assert_true(side.hp > 0.0, "옆 적은 안 맞음")
-
-
-func test_레일건은_화면_밖_적은_노리지_않음() -> void:
-	var sim := _sim("rail")
-	sim.view_size = Vector2(640, 360)
-	_rock(sim, Vector2(0, 250), 2, 100.0)  # 사거리 안이지만 화면 위쪽 밖
-	var seen := _rock(sim, Vector2(100, 0), 2, 100.0)
+	var far := _rock(sim, Vector2(0, -200), 2, 100.0)
+	var near := _rock(sim, Vector2(30, 0), 2, 100.0)  # 우주선 바로 앞
 	sim.update(0.02, Vector2.ZERO)
-	assert_eq(sim.bullets.size(), 1)
-	assert_true(absf(sim.bullets[0].vel.angle()) < 0.05, "보이는 적 쪽 %f" % sim.bullets[0].vel.angle())
-	assert_true(seen != null)
+	assert_almost(sim.aim_angle, 0.0, 0.01, "가까운 적 쪽")
+	assert_true(near.hp < 100.0, "가까운 적 맞음")
+	assert_eq(far.hp, 100.0, "먼 적은 줄 밖")
+
+
+func test_레일건은_한_줄의_적과_운석을_한_발에_모두_맞히고_탄은_없음() -> void:
+	var sim := _sim("rail")
+	var line: Array = [_rock(sim, Vector2(40, 0), 2, 100.0), _creature(sim, Vector2(120, 0)), _rock(sim, Vector2(200, 0), 2, 100.0), _creature(sim, Vector2(290, 0))]
+	var r: float = line[0].radius
+	var edge := _rock(sim, Vector2(160, r + 2.0), 2, 100.0)  # 중심은 줄 밖이지만 빛줄기 굵기(반 2.5) 안에 걸침
+	var side := _rock(sim, Vector2(160, r + 4.0), 2, 100.0)  # 굵기 밖
+	var beyond := _rock(sim, Vector2(Weapons.info("rail")["range"] + 30.0, 0), 2, 100.0)  # 사거리 밖
+	sim.update(0.02, Vector2.ZERO)
+	var dmg := 100.0 - (line[0] as RunSim.Enemy).hp
+	assert_true(dmg > 0.0, "맞음")
+	for a: RunSim.Enemy in line + [edge]:
+		assert_almost(100.0 - a.hp, dmg, 0.001, "모두 한 번씩 같은 피해")
+	assert_eq(side.hp, 100.0, "굵기 밖은 안 맞음")
+	assert_eq(beyond.hp, 100.0, "사거리 밖은 안 맞음")
+	assert_eq(sim.bullets.size(), 0, "따로 날아가는 탄 없음")
+
+
+func test_레일건은_다중_포신이어도_같은_대상은_한_번만() -> void:
+	var sim := _sim("rail")
+	sim.apply_pick("multishot", 0)
+	var big := _rock(sim, Vector2(60, 0), 2, 100.0)
+	sim.update(0.02, Vector2.ZERO)
+	var one := _sim("rail")
+	var ref := _rock(one, Vector2(60, 0), 2, 100.0)
+	one.update(0.02, Vector2.ZERO)
+	assert_true(sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "rail").size() >= 2, "빛줄기는 여러 개")
+	assert_almost(100.0 - big.hp, 100.0 - ref.hp, 0.001, "피해는 한 번")
+
+
+func test_레일_빛줄기_시작점은_빨리_움직여도_총구와_같음() -> void:
+	var sim := _sim("rail")
+	sim.apply_base({"speed": 5})  # 기지 분사 노즐 개조 최대
+	for i in 5:  # 레벨업 이동 속도 카드 최대
+		sim.apply_pick("speed", 0)
+	assert_eq(sim.upgrade_levels["speed"], 5)
+	var fx := WeaponFx.new(sim)
+	_rock(sim, Vector2(40, 0), 2, 1.0e6)
+	sim.update(1.0 / 60.0, Vector2.ZERO)
+	fx.step(1.0 / 60.0)
+	assert_eq(fx._trails.size(), 1, "빛줄기")
+	var start := sim.player_pos
+	for i in 30:  # 0.5초 동안 아래로 최고 속도
+		sim.update(1.0 / 60.0, Vector2.DOWN)
+		fx.step(1.0 / 60.0)
+		if fx._trails.is_empty():
+			break
+		var ends := fx.trail_ends(fx._trails[0])
+		assert_true(ends[0].distance_to(fx._nose()) < 0.001, "시작점 = 지금 총구")
+		assert_true(ends[0].distance_to(sim.player_pos) <= WeaponFx.NOSE + Juice.WEAPON_FX["rail"]["recoil"] + 0.01, "우주선 바로 앞")
+	assert_true(sim.player_pos.distance_to(start) > 50.0, "빠르게 움직임 %f" % sim.player_pos.distance_to(start))
 
 
 func test_플라스마는_모인_곳을_노려_한꺼번에_터짐() -> void:
@@ -298,33 +337,28 @@ func test_효과_없는_카드는_그_무기에서_안_나옴() -> void:
 	assert_true(any_pierce, "펄스는 관통 카드가 나옴")
 
 
-# ── 공격 이펙트 후보 (?fxtest) ──────────────────────
+# ── 공격 이펙트 (2026-11-12 고른 후보) ──────────────────────
 
-func test_무기마다_이펙트_후보_3개와_공통_수치() -> void:
+func test_무기마다_이펙트_수치() -> void:
 	for id in Weapons.ids():
-		assert_eq(Juice.WEAPON_FX[id].size(), 3, id)
-		for p: Dictionary in Juice.WEAPON_FX[id]:
-			for key in ["muzzle", "muzzle_time", "muzzle_color", "recoil", "hit_n", "hit_speed", "hit_life", "hit_size", "hit_colors", "hit_ring", "hit_flash"]:
-				assert_true(p.has(key), "%s %s" % [id, key])
-	assert_eq(Weapons.fx("rail"), 1, "고르기 전엔 후보 1")
+		var p: Dictionary = Juice.WEAPON_FX[id]
+		for key in ["muzzle", "muzzle_time", "muzzle_color", "recoil", "hit_n", "hit_speed", "hit_life", "hit_size", "hit_colors", "hit_ring", "hit_flash"]:
+			assert_true(p.has(key), "%s %s" % [id, key])
 
 
 func test_맞으면_hit_효과가_나오고_효과_수는_상한을_넘지_않음() -> void:
 	for id in Weapons.ids():
-		for cand in [1, 2, 3]:
-			Weapons.fx_pick[id] = cand
-			var sim := _sim(id)
-			var fx := WeaponFx.new(sim)
-			var hits := 0
-			for i in 20:
-				_rock(sim, Vector2(40 + i * 3, (i % 5) * 6 - 12))
-			for i in 240:
-				sim.update(1.0 / 60.0, Vector2.ZERO)
-				hits += sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "hit").size()
-				fx.step(1.0 / 60.0)
-				assert_true(fx._parts.size() <= Juice.WEAPON_PARTICLE_MAX and fx._trails.size() <= Juice.WEAPON_TRAIL_MAX and fx._blasts.size() <= Juice.WEAPON_BLAST_MAX, "%s %d 상한" % [id, cand])
-			assert_true(hits > 0, "%s 후보 %d 맞은 자리 효과" % [id, cand])
-	Weapons.fx_pick.clear()
+		var sim := _sim(id)
+		var fx := WeaponFx.new(sim)
+		var hits := 0
+		for i in 20:
+			_rock(sim, Vector2(40 + i * 3, (i % 5) * 6 - 12))
+		for i in 240:
+			sim.update(1.0 / 60.0, Vector2.ZERO)
+			hits += sim.fx.filter(func(f: Dictionary) -> bool: return f["type"] == "hit").size()
+			fx.step(1.0 / 60.0)
+			assert_true(fx._parts.size() <= Juice.WEAPON_PARTICLE_MAX and fx._trails.size() <= Juice.WEAPON_TRAIL_MAX and fx._blasts.size() <= Juice.WEAPON_BLAST_MAX, "%s 상한" % id)
+		assert_true(hits > 0, "%s 맞은 자리 효과" % id)
 
 
 func test_무기를_바꿔도_날아가던_탄과_폭발은_쏜_무기_수치() -> void:
@@ -346,15 +380,16 @@ func test_무기를_바꿔도_날아가던_탄과_폭발은_쏜_무기_수치() 
 	assert_true(fx._blasts.all(func(b: Dictionary) -> bool: return b["p"].has("blast_time")))
 
 
-func test_채굴_빔_후보_2는_부스러기도_나옴() -> void:
-	Weapons.fx_pick["beam"] = 2
+func test_채굴_빔은_부스러기가_나오고_운석을_하얗게_덮지_않음() -> void:
 	var sim := _sim("beam")
 	var fx := WeaponFx.new(sim)
 	_rock(sim, Vector2(40, 0), 2, 1.0e6)
 	var chips := 0
+	var flashed := false
 	for i in 120:
 		sim.update(1.0 / 60.0, Vector2.ZERO)
 		fx.step(1.0 / 60.0)
 		chips = maxi(chips, fx._parts.filter(func(d: Array) -> bool: return Juice.CHIP_COLORS.has(d[4])).size())
-	Weapons.fx_pick.clear()
+		flashed = flashed or sim.enemies[0].flash > 0.0
 	assert_true(chips > 0, "60fps에서도 광물 부스러기")
+	assert_false(flashed, "빔이 닿아도 운석 전체 흰 번쩍임 없음")

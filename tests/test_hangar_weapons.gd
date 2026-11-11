@@ -134,8 +134,9 @@ func test_탭은_능력치_줄과_떨어지고_버튼에_해금_글자가_없음
 			assert_false(hv.action_button.label.contains("해금"), "%s %s" % [window, id])
 			for row: Dictionary in hv._pick_stats:  # 능력치 이름·값·화살표가 한 줄에 겹치지 않음
 				assert_true(WindowArt.width(row["name"]) + 4 + WindowArt.width(row["value"]) + 7 <= int(hv._l["stats_w"]) - 8, "%s %s %s" % [window, id, row["name"]])
-			if main.panel.compact:  # 폰 카드: 짧은 이름이 카드 안에 들어감
-				var short: String = Weapons.info(id)["short"]
-				assert_true(WindowArt.width(short) <= hv.cards[i].size.x - 4, "%s 카드에 이름 %s" % [window, short])
+			if main.panel.compact:  # 폰: 카드에 무기 그림이 들어가고, 설명 칸 제목 줄에 그림 + 이름, 능력치 8줄이 겹치지 않는 간격
+				assert_true(WindowArt.tex("weapon_" + id).get_width() <= hv.cards[i].size.x - 4, "%s 카드에 그림" % id)
+				assert_true(WindowArt.tex("weapon_" + id).get_image().get_used_rect().size.x + 4 + WindowArt.width(Weapons.info(id)["name"]) <= int(hv._l["desc_w"]) - 20, "%s 설명 칸 제목" % id)
+				assert_true(int(hv._l["stats_h"]) / hv._pick_stats.size() >= 13, "능력치 줄 간격 (글자 12 + 막대 1)")
 				assert_true(WindowArt.width(Hud.thousands(Weapons.cost(id))) + 14 <= hv.cards[i].size.x - 4, "%s 카드에 가격" % id)
 		await _done(main)

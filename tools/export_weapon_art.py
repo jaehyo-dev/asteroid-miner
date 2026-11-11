@@ -1,7 +1,7 @@
 """기본 무기 아이콘 (v0.8.0): 격납고 무기 그림 36x17(weapon_<id>.png)과 연구소 칸 아이콘 24x24(icon_w_<id>.png).
 펄스 연사포는 기존 그림(export_window_art.py가 만든 weapon_pulse.png) 그대로, 나머지 4개는 같은 팔레트로 직접 그린 것.
 (v0.8.0 1단계 격납고 시안 make_hangar_mockups.py의 그림을 게임용으로 옮김. 나중에 Codex 그림으로 바꿀 수 있다)
-실행: 저장소 맨 위에서 python3 tools/export_weapon_art.py → assets/sprites/window/"""
+실행: 저장소 맨 위에서 python3 tools/export_weapon_art.py → assets/sprites/window/icon_w_*.png (weapon_*.png는 덮어쓰지 않음)"""
 from PIL import Image, ImageDraw
 
 OUT = "assets/sprites/window/"
@@ -68,7 +68,7 @@ def main():
     for wid, rid in RESEARCH.items():
         im = draw_icon(wid)
         assert set(im.getchannel("A").getdata()) <= {0, 255}, wid  # 투명도는 0/255만
-        im.save(f"{OUT}weapon_{wid}.png")
+        # weapon_<id>.png는 2026-11-12부터 사용자가 고른 AI 그림이라 덮어쓰지 않는다 (review/v080_step3/art/cand/)
         research_icon(im).save(f"{OUT}icon_{rid}.png")
 
 

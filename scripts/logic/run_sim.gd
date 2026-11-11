@@ -615,17 +615,29 @@ func _auto_fire(delta: float) -> void:
 	_fire_timer -= delta
 	if _fire_timer > 0.0:
 		return
-	var target := weapon_target(player_pos, enemies, fire_range, String(weapon["aim"]), float(weapon.get("blast", 0.0)), view_size / 2.0)
+	var target := weapon_target(player_pos, enemies, fire_range, String(weapon["aim"]), float(weapon.get("blast", 0.0)))
 	if target == null:
 		_fire_timer = 0.0  # 대상이 없으면 장전된 상태로 기다린다
 		return
+	_shots_fired += 1
+	var shot_damage := bullet_damage * float(weapon["damage"]) * (Balance.RES_OVER_MULT if _base("over") and _shots_fired % Balance.RES_OVER_EVERY == 0 else 1.0)
+	if weapon.get("hitscan", false):
+		aim_angle = (target.pos - player_pos).angle()
+		_fire_rail(shot_damage)
+	else:
+		_fire_shots(target, shot_damage)
+	# 프레임 사이에 넘친 시간은 다음 발사에 반영해 프레임 속도와 관계없이 간격을 지킨다.
+	_fire_timer = maxf(_fire_timer + current_fire_interval(), 0.0)
+	events.append("shoot")
+
+
+## 날아가는 탄을 쏜다 (펄스·산탄·플라스마)
+func _fire_shots(target: Enemy, shot_damage: float) -> void:
 	var speed := float(weapon["speed"])
 	# 움직이는 운석이 탄과 만날 지점을 노린다.
 	var base_angle := intercept_angle(player_pos, target.pos, target.vel, speed)
 	aim_angle = base_angle
 	var life := fire_range / speed * Balance.BULLET_LIFETIME_FACTOR
-	_shots_fired += 1
-	var shot_damage := bullet_damage * float(weapon["damage"]) * (Balance.RES_OVER_MULT if _base("over") and _shots_fired % Balance.RES_OVER_EVERY == 0 else 1.0)
 	var pattern: Array[Dictionary]
 	if weapon.has("pellets"):  # 산탄: 다중 포신 하나마다 2발씩 더해 같은 부채꼴 안을 촘촘하게
 		var n := int(weapon["pellets"]) + (bullet_count - 1) * 2
@@ -638,13 +650,28 @@ func _auto_fire(delta: float) -> void:
 			continue
 		b.style = "" if weapon["id"] == "pulse" else String(weapon["id"])
 		b.blast = float(weapon.get("blast", 0.0))
-		if int(weapon.get("pierce", 0)) < 0:
-			b.pierce = -1
-		if b.style == "rail":
-			fx.append({"type": "rail", "pos": b.pos, "to": b.pos + b.vel * life})
-	# 프레임 사이에 넘친 시간은 다음 발사에 반영해 프레임 속도와 관계없이 간격을 지킨다.
-	_fire_timer = maxf(_fire_timer + current_fire_interval(), 0.0)
-	events.append("shoot")
+
+
+## 레일건: 탄 없이 aim_angle 쪽으로 사거리 끝까지 그은 선(굵기 width)에 걸친 적·운석을 모두 바로 맞힌다.
+## 다중 포신이면 선이 여러 개지만, 한 번 쏠 때 같은 대상은 한 번만 맞는다
+func _fire_rail(shot_damage: float) -> void:
+	var half_w := float(weapon["width"]) / 2.0
+	var hit: Array[Enemy] = []
+	for shot in shot_pattern(aim_angle, bullet_count, deg_to_rad(Balance.MULTI_SHOT_SPREAD_DEG), Balance.PARALLEL_SHOT_GAP):
+		var dir := Vector2.from_angle(shot.angle)
+		var from: Vector2 = player_pos + shot.offset
+		var to := from + dir * fire_range
+		fx.append({"type": "rail", "angle": shot.angle, "offset": shot.offset, "len": fire_range})
+		for e in enemies:
+			if e.hp > 0.0 and not hit.has(e) and segment_distance(from, to, e.pos) <= e.radius + half_w:
+				hit.append(e)
+	for e in hit:
+		var b := Bullet.new()
+		b.style = "rail"
+		b.pos = player_pos  # 맞은 자리 효과가 우주선 쪽 겉면에 나오게
+		b.vel = Vector2.from_angle(aim_angle)
+		b.damage = shot_damage
+		_hit_enemy(b, e, e == hit[0])  # 한꺼번에 많이 맞아도 소리는 한 번
 
 
 ## 채굴 빔: 사거리 안 운석(없으면 적)에 계속 닿아 interval마다 피해. 다중 포신이면 빔 수가 늘어 다른 대상에 닿는다
@@ -676,8 +703,7 @@ func _fire_beam(delta: float) -> void:
 			b.vel = (t.pos - player_pos).normalized()
 			b.damage = damage * (1.0 if t.kind == ROCK else float(weapon.get("enemy_mult", 1.0)))
 			_hit_enemy(b, t, loud)
-			if not loud:
-				t.flash = 0.0  # 0.1초마다 하얗게 번쩍이면 눈이 아파서 소리와 같이 세 번에 한 번만
+			t.flash = 0.0  # 빔은 계속 닿아서 운석 전체가 하얗게 번쩍이면 운석·적 탄을 덮는다. 맞은 표시는 빔 끝 빛으로만
 		if loud:
 			events.append("shoot")
 
@@ -1329,21 +1355,10 @@ static func pick_target(from: Vector2, list: Array[Enemy], max_range: float) -> 
 	return best
 
 
-## 기본 무기 대상 고르기. aim: near 가장 가까운 적(pick_target), far 가장 먼 적, crowd 반경 blast 안에 다른 적이 가장 많은 적(같으면 가까운 쪽),
+## 기본 무기 대상 고르기. aim: near 가장 가까운 적(pick_target), crowd 반경 blast 안에 다른 적이 가장 많은 적(같으면 가까운 쪽),
 ## rock 가장 가까운 운석(황금 포함, 없으면 가장 가까운 적)
-## far는 화면(view_half: 우주선에서 화면 끝까지) 안의 적만 본다 (보이지 않는 적을 노리지 않게)
-static func weapon_target(from: Vector2, list: Array[Enemy], max_range: float, aim: String, blast := 0.0, view_half := Vector2(INF, INF)) -> Enemy:
+static func weapon_target(from: Vector2, list: Array[Enemy], max_range: float, aim: String, blast := 0.0) -> Enemy:
 	match aim:
-		"far":
-			var best: Enemy = null
-			var best_dist := -1.0
-			for a in list:
-				var d := from.distance_to(a.pos)
-				var off := (a.pos - from).abs()
-				if d <= max_range and d > best_dist and off.x <= view_half.x and off.y <= view_half.y:
-					best = a
-					best_dist = d
-			return best
 		"crowd":
 			var best: Enemy = null
 			var best_score := Vector2(-1.0, 0.0)  # (모인 수, -거리)

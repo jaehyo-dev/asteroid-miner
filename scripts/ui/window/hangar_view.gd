@@ -232,8 +232,12 @@ func _draw_stats(x: int, y: int, w: int, h: int) -> void:
 		WindowArt.text(self, Vector2i(vx, ry - 2), st["value"], WindowArt.INK if d == 0 else (UP_COLOR if d > 0 else DOWN_COLOR), 1)
 		if d != 0:
 			_arrow(x + w - 5, ry + 2, d > 0)
-		draw_rect(Rect2(x, ry + bar_at, w, 3), WindowArt.DARK)  # 글자 바로 아래, 다음 줄과 띄움
-		draw_rect(Rect2(x + 1, ry + bar_at + 1, int((w - 2) * float(st["ratio"])), 1), light)
+		if win.compact:  # 폰은 8줄이 줄 간격 14픽셀에 들어가 3픽셀 막대면 다음 줄 글자에 닿는다: 1픽셀 한 줄로
+			draw_rect(Rect2(x, ry + bar_at - 1, w, 1), WindowArt.DARK)
+			draw_rect(Rect2(x, ry + bar_at - 1, int(w * float(st["ratio"])), 1), light)
+		else:
+			draw_rect(Rect2(x, ry + bar_at, w, 3), WindowArt.DARK)  # 글자 바로 아래, 다음 줄과 띄움
+			draw_rect(Rect2(x + 1, ry + bar_at + 1, int((w - 2) * float(st["ratio"])), 1), light)
 
 
 ## 능력치 i줄: 고른 무기로 바꾸면 오르는지(1) 내리는지(-1) 같은지(0). 전투기 탭은 늘 0
@@ -379,7 +383,7 @@ func _draw_beam(cx: int, mid: int, top: int, k: int) -> void:
 		draw_rect(Rect2(left + gx * k, mid - int(g * above) * k, k, k), band_color(GRAIN_COLORS, g / GRAIN_TOP))
 
 
-## 무기 설명 칸: 이름·상태, 그림(PC), 작은 4칸 막대, 한 줄 설명. 버튼은 action_button (장착 / 장착 중 / 구매)
+## 무기 설명 칸: 이름·상태, 그림(PC는 이름 아래 2배, 폰은 이름 앞 1배), 작은 4칸 막대, 한 줄 설명. 버튼은 action_button (장착 / 장착 중 / 구매)
 func _draw_weapon_desc(x: int, y: int, w: int, h: int) -> void:
 	WindowArt.plate(self, "tab", Rect2(x, y, w, h))
 	var info := Weapons.info(picked)
@@ -387,17 +391,21 @@ func _draw_weapon_desc(x: int, y: int, w: int, h: int) -> void:
 	var tx := x + 10
 	var tw := w - 20
 	var ty := y + 8
-	WindowArt.text(self, Vector2i(tx, ty), info["name"], WindowArt.GOLD if st != "lock" else WindowArt.MUTED)
+	var icon := WindowArt.tex("weapon_" + picked)
+	var name_x := tx
+	if win.compact:  # 폰은 칸이 낮아 이름 앞에 1배로. 칸이 좁아 그림의 투명 여백은 잘라 그린다
+		var used := icon.get_image().get_used_rect()
+		name_x += used.size.x + 4
+		_draw_icon(icon, Rect2(tx, ty - 3 + used.position.y, used.size.x, used.size.y), st, used)
+		ty += 3
+	WindowArt.text(self, Vector2i(name_x, ty), info["name"], WindowArt.GOLD if st != "lock" else WindowArt.MUTED)
 	var tag: String = {"on": "장착 중", "open": "장착 가능", "lock": "잠김"}[st]
-	if WindowArt.width(info["name"]) + 6 + WindowArt.width(tag) <= tw:
+	if name_x - tx + WindowArt.width(info["name"]) + 6 + WindowArt.width(tag) <= tw:
 		WindowArt.text(self, Vector2i(x + w - 10, ty), tag, WindowArt.TEAL2 if st != "lock" else WindowArt.DIM, 1)
 	ty += 16
 	if not win.compact:
-		var icon := WindowArt.tex("weapon_" + picked)
 		var ir := Rect2(tx, ty, icon.get_width() * 2, icon.get_height() * 2)
-		draw_texture_rect(icon, ir, false, LOCKED_TINT if st == "lock" else Color.WHITE)
-		if _flash > 0.0:  # 산 순간 짧게 번쩍임
-			draw_texture_rect(icon, ir, false, Color(1, 1, 1, _flash / BUY_FLASH))
+		_draw_icon(icon, ir, st)
 		ty += icon.get_height() * 2 + 6
 	ty = _draw_weapon_bars(tx, ty, tw) + 3
 	var poor := st == "lock" and win.save.credits < Weapons.cost(picked)
@@ -411,6 +419,13 @@ func _draw_weapon_desc(x: int, y: int, w: int, h: int) -> void:
 		WindowArt.text(self, Vector2i(x + w / 2, int(action_button.position.y) - 16), "광물 부족", WindowArt.RED, 0)
 	if _flash > 0.0:
 		draw_rect(Rect2(x + 2, y + 2, w - 4, h - 4), Color(1, 1, 1, 0.35 * _flash / BUY_FLASH))
+
+
+## 설명 칸 무기 그림(src: 그림에서 쓸 부분): 잠겼으면 어둡게, 산 순간 짧게 번쩍임
+func _draw_icon(icon: Texture2D, r: Rect2, st: String, src := Rect2(Vector2.ZERO, icon.get_size())) -> void:
+	draw_texture_rect_region(icon, r, src, LOCKED_TINT if st == "lock" else Color.WHITE)
+	if _flash > 0.0:
+		draw_texture_rect_region(icon, r, src, Color(1, 1, 1, _flash / BUY_FLASH))
 
 
 func _draw_desc(x: int, y: int, w: int, h: int) -> void:
@@ -508,10 +523,9 @@ class CardBtn extends Button:
 		var icon := WindowArt.tex("weapon_" + id)
 		var tint := HangarView.LOCKED_TINT if st == "lock" else Color.WHITE
 		var small := view.win.compact
-		if small:
-			var short: String = Weapons.info(id)["short"]
-			WindowArt.text(self, Vector2i(w / 2, 2), short, WindowArt.GOLD if st == "on" else (WindowArt.INK if st == "open" else WindowArt.MUTED), 0)
-			_status(w / 2, 17, st, 0)
+		if small:  # 폰 카드는 81픽셀이라 그림과 글자가 나란히 안 들어감: 그림(1배) 위, 상태 아래. 이름은 설명 칸에
+			draw_texture(icon, Vector2((w - icon.get_width()) / 2, 2), tint)
+			_status(w / 2, 19, st, 0)
 		else:
 			draw_texture(icon, Vector2(7, 5), tint)
 			_status(w - 7, 5, st, 1)

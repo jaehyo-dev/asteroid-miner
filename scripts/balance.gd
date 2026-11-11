@@ -352,18 +352,18 @@ const BEACON_INTERVAL := 8.0
 ## interval 발사 간격(초), range 사거리, damage 한 발 피해(레벨업·기지 공격력 배율에 곱함), speed 탄 속도,
 ## mining 운석 광물 배율(1보다 작으면 확률로 덜 나옴), aim: near 가장 가까운 적, far 가장 먼 적, crowd 많이 모인 곳, rock 가까운 운석 먼저.
 ## pellets·fan_deg 산탄 수와 부채꼴 각도, pierce -1 끝까지 관통, blast 맞으면 터지는 반경(그 안 모두 같은 피해),
-## beam 계속 닿는 빔(interval마다 피해), enemy_mult 운석이 아닌 적에게 주는 피해 배율. cost: 격납고 구매 가격(광물, 0이면 처음부터 있음, 임시). short: 폰 무기 카드에 쓰는 짧은 이름
+## hitscan 탄 없이 쏘는 순간 사거리 끝까지 그은 선(굵기 width 픽셀)에 걸친 대상을 모두 한 번씩 맞힘, beam 계속 닿는 빔(interval마다 피해), enemy_mult 운석이 아닌 적에게 주는 피해 배율. cost: 격납고 구매 가격(광물, 0이면 처음부터 있음, 임시)
 ## no_cards: 이 무기에는 효과가 없어 레벨업 카드에서 빼는 강화 (관통·튕김은 탄이 날아가 맞을 때만 일어남)
 const WEAPONS := [
-	{"id": "pulse", "name": "펄스 연사포", "short": "펄스", "desc": "가장 가까운 적에게 빠르게 연사한다. 무난한 기본기",
+	{"id": "pulse", "name": "펄스 연사포", "desc": "가장 가까운 적에게 빠르게 연사한다. 무난한 기본기",
 		"interval": FIRE_INTERVAL, "range": FIRE_RANGE, "damage": BULLET_DAMAGE, "speed": BULLET_SPEED, "mining": 1.0, "aim": "near"},
-	{"id": "shotgun", "name": "산탄포", "short": "산탄", "desc": "가까운 적 쪽으로 부채꼴 다섯 발. 붙어서 싸울수록 세다", "cost": 600,
+	{"id": "shotgun", "name": "산탄포", "desc": "가까운 적 쪽으로 부채꼴 다섯 발. 붙어서 싸울수록 세다", "cost": 600,
 		"interval": 0.95, "range": 110.0, "damage": 0.5, "speed": 300.0, "mining": 1.15, "aim": "near", "pellets": 5, "fan_deg": 40.0},
-	{"id": "rail", "name": "레일건", "short": "레일", "desc": "가장 먼 적까지 일렬로 꿰뚫는 저격 한 발", "cost": 900,
-		"interval": 1.6, "range": 300.0, "damage": 3.0, "speed": 800.0, "mining": 1.0, "aim": "far", "pierce": -1, "no_cards": ["pierce", "orbit_pierce"]},
-	{"id": "plasma", "name": "플라스마 대포", "short": "플라스마", "desc": "적이 모인 곳에 느리게 날아가 크게 터진다", "cost": 1200,
+	{"id": "rail", "name": "레일건", "desc": "가까운 적 쪽 일직선을 한 번에 꿰뚫는 빛줄기", "cost": 900,
+		"interval": 1.6, "range": 300.0, "damage": 3.0, "speed": 0.0, "mining": 1.0, "aim": "near", "hitscan": true, "width": 5.0, "no_cards": ["pierce", "ricochet", "orbit_pierce", "chain_matrix"]},
+	{"id": "plasma", "name": "플라스마 대포", "desc": "적이 모인 곳에 느리게 날아가 크게 터진다", "cost": 1200,
 		"interval": 1.7, "range": 170.0, "damage": 2.0, "speed": 140.0, "mining": 0.75, "aim": "crowd", "blast": 34.0, "no_cards": ["pierce", "ricochet", "orbit_pierce", "chain_matrix"]},
-	{"id": "beam", "name": "채굴 빔", "short": "빔", "desc": "가까운 운석에 계속 닿는 빔. 캐기는 최고, 싸움은 약함", "cost": 1500,
+	{"id": "beam", "name": "채굴 빔", "desc": "가까운 운석에 계속 닿는 빔. 캐기는 최고, 싸움은 약함", "cost": 1500,
 		"interval": 0.1, "range": 95.0, "damage": 0.22, "speed": 0.0, "mining": 1.5, "aim": "rock", "beam": true, "enemy_mult": 0.5, "no_cards": ["pierce", "ricochet", "orbit_pierce", "chain_matrix"]},
 ]
 ## 격납고 무기 능력치 칸(1~5)의 눈금: 연사(초당 발사 수)가 이 값들을 넘을 때마다 한 칸 (빔은 끝 칸)
