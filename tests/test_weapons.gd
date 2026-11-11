@@ -325,3 +325,36 @@ func test_맞으면_hit_효과가_나오고_효과_수는_상한을_넘지_않�
 				assert_true(fx._parts.size() <= Juice.WEAPON_PARTICLE_MAX and fx._trails.size() <= Juice.WEAPON_TRAIL_MAX and fx._blasts.size() <= Juice.WEAPON_BLAST_MAX, "%s %d 상한" % [id, cand])
 			assert_true(hits > 0, "%s 후보 %d 맞은 자리 효과" % [id, cand])
 	Weapons.fx_pick.clear()
+
+
+func test_무기를_바꿔도_날아가던_탄과_폭발은_쏜_무기_수치() -> void:
+	var sim := _sim("plasma")
+	var fx := WeaponFx.new(sim)
+	_rock(sim, Vector2(120, 0))
+	for i in 120:  # 플라스마를 쏴서 날아가는 중
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		fx.step(1.0 / 60.0)
+		if not sim.bullets.is_empty():
+			break
+	assert_false(sim.bullets.is_empty(), "플라스마 탄이 날아가는 중")
+	sim.set_weapon("pulse")
+	assert_true(WeaponFx.params_for(sim.bullets[0].style).has("orb"), "탄은 플라스마 수치로 그림")
+	assert_true(WeaponFx.params_for("").has("trail"), "펄스 탄 style은 빈 글자")
+	for i in 120:  # 바꾼 뒤 터져도 플라스마 폭발 수치
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		fx.step(1.0 / 60.0)
+	assert_true(fx._blasts.all(func(b: Dictionary) -> bool: return b["p"].has("blast_time")))
+
+
+func test_채굴_빔_후보_2는_부스러기도_나옴() -> void:
+	Weapons.fx_pick["beam"] = 2
+	var sim := _sim("beam")
+	var fx := WeaponFx.new(sim)
+	_rock(sim, Vector2(40, 0), 2, 1.0e6)
+	var chips := 0
+	for i in 120:
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		fx.step(1.0 / 60.0)
+		chips = maxi(chips, fx._parts.filter(func(d: Array) -> bool: return Juice.CHIP_COLORS.has(d[4])).size())
+	Weapons.fx_pick.clear()
+	assert_true(chips > 0, "60fps에서도 광물 부스러기")

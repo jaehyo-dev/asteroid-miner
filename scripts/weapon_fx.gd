@@ -31,6 +31,7 @@ var _blasts: Array[Dictionary] = []
 var _muzzle_t := 1.0
 var _time := 0.0
 var _beam_acc := 0.0  # 빔 불꽃·부스러기를 초당 수에 맞춰 내는 누적
+var _beam_n := 0  # 지금까지 낸 빔 불꽃 수 (chips 간격 세기, 프레임마다 0으로 돌리지 않음)
 var _rng := RandomNumberGenerator.new()
 
 
@@ -41,7 +42,12 @@ func _init(run_sim: RunSim) -> void:
 
 ## 지금 무기와 후보의 수치
 func params() -> Dictionary:
-	var id: String = sim.weapon["id"]
+	return params_for(sim.weapon["id"])
+
+
+## 그 무기의 지금 후보 수치. 탄·폭발은 쏜 무기 기준 (판 중 무기를 바꿔도 날아가던 탄은 원래 모양으로)
+static func params_for(id: String) -> Dictionary:
+	id = "pulse" if id == "" else id  # 펄스 탄의 style은 ""
 	return Juice.WEAPON_FX[id][clampi(Weapons.fx(id), 1, 3) - 1]
 
 
@@ -67,12 +73,12 @@ func step(delta: float) -> void:
 	for f in sim.fx:
 		match f["type"]:
 			"hit":
-				_on_hit(f, p)
+				_on_hit(f, params_for(f["style"]))
 			"rail":
 				if _trails.size() < Juice.WEAPON_TRAIL_MAX:
-					_trails.append({"from": f["pos"], "to": f["to"], "t": 0.0, "p": p})
+					_trails.append({"from": f["pos"], "to": f["to"], "t": 0.0, "p": params_for("rail")})
 			"plasma":
-				_on_blast(f, p)
+				_on_blast(f, params_for("plasma"))
 	if weapon_id() == "beam" and sim.alive and not sim.beam_targets.is_empty():
 		_step_beam(delta, p)
 	_trails = _trails.filter(func(t: Dictionary) -> bool:
@@ -131,17 +137,16 @@ func _step_beam(delta: float, p: Dictionary) -> void:
 	_beam_acc += delta
 	var spark_gap := 1.0 / maxf(float(p["sparks"]), 0.01)
 	var chip_every := int(round(float(p["sparks"]) / maxf(float(p["chips"]), 0.01))) if float(p["chips"]) > 0.0 else 0
-	var n := 0
 	while _beam_acc >= spark_gap:
 		_beam_acc -= spark_gap
-		n += 1
+		_beam_n += 1
 		for t in sim.beam_targets:
 			var hit := _beam_hit(t)
 			var back := (sim.player_pos - t.pos).normalized()
 			var colors: Array = p["hit_colors"]
 			var dir := back.rotated(_rng.randf_range(-1.2, 1.2))
 			_spawn(hit, dir * float(p["hit_speed"]) * _rng.randf_range(0.5, 1.0), float(p["hit_life"]), colors[_rng.randi() % colors.size()], float(p["hit_size"]))
-			if chip_every > 0 and n % chip_every == 0 and t.kind == RunSim.ROCK:
+			if chip_every > 0 and _beam_n % chip_every == 0 and t.kind == RunSim.ROCK:
 				var cdir := back.rotated(_rng.randf_range(-0.9, 0.9))
 				_spawn(hit, cdir * _rng.randf_range(20.0, 45.0), 0.5, Juice.CHIP_COLORS[_rng.randi() % Juice.CHIP_COLORS.size()], 2.0 if p["core"] > 2.0 else 1.0, 2.5)
 
@@ -225,7 +230,7 @@ func _draw_beam(ci: CanvasItem, from: Vector2, hit: Vector2, p: Dictionary) -> v
 func draw_bullet(ci: CanvasItem, b: RunSim.Bullet, frame: int) -> bool:
 	if b.drone:
 		return false
-	var p := params()
+	var p := params_for(b.style)
 	var pos := b.pos.round()
 	var dir := b.vel.normalized()
 	match b.style:
