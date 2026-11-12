@@ -819,3 +819,12 @@
 1. 사용자가 review/v080_step4d/mine_sheet.png·GIF 3개 보고 ?fxtest M으로 후보 고르기.
 2. 고른 후보만 남기고 MINE_MAPS 나머지·M·Shift+M·Shift+8 지우기.
 3. 그다음 PLAN 5장의 다음 단계(새 스킬 10개).
+
+## v0.8.0 4d단계 확정: 기뢰는 4c 모양 + 가운데 빨간 점만 깜빡임 (2026-11-13 맥, 브랜치 v0.8.0-weapons, main 안 합침)
+- 만든 것: 후보 1~3 버리고 몸체를 4c(2360fb3)로 되돌림. 5단계 빨간 원판 깜빡임 빼고 가운데 2×2 점만 깜빡임(적 가까우면 빨라짐 그대로). MINE_MAPS·?fxtest M·Shift+M 삭제, Shift+8 유지. GAME_SPEC·PLAN 18장에 사용자 결정. 자료 review/v080_step4d/mine_final_4x.png, gif/mine_final_5.gif.
+- 검토: 게임 611 + 도구 통과(종료 코드 0), 웹 촬영 콘솔 오류 0. final-reviewer는 main 합칠 때.
+
+### 이어서 할 일 (2026-11-13 맥에서 4d 확정까지, 작업 브랜치 v0.8.0-weapons)
+1. 사용자가 review/v080_step4d/mine_final_4x.png·gif/mine_final_5.gif 확인.
+2. 그다음 PLAN 5장의 다음 단계(새 스킬 10개).
+3. v0.8.0 배포 전 ?fxtest 숨은 키(Shift+8 포함) 지우기.

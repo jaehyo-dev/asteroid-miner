@@ -398,41 +398,8 @@ func _draw_coil_ring(ci: CanvasItem, p: Dictionary) -> void:
 		RunSprites.line(ci, (c + Vector2.from_angle(ang) * r).round(), (c + Vector2.from_angle(ang + 0.3) * (r + 4.0)).round(), WHITE, 1.0)
 
 
-## 기뢰 몸체 픽셀 지도 [후보][1·3·5단계]: 내 무기 팔레트(청록·금빛)로 그리고 빨간 불빛은 가운데 작은 점(r)만.
-## k 어두운 테두리, t 청록, c 밝은 청록, d 짙은 청록, g 금빛 돌기·테, r 불빛. 적 탄(빨갛고 둥근 것)과 헷갈리지 않게 (2026-11-13)
-## 후보 1 둥근 몸체 + 가시 / 2 육각 판 / 3 날개 달린 위성. ?fxtest M 키로 바꿔 본다 (고르면 나머지는 지운다)
-const MINE_MAPS := [
-	[
-		["..kkk..", ".kcttk.", "kcttttk", "kttrttk", "kttttdk", ".kttdk.", "..kkk.."],
-		["....ggg....", ".....g.....", "....kgk....", "...kcttk...", "g.kcttttk.g", "ggkttrttkgg",
-			"g.kttttdk.g", "...kttdk...", "....kgk....", ".....g.....", "....ggg...."],
-		[".....ggg.....", ".gg...g...gg.", ".gg.kkgkk.gg.", "...kcctttk...", "..kcttttttk..", "g.kctgggtdk.g",
-			"ggkttgrgtdkgg", "g.kttgggtdk.g", "..kttttttdk..", "...ktttddk...", ".gg.kkgkk.gg.", ".gg...g...gg.", ".....ggg....."],
-	],
-	[
-		["...kkkkk...", "..kccccck..", ".kcttttttk.", "kcttttttttk", "kttttrttttk", "kttttttttdk", ".kdttttddk.", "..kdddddk..", "...kkkkk..."],
-		["....g.....g....", ".....kkkkk.....", "....kccccck....", "...kcttttttk...", "..kcttttttttk..", "ggkttttrttttkgg", "..kttttttttdk..", "...kdttttddk...", "....kdddddk....", ".....kkkkk.....", "....g.....g...."],
-		[".....g.....g.....", "......kkkkk......", ".....kccccck.....", "....kcttttttk....", "...kcttgggttdk...", "..kcttgggggttdk..", "ggktttggrggttdkgg", "..ktttgggggttdk..", "...kdttgggttdk...", "....kdttttddk....", ".....kdddddk.....", "......kkkkk......", ".....g.....g....."],
-	],
-	[
-		["kk.kkkkk.kk", "cc.kcttk.cc", "ccdktrtkdcc", "cd.kttdk.dc", "kk.kkkkk.kk"],
-		[".....g.....", "..g..g..g..", "kk.kkgkk.kk", "cc.kcttk.cc", "ccgktrtkgcc", "cd.kttdk.dc",
-			"kk.kkgkk.kk", "..g..g..g..", ".....g....."],
-		[".......g.......", "...g...g...g...", "....kkkgkkk....", "kkk.kcttttk.kkk", "ccc.ktgggtk.ccc", "dddgktgrgtkgddd",
-			"ccc.ktgggdk.ccc", "kkk.kttttdk.kkk", "....kkkgkkk....", "...g...g...g...", ".......g......."],
-	],
-]
-const MINE_COLORS := {"k": DARK, "t": TEAL, "c": CYAN, "d": Color("#1e7f7a"), "g": GOLD}
-## 불빛이 꺼졌을 때 점 색 (어두운 빨강)
-const MINE_LIGHT_OFF := Color("#5c2333")
-## ?fxtest M 키로 고르는 후보 (0~2). v0.8.0 배포 전에 지운다
-static var test_look := 0
-## 지도 → 가로로 이어진 같은 색 칸 [x, y, 길이, 글자] (한 번만 만든다)
-static var _mine_runs := {}
-
-
-## 기뢰: 1단계 작은 몸체 / 3단계 + 가시, 적이 가까우면 빨리 깜빡 / 5단계 더 크고 금빛 테·가시 더 많이
-## (늘 보이는 경고 원은 없음: 들어가도 안 터져 오해, 2026-11-12)
+## 기뢰 1단계 작은 기뢰 / 3단계 가시 + 적이 가까우면 빨리 깜빡 / 5단계 더 크고 가시 8개 (늘 보이는 경고 원은 없음: 들어가도 안 터져 오해, 2026-11-12)
+## 깜빡이는 것은 가운데 2×2 빨간 점 하나뿐 (몸체·큰 불빛은 안 깜빡임, 2026-11-13 사용자 결정)
 func _draw_mine(ci: CanvasItem, m: Dictionary, tier: int, p: Dictionary) -> void:
 	var c: Vector2 = (m["pos"] as Vector2).round()
 	var armed: bool = m["t"] >= Balance.SUB_MINE_ARM
@@ -443,28 +410,15 @@ func _draw_mine(ci: CanvasItem, m: Dictionary, tier: int, p: Dictionary) -> void
 				rate *= 3.0
 				break
 	var on := armed and fposmod(_time * rate + float(m["pos"].x) * 0.01, 1.0) < 0.5
-	draw_mine_body(ci, c, test_look, tier, _lift("mine", RED) if on else MINE_LIGHT_OFF)
-
-
-## 픽셀 지도 하나를 c 가운데에 그린다 (불빛 r은 light 색)
-static func draw_mine_body(ci: CanvasItem, c: Vector2, look: int, tier: int, light: Color) -> void:
-	var key := look * 3 + tier
-	if not _mine_runs.has(key):
-		var runs := []
-		var rows: Array = MINE_MAPS[look][tier]
-		for y in rows.size():
-			var row: String = rows[y]
-			var x := 0
-			while x < row.length():
-				var n := 1
-				while x + n < row.length() and row[x + n] == row[x]:
-					n += 1
-				if row[x] != ".":
-					runs.append([x - (row.length() >> 1), y - (rows.size() >> 1), n, row[x]])
-				x += n
-		_mine_runs[key] = runs
-	for r: Array in _mine_runs[key]:
-		RunSprites.rect(ci, Rect2(c.x + r[0], c.y + r[1], r[2], 1), light if r[3] == "r" else MINE_COLORS[r[3]])
+	var light := _lift("mine", RED)
+	var body := 3.0 + (1.0 if tier == 2 else 0.0)
+	RunSprites.disc(ci, c, body, METAL)
+	if tier >= 1:
+		var horns := 4 if tier == 1 else 8
+		for i in horns:  # 가시
+			var at := c + Vector2.from_angle(TAU * i / horns + PI / 4.0) * (body + 1.5)  # 몸통 밖으로 튀어나오게
+			RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), METAL_LIGHT)
+	RunSprites.rect(ci, Rect2(c - Vector2.ONE, Vector2(2, 2)), light if on else Color(light, 0.4))
 
 
 ## 5단계 기뢰가 터질 때 번쩍이는 빨간 원의 반지름 = 실제 폭발 범위 (SubWeapons._burst가 이 반경 + 적 반지름 안을 맞힌다)

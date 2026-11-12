@@ -333,20 +333,3 @@ func test_5단계_기뢰_번쩍이는_원은_실제_폭발_범위와_같음() ->
 	assert_true(inside.hp < 1000.0, "원에 걸친 적은 맞음")
 	assert_eq(outside.hp, 1000.0, "원 밖 적은 안 맞음")
 	assert_true(float(Juice.SUB_FX["mine_flash"]) <= 0.25, "번쩍임은 0.2초 안팎")
-
-
-func test_기뢰_몸체_지도는_가운데가_불빛이고_단계마다_커짐() -> void:
-	for look in SubWeaponFx.MINE_MAPS.size():
-		var width := 0
-		for tier in 3:
-			var rows: Array = SubWeaponFx.MINE_MAPS[look][tier]
-			var w: int = rows[0].length()
-			for row: String in rows:
-				assert_eq(row.length(), w, "후보 %d 단계 %d 줄 길이" % [look + 1, tier])
-				for ch in row:
-					assert_true(ch in [".", "r"] or SubWeaponFx.MINE_COLORS.has(ch), "알 수 없는 색 " + ch)
-			assert_eq(rows[rows.size() >> 1][w >> 1], "r", "불빛은 가운데")
-			assert_eq("".join(rows).count("r"), 1, "빨간 불빛은 점 하나")
-			assert_true(w * rows.size() > width, "단계가 오르면 더 크다")
-			width = w * rows.size()
-			assert_eq("".join(rows).count("g") > 0, tier >= 1, "3단계부터 금빛 가시")

@@ -123,9 +123,9 @@ func _update_fx_label() -> void:
 	var subs: PackedStringArray = []
 	for id: String in sim.subs.stages:
 		subs.append("%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
-	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계] [M 기뢰 후보 %d]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음", SubWeaponFx.test_look + 1]
+	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
 	if fx_stage:  # 촬영 모드는 화면을 덜 가리게 짧게: 가진 보조 무기 + FPS·효과 수
-		fx_label.text = "%s\nFPS %d  효과 %d  기뢰 후보 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count(), SubWeaponFx.test_look + 1]
+		fx_label.text = "%s\nFPS %d  효과 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count()]
 	if sim.subs.stages.size() == 1:  # 하나만 볼 때(Alt+1~6)는 맨 위에 크게 "채굴 펄스 3단계"
 		var id: String = sim.subs.stages.keys()[0]
 		var head := "%s %d단계" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)]
@@ -312,7 +312,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	# 확인용 숨은 스위치(?fxtest): 판 중 숫자키 1~5로 기본 무기, Shift+1~6으로 보조 무기 얻기·1단계 올리기(칸 수 무시),
 	# Backspace 보조 무기 모두 지우기, Alt(Ctrl·Cmd)+1~6 그 보조 무기 하나만 누를 때마다 1 → 3 → 5단계,
-	# M 기뢰 후보 1→2→3, Shift+M 기뢰 후보 비교판, Shift+8 촬영 모드에 적 탄 섞기. v0.8.0 배포 전에 지운다
+	# Shift+8 촬영 모드에 적 탄 섞기. v0.8.0 배포 전에 지운다
 	# (웹에서 Ctrl·Cmd+숫자는 크롬이 탭 바꾸기로 먼저 가져가 게임에 오지 않아 안내는 Alt로. 데스크톱에서는 Ctrl·Cmd도 같게 동작)
 	if Weapons.test_mode and current_menu == Menu.NONE and event is InputEventKey and event.pressed and not event.echo:
 		var slot := number_key_index(event.physical_keycode)
@@ -325,14 +325,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		if (event.alt_pressed or event.ctrl_pressed or event.meta_pressed) and slot >= 0 and slot < SubWeapons.ids().size():
 			sim.only_sub(SubWeapons.ids()[slot])
 			world.clear_sub_fx()
-			_update_fx_label()
-			get_viewport().set_input_as_handled()
-			return
-		if event.physical_keycode == KEY_M:  # 기뢰 후보 1 → 2 → 3, Shift+M 후보 비교판 켜고 끄기
-			if event.shift_pressed:
-				world.mine_gallery = not world.mine_gallery
-			else:
-				SubWeaponFx.test_look = (SubWeaponFx.test_look + 1) % SubWeaponFx.MINE_MAPS.size()
 			_update_fx_label()
 			get_viewport().set_input_as_handled()
 			return
