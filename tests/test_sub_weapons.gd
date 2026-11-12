@@ -300,3 +300,36 @@ func test_보조_무기_6종_1_3_5단계_그리기() -> void:
 				await wait_frames(1)
 			assert_true(sim.alive, "%s %d단계" % [id, stage])
 			view.queue_free()
+
+
+## 5단계 기뢰 (2026-11-12): 늘 보이는 경고 원은 없고, 터질 때만 번쩍이는 빨간 원 = 실제로 맞는 범위
+func test_5단계_기뢰_번쩍이는_원은_실제_폭발_범위와_같음() -> void:
+	var sim := _sim()
+	var fx := SubWeaponFx.new(sim)
+	for i in 5:
+		sim.apply_pick("mine", 0)
+	for i in 10:
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		fx.step(1.0 / 60.0)
+		if not sim.subs.mines.is_empty():
+			break
+	assert_eq(sim.subs.mines.size(), 1, "기뢰 하나를 놓음")
+	var at: Vector2 = sim.subs.mines[0]["pos"]
+	var blast := SubWeapons.stat("mine", "blast", 5)
+	var size: float = Balance.ASTEROID_TYPES[0]["radius"]
+	var inside := _rock(sim, at + Vector2(blast + size - 0.5, 0), 1000.0)  # 몸이 원에 살짝 걸침
+	var outside := _rock(sim, at + Vector2(0, blast + size + 0.5), 1000.0)  # 몸이 원 밖
+	for i in 30:  # 켜질 때까지 (0.4초)
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		fx.step(1.0 / 60.0)
+	assert_eq(sim.subs.mines.size(), 1, "아직 아무도 안 건드림")
+	_rock(sim, at + Vector2(-5, 0), 1000.0)  # 기뢰를 건드림
+	sim.update(1.0 / 60.0, Vector2.ZERO)
+	fx.step(1.0 / 60.0)
+	assert_true(sim.subs.mines.is_empty(), "건드리면 터짐")
+	assert_eq(fx._bursts.size(), 1)
+	var b: Dictionary = fx._bursts[0]
+	assert_eq(SubWeaponFx.flash_radius(b), blast, "번쩍이는 원 반지름 = 폭발 반경")
+	assert_true(inside.hp < 1000.0, "원에 걸친 적은 맞음")
+	assert_eq(outside.hp, 1000.0, "원 밖 적은 안 맞음")
+	assert_true(float(Juice.SUB_FX["mine_flash"]) <= 0.25, "번쩍임은 0.2초 안팎")

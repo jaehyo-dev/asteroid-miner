@@ -100,15 +100,17 @@ const WEAPON_BLAST_MAX := 8
 ## 단계 연출 (2026-11-12 사용자 결정): 1·3·5단계에서 모양이 바뀌고(아래 [1단계, 3단계, 5단계] 세 칸 목록), 2·4단계는 minor_bright만큼 밝아진다.
 ## burst_time 폭발 시간(초)·smoke_time 5단계 기뢰 연기, zap_time 번개가 남는 시간·zap_kinks 꺾임 수·zap_jitter 옆으로 벌어지는 폭(픽셀)·zap_crackle 5단계 번개를 다시 꺾는 간격(초)·
 ## zap_branch 잔가지 수(대상 사이마다)·coil_ring 우주선 둘레 전기 고리 반지름·coil_ring_time 3단계 고리가 보이는 시간,
-## hole_dots 블랙홀 먼지 줄기 수·hole_disk 점으로 된 원반의 점 수·hole_arms 5단계 나선 팔 수·hole_spin 도는 빠르기(라디안/초)·collapse_time 5단계 붕괴 연출 시간,
-## wave_alpha 파동 고리 진하기·wave_rings 고리 겹 수·wave_glints 고리 위 반짝이는 점 수·hex_size 육각 격자 한 변(픽셀)·hex_band 격자가 비치는 폭·wave_rays 5단계 방사선 수·wave_after 5단계 잔광 시간,
-## crack_time 맞은 운석의 금·광맥이 남는 시간·dust 5단계 금가루 수, mine_blink 기뢰 불빛 깜빡임(초당)·mine_alert 적이 이 거리 안이면 깜빡임 3배,
+## 원 경계선 금지 (2026-11-12 사용자 결정): 범위·고리는 한 줄 원 대신 옅어지는 안개·흩뿌린 점·끊어진 호로 (arc_gap 호의 빈틈 비율).
+## hole_dots 블랙홀 먼지 줄기 수·hole_dust 가장자리 흩뿌린 먼지 점 수·hole_band 중심을 감싼 빛 띠 진하기·hole_disk 점으로 된 원반의 점 수·hole_arms 5단계 나선 팔 수·hole_spin 도는 빠르기(라디안/초)·collapse_time 5단계 붕괴 연출 시간,
+## wave_alpha 파동 고리 진하기·wave_rings 고리 겹 수·wave_glints 고리 위 반짝이는 점 수·hex_size 육각 격자 한 변(픽셀)·hex_band 격자가 비치는 폭·wave_rays 5단계 방사선 수·wave_after 5단계 잔광 시간·wave_band 앞쪽 뒤로 옅어지는 띠 폭(픽셀),
+## crack_time 맞은 운석의 금·광맥이 남는 시간·dust 5단계 금가루 수, mine_blink 기뢰 불빛 깜빡임(초당)·mine_alert 적이 이 거리 안이면 깜빡임 3배·mine_flash 5단계 기뢰가 터질 때 폭발 범위 빨간 원이 번쩍이는 시간,
 ## missile_trail 꼬리 점 수·missile_sparks 5단계 폭발 불티 수·hatch_time 5단계 발사 때 포드 해치 번쩍임, saw_teeth 톱날 이 수·saw_trail 잔상 호 점 수·saw_chips 맞을 때 튀는 불꽃·부스러기 수
 const SUB_FX := {"burst_time": 0.3, "smoke_time": 0.55, "zap_time": [0.22, 0.24, 0.28], "zap_kinks": 3, "zap_jitter": 4.0, "zap_crackle": 0.04,
 	"zap_branch": [0, 1, 1], "coil_ring": 11.0, "coil_ring_time": 0.3,
-	"hole_dots": [0, 6, 6], "hole_disk": 14, "hole_arms": 3, "hole_spin": 5.0, "collapse_time": 0.45,
+	"hole_dots": [4, 6, 6], "hole_dust": 28, "hole_band": [0.6, 0.75, 0.9], "hole_disk": 14, "hole_arms": 3, "hole_spin": 5.0, "collapse_time": 0.45,
 	"wave_alpha": 0.7, "wave_rings": [1, 2, 3], "wave_glints": 12, "hex_size": 6.0, "hex_band": 18.0, "wave_rays": 12, "wave_after": 0.5,
-	"crack_time": 0.45, "dust": 8, "mine_blink": 3.0, "mine_alert": 40.0,
+	"wave_band": 10.0, "arc_gap": 0.3,
+	"crack_time": 0.45, "dust": 8, "mine_blink": 3.0, "mine_alert": 40.0, "mine_flash": 0.2,
 	"missile_trail": [4, 4, 6], "missile_sparks": 10, "hatch_time": 0.12, "saw_teeth": [5, 6, 8], "saw_trail": [0, 4, 8], "saw_chips": [0, 3, 4],
 	"minor_bright": 0.15}
 ## 한꺼번에 그리는 보조 무기 폭발·번개·붕괴 수, 맞은 자리 표시(금·불꽃) 수 (폰 성능용, 넘으면 오래된 것부터 지움)

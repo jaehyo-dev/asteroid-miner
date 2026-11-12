@@ -15,6 +15,8 @@ const PLUM := Color("#861a59")
 const INDIGO := Color("#3a1c57")
 const BLUE := Color("#4d80cd")
 const DARK := Color("#14111c")
+## 블랙홀 중심: 배경(#080812)보다 어두워야 뚫린 구멍이 아니라 꽉 찬 어둠으로 보인다
+const VOID := Color("#000000")
 const CYAN := Color("#99e9e6")
 const TEAL := Color("#30e1b9")
 const RED := Color("#f25c76")
@@ -28,7 +30,7 @@ var sim: RunSim
 ## 폭발 {pos, radius, t, life, kind, tier, sd} / 번개 {raw(대상 점), path(꺾은선), branches, t, life, tier, crackle}
 var _bursts: Array[Dictionary] = []
 var _zaps: Array[Dictionary] = []
-## 채굴 펄스 그림 {pos, radius, t, tier} (판정 파동이 끝나도 5단계 잔광이 남게 따로 둔다)
+## 채굴 펄스 그림 {pos, radius, t, tier, seed} (판정 파동이 끝나도 5단계 잔광이 남게 따로 둔다)
 var _waves: Array[Dictionary] = []
 ## 맞은 자리 {kind, pos, target, t, life, tier, sd} (톱날 불꽃·부스러기, 채굴 펄스 금·광맥·금가루)
 var _hits: Array[Dictionary] = []
@@ -89,7 +91,7 @@ func step(delta: float) -> void:
 					"life": float(p["crack_time"]) if f["kind"] == "wave" else 0.3})
 	if sim.events.has("sub_wave") and not sim.subs.waves.is_empty():
 		var w: Dictionary = sim.subs.waves.back()
-		_waves.append({"pos": w["pos"], "radius": w["radius"], "t": 0.0, "tier": _tier("wave")})
+		_waves.append({"pos": w["pos"], "radius": w["radius"], "t": 0.0, "tier": _tier("wave"), "seed": _rng.randi() % 997})
 	if sim.events.has("sub_missile") and _tier("missile") == 2:
 		_hatch_t = 0.0
 	# 5단계 블랙홀이 다 지나서 사라지면 붕괴 연출
@@ -186,65 +188,115 @@ func draw_under(ci: CanvasItem) -> void:
 		_draw_burst(ci, b, p)
 
 
-## 블랙홀 1단계 작은 보라 원반 / 3단계 자홍 + 점 원반 + 먼지 줄기 / 5단계 남색 중심 + 흰 테두리 + 나선 팔
+## 블랙홀 1단계 보라 / 3단계 자홍 + 점 원반 / 5단계 남색 + 나선 팔. 모든 단계: 경계선 없이 바깥으로 옅어지는 안개·먼지,
+## 끌려 들어가는 먼지 줄기, 꽉 찬 검은 중심 + 그 바로 바깥을 감싸고 도는 밝은 물질 띠
 func _draw_hole(ci: CanvasItem, h: Dictionary, tier: int, p: Dictionary) -> void:
 	var t: float = h["t"]
 	if t < Balance.SUB_HOLE_FLIGHT:  # 날아가는 중: 작은 검은 구슬 + 단계 색 테두리
 		var at: Vector2 = (h["from"] as Vector2).lerp(h["pos"], t / Balance.SUB_HOLE_FLIGHT).round()
 		RunSprites.disc(ci, at, 4.0 + tier * 0.5, [PURPLE, MAGENTA, WHITE][tier])
-		RunSprites.disc(ci, at, 3.0, INDIGO if tier == 2 else DARK)
+		RunSprites.disc(ci, at, 3.0, VOID)
 		return
 	var life := (t - Balance.SUB_HOLE_FLIGHT) / float(h["time"])
 	var grow := minf(life * 6.0, 1.0) * (1.0 - maxf(life - 0.85, 0.0) / 0.15)  # 열리며 커지고 끝에 오므라든다
 	var c: Vector2 = (h["pos"] as Vector2).round()
 	var r: float = float(h["radius"]) * grow
-	var core := maxf(r * 0.22, 3.0)
+	var core := maxf(r * 0.24, 3.0)
+	var tint: Color = [Color(PURPLE, 0.14), Color(PLUM, 0.3), Color(INDIGO, 0.45)][tier]
+	var dust: Color = [PURPLE, RED, CYAN][tier]
+	_soft_disc(ci, c, r, tint)  # 끄는 범위: 가운데 진하고 바깥으로 옅어진다
+	_soft_disc(ci, c, r * 0.65, Color(VOID, 0.45))  # 가운데로 갈수록 빛을 삼켜 어두워진다
+	_dust_edge(ci, c, r, Color(_lift("blackhole", dust), 0.8), int(p["hole_dust"]), int(h["pos"].x) + 3 * int(h["pos"].y))
+	_hole_streams(ci, c, r, p, dust, WHITE)
 	match tier:
-		0:
-			RunSprites.disc(ci, c, r, Color(PURPLE, 0.1))
-			RunSprites.ring(ci, c, r, Color(_lift("blackhole", PURPLE), 0.35))
-			RunSprites.disc(ci, c, core, Color(DARK, 0.85))
-			RunSprites.ring(ci, c, core + 1.0, Color(_lift("blackhole", PURPLE), 0.8))
 		1:
-			RunSprites.disc(ci, c, r, Color(PLUM, 0.18))
-			RunSprites.ring(ci, c, r, Color(_lift("blackhole", MAGENTA), 0.55))
-			_hole_streams(ci, c, r, p, RED, WHITE)
 			var n := int(p["hole_disk"])  # 둘레를 도는 납작한 점 원반
 			for i in n:
 				var ang := _time * float(p["hole_spin"]) * 0.6 + TAU * i / n
 				var at := c + Vector2(cos(ang), sin(ang) * 0.45) * (core + 6.0)
 				RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), Color(MAGENTA if i % 2 == 0 else RED, 0.9))
-			RunSprites.disc(ci, c, core, DARK)
-			RunSprites.ring(ci, c, core + 1.0, _lift("blackhole", MAGENTA))
 		2:
-			RunSprites.disc(ci, c, r, Color(INDIGO, 0.3))
-			RunSprites.ring(ci, c, r, Color(WHITE, 0.35))
-			_hole_streams(ci, c, r, p, CYAN, WHITE)
 			var arms := int(p["hole_arms"])
-			for a in arms:  # 나선 팔: 이어진 선, 가운데에 가까울수록 굵고 밝다
+			for a in arms:  # 나선 팔: 이어진 선, 가운데에 가까울수록 굵고 밝고 바깥 끝은 옅어진다
 				var prev := Vector2.ZERO
 				for j in 13:
 					var k := j / 12.0
 					var ang := _time * float(p["hole_spin"]) + TAU * a / arms + k * 2.6
-					var at := (c + Vector2.from_angle(ang) * r * (0.25 + 0.75 * k)).round()
+					var at := (c + Vector2.from_angle(ang) * r * (0.25 + 0.7 * k)).round()
 					if j > 0:
 						var col: Color = WHITE if j < 5 else (CYAN if j < 9 else BLUE)
-						RunSprites.line(ci, prev, at, Color(col, 1.0 - k * 0.5), 2.0 if j < 7 else 1.0)
+						RunSprites.line(ci, prev, at, Color(col, 1.0 - k * 0.8), 2.0 if j < 7 else 1.0)
 					prev = at
-			RunSprites.disc(ci, c, core + 2.0, INDIGO)
-			RunSprites.disc(ci, c, core, DARK)
-			RunSprites.ring(ci, c, core + 2.0, Color(CYAN, 0.6))
-			RunSprites.ring(ci, c, core + 1.0, WHITE)
+	_accretion(ci, c, core, tier, float(p["hole_band"][tier]))
+	RunSprites.disc(ci, c, core, VOID)
 
 
-## 끌려 들어가는 먼지 줄기: 줄기마다 점 3개가 나선으로 감겨 들어간다
+## 중심을 감싼 물질 띠: 빛 번짐 위에 밝기가 나선 무늬로 바뀌는 점들이 빠르게 돈다 (안쪽 가장자리는 검은 중심이 덮는다)
+func _accretion(ci: CanvasItem, c: Vector2, core: float, tier: int, alpha: float) -> void:
+	var hot: Color = _lift("blackhole", [PURPLE, MAGENTA, CYAN][tier])
+	_soft_disc(ci, c, core + 5.0, Color(hot, alpha * 0.7), 3)
+	for band in 2:
+		var rr := core + 1.0 + band * 2.0
+		var n := maxi(int(TAU * rr / 2.0), 8)
+		for i in n:
+			var ang := TAU * i / n
+			var swirl := 0.5 + 0.5 * sin(ang * 3.0 - _time * 9.0 + band * 1.2)  # 세 갈래 소용돌이 무늬가 돈다
+			var col := WHITE.lerp(hot, 1.0 - swirl) if band == 0 else hot
+			RunSprites.rect(ci, Rect2((c + Vector2.from_angle(ang) * rr).round() - Vector2.ONE, Vector2(2, 2)), Color(col, alpha * (0.35 + 0.65 * swirl)))
+
+
+## 부드러운 원판: 반지름을 줄여 가며 옅은 원판을 겹친다 (가운데 진하고, 가장 바깥 한 칸은 color.a / steps라 경계가 거의 안 보인다)
+static func _soft_disc(ci: CanvasItem, c: Vector2, r: float, color: Color, steps := 6) -> void:
+	for i in steps:
+		RunSprites.disc(ci, c, r * (1.0 - float(i) / (steps + 1)), Color(color, color.a / steps))
+
+
+## 흐린 가장자리: 0.55r ~ 1.05r에 점을 흩뿌리는데 바깥으로 갈수록 성기고 옅다 (점 자리는 seed로 고정, 천천히 돈다)
+func _dust_edge(ci: CanvasItem, c: Vector2, r: float, color: Color, count: int, sd: int) -> void:
+	for i in count:
+		var u := _h(sd, i)
+		var d := 0.55 + 0.5 * u * u  # 제곱이라 안쪽에 많고 바깥에 적다
+		var at := c + Vector2.from_angle(_h(sd, i + 100) * TAU + _time * (1.6 - d)) * r * d
+		RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(color, color.a * (1.05 - d) / 0.5))
+
+
+## 끊어진 호: 원둘레를 48조각으로 나눠 seed로 정한 조각만 잇는다 (빈틈이 있어 한 줄 원으로 보이지 않는다). 조각 수가 고정이라 커져도 무늬가 안 흔들린다
+func _arc(ci: CanvasItem, c: Vector2, r: float, color: Color, sd: int, width := 1.0) -> void:
+	if r < 2.0:
+		return
+	var gap := float(Juice.SUB_FX["arc_gap"])
+	var rot := _h(sd, 999) * TAU + _time * 0.6
+	for i in 48:
+		if _h(sd, i) < gap:
+			continue
+		var a0 := rot + TAU * i / 48.0
+		RunSprites.line(ci, (c + Vector2.from_angle(a0) * r).round(), (c + Vector2.from_angle(a0 + TAU / 48.0 * 0.8) * r).round(),
+			Color(color, color.a * (0.55 + 0.45 * _h(sd, i + 300))), width)
+
+
+## 뒤로 옅어지는 띠: 반경 r 안쪽 depth 픽셀에 점을 3줄 흩뿌리는데 안쪽 줄일수록 성기고 옅다
+func _haze(ci: CanvasItem, c: Vector2, r: float, depth: float, color: Color, sd: int) -> void:
+	for row in 3:
+		var keep := 1.0 - (row + 1) / 4.0
+		var rr := r - (row + 1) * depth / 4.0
+		if rr < 2.0:
+			return
+		for i in 64:
+			if _h(sd, i + row * 64) > keep:
+				continue
+			var at := c + Vector2.from_angle((i + _h(sd, i + 500)) / 64.0 * TAU + _time * 0.6) * rr
+			RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(color, color.a * keep))
+
+
+## 끌려 들어가는 먼지 줄기: 줄기마다 점 3개가 나선으로 감겨 들어간다 (바깥 끝에서는 옅게 나타난다)
 func _hole_streams(ci: CanvasItem, c: Vector2, r: float, p: Dictionary, col: Color, head: Color) -> void:
 	var n := int(p["hole_dots"][_tier("blackhole")])
 	for i in n:
 		for j in 3:
 			var phase := fposmod(_time * 0.8 + float(i) / n - j * 0.05, 1.0)
 			var at := c + Vector2.from_angle(_time * float(p["hole_spin"]) * 0.5 + TAU * i / n + phase * 2.0) * r * (1.0 - phase)
-			RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2) if j == 0 else Vector2.ONE * 1.0), Color(head if j == 0 else col, 0.9 - j * 0.25))
+			var appear := minf(phase / 0.25, 1.0)
+			RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2) if j == 0 else Vector2.ONE * 1.0), Color(head if j == 0 else col, (0.9 - j * 0.25) * appear))
 
 
 ## 5단계 블랙홀 붕괴: 가운데 흰 번쩍임 뒤 소용돌이 무늬가 바깥으로 퍼지며 옅어진다
@@ -254,7 +306,8 @@ func _draw_collapse(ci: CanvasItem, cl: Dictionary, p: Dictionary) -> void:
 	var r: float = float(cl["radius"]) * (1.0 - (1.0 - k) * (1.0 - k))
 	if k < 0.2:
 		RunSprites.disc(ci, c, 5.0 * (1.0 - k / 0.2) + 1.0, WHITE)
-	RunSprites.ring(ci, c, r, Color(CYAN, 0.6 * (1.0 - k)))
+	_arc(ci, c, r, Color(CYAN, 0.6 * (1.0 - k)), 5)
+	_haze(ci, c, r, 8.0, Color(CYAN, 0.6 * (1.0 - k)), 5)
 	var arms := int(p["hole_arms"])
 	for a in arms:
 		for j in 8:
@@ -263,7 +316,8 @@ func _draw_collapse(ci: CanvasItem, cl: Dictionary, p: Dictionary) -> void:
 			RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), Color(WHITE if j % 3 == 0 else CYAN, (1.0 - k) * (1.0 - kk * 0.4)))
 
 
-## 채굴 펄스 1단계 금빛 고리 + 반짝이는 점 / 3단계 고리 두 겹 + 육각 격자 / 5단계 고리 세 겹 + 방사선 + 잔광
+## 채굴 펄스 1단계 금빛 띠 + 반짝이는 점 / 3단계 띠 두 겹 + 육각 격자 / 5단계 띠 세 겹 + 방사선 + 잔광.
+## 띠는 한 줄 원이 아니라 앞쪽 끊어진 호(밝음) + 뒤로 옅어지는 점이고, 퍼질수록 옅어지다 사라진다
 func _draw_wave(ci: CanvasItem, w: Dictionary, p: Dictionary) -> void:
 	var tier: int = w["tier"]
 	var full := float(w["radius"]) / Balance.SUB_WAVE_SPEED
@@ -272,28 +326,32 @@ func _draw_wave(ci: CanvasItem, w: Dictionary, p: Dictionary) -> void:
 	var after := float(p["wave_after"]) if tier == 2 else 0.12
 	var a := 1.0 if w["t"] < full else 1.0 - (float(w["t"]) - full) / after
 	var c: Vector2 = (w["pos"] as Vector2).round()
+	var sd: int = w["seed"]
 	var gold := _lift("wave", GOLD)
-	if tier == 2 and w["t"] >= full:  # 잔광: 끝 반경에 고리와 옅은 원판이 남아 천천히 사라진다
-		RunSprites.disc(ci, c, r, Color(GOLD, 0.06 * a))
-		RunSprites.ring(ci, c, r, Color(gold, 0.5 * a))
-		RunSprites.ring(ci, c, r - 4.0, Color(WHITE, 0.25 * a))
+	if tier == 2 and w["t"] >= full:  # 잔광: 끝 반경에 금가루 안개가 남아 천천히 사라진다
+		_soft_disc(ci, c, r, Color(GOLD, 0.05 * a))
+		_haze(ci, c, r + 2.0, 12.0, Color(gold, 0.8 * a), sd)
+		_haze(ci, c, r - 2.0, 10.0, Color(WHITE, 0.5 * a), sd + 7)
 		return
+	var fade := (1.0 - k * 0.75) * a
 	if tier >= 1:
-		_draw_hex(ci, c, r, float(p["hex_band"]), Color(gold, 0.4 * a))
+		_draw_hex(ci, c, r, float(p["hex_band"]), Color(gold, 0.4 * fade))
 	for j in int(p["wave_rings"][tier]):
 		var rr := r - j * 6.0
-		if rr > 2.0:
-			RunSprites.ring(ci, c, rr, Color(gold if j == 0 else WHITE, float(p["wave_alpha"]) * (1.0 - k * 0.6) * a * (1.0 - j * 0.3)))
+		var col: Color = gold if j == 0 else WHITE
+		var al := float(p["wave_alpha"]) * fade * (1.0 - j * 0.3)
+		_arc(ci, c, rr, Color(col, al), sd + j)
+		_haze(ci, c, rr, float(p["wave_band"]), Color(col, al), sd + j + 11)
 	if tier == 2:
 		var rays := int(p["wave_rays"])
 		for i in rays:
 			var dir := Vector2.from_angle(TAU * i / rays + 0.13 + k * 0.3)
-			RunSprites.line(ci, (c + dir * (r - 3.0)).round(), (c + dir * (r + 7.0)).round(), Color(WHITE if i % 2 == 0 else gold, 0.8 * a), 1.0)
+			RunSprites.line(ci, (c + dir * (r - 3.0)).round(), (c + dir * (r + 7.0)).round(), Color(WHITE if i % 2 == 0 else gold, 0.8 * fade), 1.0)
 	var glints := int(p["wave_glints"])
 	var blink := int(_time * 12.0)
 	for i in glints:
 		var at := c + Vector2.from_angle(TAU * i / glints + _time * 0.8) * r
-		RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), Color(WHITE if (i + blink) % 2 == 0 else gold, a))
+		RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), Color(WHITE if (i + blink) % 2 == 0 else gold, fade))
 
 
 ## 파동이 지나간 띠(r - band ~ r)에만 육각 격자 꼭짓점의 세 변을 그린다 (앞쪽일수록 진하게)
@@ -340,7 +398,7 @@ func _draw_coil_ring(ci: CanvasItem, p: Dictionary) -> void:
 		RunSprites.line(ci, (c + Vector2.from_angle(ang) * r).round(), (c + Vector2.from_angle(ang + 0.3) * (r + 4.0)).round(), WHITE, 1.0)
 
 
-## 기뢰 1단계 작은 기뢰 / 3단계 가시 + 적이 가까우면 빨리 깜빡 / 5단계 더 크고 바닥에 경고 원
+## 기뢰 1단계 작은 기뢰 / 3단계 가시 + 적이 가까우면 빨리 깜빡 / 5단계 더 크고 가시 8개 (늘 보이는 경고 원은 없음: 들어가도 안 터져 오해, 2026-11-12)
 func _draw_mine(ci: CanvasItem, m: Dictionary, tier: int, p: Dictionary) -> void:
 	var c: Vector2 = (m["pos"] as Vector2).round()
 	var armed: bool = m["t"] >= Balance.SUB_MINE_ARM
@@ -352,10 +410,6 @@ func _draw_mine(ci: CanvasItem, m: Dictionary, tier: int, p: Dictionary) -> void
 				break
 	var on := armed and fposmod(_time * rate + float(m["pos"].x) * 0.01, 1.0) < 0.5
 	var light := _lift("mine", RED)
-	if tier == 2 and armed:
-		var blast := SubWeapons.stat("mine", "blast", sim.subs.stage_of("mine"))
-		RunSprites.disc(ci, c, blast, Color(RED, 0.05))
-		RunSprites.ring(ci, c, blast, Color(RED, 0.3 if on else 0.15))
 	var body := 3.0 + (1.0 if tier == 2 else 0.0)
 	RunSprites.disc(ci, c, body, METAL)
 	if tier >= 1:
@@ -368,7 +422,12 @@ func _draw_mine(ci: CanvasItem, m: Dictionary, tier: int, p: Dictionary) -> void
 	RunSprites.rect(ci, Rect2(c - Vector2.ONE, Vector2(2, 2)), light if on else Color(light, 0.4))
 
 
-## 폭발: 미사일 1단계 작은 폭발 / 3단계 + 충격파 고리 / 5단계 + 불티. 기뢰 1단계 작은 폭발 / 3단계 + 고리 / 5단계 불꽃 꽃잎 + 연기 + 고리
+## 5단계 기뢰가 터질 때 번쩍이는 빨간 원의 반지름 = 실제 폭발 범위 (SubWeapons._burst가 이 반경 + 적 반지름 안을 맞힌다)
+static func flash_radius(b: Dictionary) -> float:
+	return b["radius"]
+
+
+## 폭발: 미사일 1단계 작은 폭발 / 3단계 + 충격파 고리 / 5단계 + 불티. 기뢰 1단계 작은 폭발 / 3단계 + 고리 / 5단계 불꽃 꽃잎 + 연기 + 끊어진 호 + 범위 번쩍임
 func _draw_burst(ci: CanvasItem, b: Dictionary, p: Dictionary) -> void:
 	var tier: int = b["tier"]
 	var k := minf(float(b["t"]) / float(p["burst_time"]), 1.0)
@@ -387,13 +446,16 @@ func _draw_burst(ci: CanvasItem, b: Dictionary, p: Dictionary) -> void:
 				var at := pos + Vector2.from_angle(TAU * i / 6.0 + float(sd)) * r * 0.55
 				RunSprites.disc(ci, at.round(), radius * 0.3 * (1.0 - k * 0.5), Color(EMBER if i % 2 == 0 else ORANGE, 0.7 * (1.0 - k)))
 			RunSprites.disc(ci, pos, r * 0.3, Color(GOLD, 0.9 * (1.0 - k)))
-			RunSprites.ring(ci, pos, r * 1.05, Color(GOLD, 1.0 - k))
+			_arc(ci, pos, r * 1.05, Color(GOLD, 1.0 - k), sd)
+		if b["t"] < float(p["mine_flash"]) and int(b["t"] * 20.0) % 2 == 0:  # 터지는 순간 실제 폭발 범위가 빨갛게 번쩍인다
+			RunSprites.disc(ci, pos, flash_radius(b), Color(RED, 0.18))
+			RunSprites.ring(ci, pos, flash_radius(b), RED)
 		return
 	if k >= 1.0:
 		return
-	RunSprites.disc(ci, pos, r * (0.6 if tier == 0 else 0.75), Color(ORANGE if b["kind"] == "missile" else EMBER, 0.45 * (1.0 - k)))
+	_soft_disc(ci, pos, r * (0.6 if tier == 0 else 0.75), Color(ORANGE if b["kind"] == "missile" else EMBER, 0.6 * (1.0 - k)), 3)
 	if tier >= 1:
-		RunSprites.ring(ci, pos, r * 1.1, Color(WHITE if k < 0.4 else GOLD, 1.0 - k))
+		_arc(ci, pos, r * 1.1, Color(WHITE if k < 0.4 else GOLD, 1.0 - k), sd)
 	if k < 0.3:
 		RunSprites.disc(ci, pos, r * 0.3, Color(WHITE, 0.85))
 	if tier == 2:
@@ -431,8 +493,10 @@ func _draw_zap(ci: CanvasItem, z: Dictionary) -> void:
 		for i in range(1, raw.size()):
 			var at: Vector2 = (raw[i] as Vector2).round()
 			RunSprites.disc(ci, at, 4.0 + tier, Color(WHITE, 0.7 * (a - 0.4) / 0.6))
-			if tier == 2:
-				RunSprites.ring(ci, at, 7.0, Color(CYAN, a))
+			if tier == 2:  # 대상 둘레에 도는 불꽃 점 4개 (고리 선 대신)
+				for j in 4:
+					var sp := at + Vector2.from_angle(_time * 8.0 + TAU * j / 4.0 + i) * 7.0
+					RunSprites.rect(ci, Rect2(sp.round() - Vector2.ONE, Vector2(2, 2)), Color(CYAN if j % 2 == 0 else WHITE, a))
 
 
 # ── 그리기: 내 탄 층 ─────────────────────────────
