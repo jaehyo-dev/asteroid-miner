@@ -12,6 +12,9 @@ const SHORT := {"mineral_0": "어디서나 나오는 기본 광물.", "mineral_1
 const CASE := Vector2i(72, 76)
 const HEAD_H := 20
 const DETAIL_H := 26
+## 진화 도감 (v0.8.0 5단계): 발견 칸 아래 따로 줄을 두고 발견 보상 수에는 세지 않는다. 진화는 금 틀 + 진홍 이름
+const EVO_HEAD := 18
+const EVO_COLOR := Color("#ff2567")
 const REWARD_TEXT := {"credits": "광물 %d", "speed": "이동 속도 +%d%%", "keep": "사망 보존 +%d%%", "paint": "금빛 도색"}
 
 ## 고른 진열장 id와 고른 보상 id ("" = 없음)
@@ -22,6 +25,7 @@ var _t := 0.0
 var _cols := 6
 var _cell := Vector2i(100, 94)
 var _press := Vector2(-1, -1)
+static var _evo_icons: Dictionary = {}
 
 
 func setup() -> void:
@@ -30,9 +34,9 @@ func setup() -> void:
 	clip_contents = true
 	_cols = 5 if win.compact else 6
 	var grid_h := int(size.y) - HEAD_H - 4 - DETAIL_H - 2
-	var rows := ceili(float(Discovery.ENTRIES.size()) / _cols)
-	_cell = Vector2i((int(size.x) - 6) / _cols, maxi(CASE.y + 16, grid_h / rows))
-	max_scroll = maxi(0, rows * _cell.y - grid_h)
+	var rows := ceili(float(Discovery.ENTRIES.size()) / _cols) + _evo_rows()
+	_cell = Vector2i((int(size.x) - 6) / _cols, maxi(CASE.y + 16, (grid_h - EVO_HEAD) / rows))
+	max_scroll = maxi(0, rows * _cell.y + EVO_HEAD - grid_h)
 	claim_button = WinButton.new()
 	claim_button.size = Vector2(72, 22)
 	claim_button.pressed.connect(_claim)
@@ -43,6 +47,15 @@ func setup() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	queue_redraw()
+
+
+func _evo_rows() -> int:
+	return ceili(float(Balance.EVOLUTIONS.size()) / _cols)
+
+
+## 진화 도감 머리 줄의 y (스크롤 반영 전, 칸 맨 위 기준)
+func _evo_top() -> int:
+	return ceili(float(Discovery.ENTRIES.size()) / _cols) * _cell.y
 
 
 func _found() -> int:
@@ -71,6 +84,15 @@ func _click(p: Vector2i) -> void:
 		var r := Rect2i(i % _cols * _cell.x, top + i / _cols * _cell.y, _cell.x, _cell.y)
 		if r.has_point(p) and p.y >= HEAD_H + 4 and p.y < int(size.y) - DETAIL_H:
 			selected = Discovery.ENTRIES[i]["id"]
+			reward = ""
+			Sfx.play("click")
+			_update_claim()
+			return
+	var etop := top + _evo_top() + EVO_HEAD
+	for i in Balance.EVOLUTIONS.size():
+		var r := Rect2i(i % _cols * _cell.x, etop + i / _cols * _cell.y, _cell.x, _cell.y)
+		if r.has_point(p) and p.y >= HEAD_H + 4 and p.y < int(size.y) - DETAIL_H:
+			selected = Balance.EVOLUTIONS[i]["id"]
 			reward = ""
 			Sfx.play("click")
 			_update_claim()
@@ -132,6 +154,12 @@ func _draw() -> void:
 	var cell_w := right / _cols
 	for i in Discovery.ENTRIES.size():
 		_draw_case(Discovery.ENTRIES[i], (i % _cols) * cell_w + cell_w / 2, top - scroll + (i / _cols) * _cell.y)
+	var ey := top - scroll + _evo_top()
+	var made := win.save.evolved.size()
+	WindowArt.text(self, Vector2i(4, ey + 2), "진화 도감 %d / %d" % [made, Balance.EVOLUTIONS.size()], EVO_COLOR)
+	WindowArt.text(self, Vector2i(4 + WindowArt.width("진화 도감 6 / 6") + 8, ey + 2), "보조 무기 5단계 + 짝 스킬", WindowArt.MUTED)
+	for i in Balance.EVOLUTIONS.size():
+		_draw_evo_case(Balance.EVOLUTIONS[i], (i % _cols) * cell_w + cell_w / 2, ey + EVO_HEAD + (i / _cols) * _cell.y)
 	# 위아래 줄이 끌린 칸을 덮는다
 	draw_rect(Rect2(0, 0, w, top), Color("#2b1925"))
 	draw_rect(Rect2(0, h - DETAIL_H - 2, w, DETAIL_H + 2), Color("#2b1925"))
@@ -156,6 +184,28 @@ func _draw_case(e: Dictionary, cx: int, y: int) -> void:
 	draw_texture(icon, Vector2(ix, iy), Color.WHITE if known else Color.BLACK)
 	if known:
 		WindowArt.text(self, Vector2i(cx, y + CASE.y + 1), e["name"], RANK_COLOR[rank], 0)
+	else:
+		WindowArt.text(self, Vector2i(cx, iy + icon.get_height() / 2 - 7), "?", WindowArt.DIM, 0)
+		WindowArt.text(self, Vector2i(cx, y + CASE.y + 1), "?", WindowArt.DIM, 0)
+
+
+## 진화 칸: 만든 것은 금 틀 + 진화 그림 + 이름, 못 만든 것은 꺼진 틀 + 검은 실루엣 + "?"
+func _draw_evo_case(e: Dictionary, cx: int, y: int) -> void:
+	var known: bool = win.save.evolved.has(e["id"])
+	var t := WindowArt.tex("case_legend" if known else "case_off")
+	var pad := 3 if known else 0
+	var kx := cx - CASE.x / 2
+	if e["id"] == selected:  # 고른 칸: 테두리 대신 칸 뒤 바탕을 옅게 밝힌다
+		draw_rect(Rect2(kx - 3, y + 2, CASE.x + 6, CASE.y - 1), Color(WindowArt.INK, 0.18))
+	draw_texture(t, Vector2(kx - pad, y - pad))
+	if not _evo_icons.has(e["id"]):  # 붙잡아 둔다: _draw에서 load만 하고 버리면 그리기 전에 풀려 흰 네모가 된다
+		_evo_icons[e["id"]] = LevelCard.tex("icons/" + str(e["id"]))
+	var icon: Texture2D = _evo_icons[e["id"]]
+	var ix := cx - icon.get_width() / 2
+	var iy := y + int(CASE.y * 0.79) - icon.get_height()
+	draw_texture(icon, Vector2(ix, iy), Color.WHITE if known else Color.BLACK)
+	if known:
+		WindowArt.text(self, Vector2i(cx, y + CASE.y + 1), e["name"], EVO_COLOR, 0)
 	else:
 		WindowArt.text(self, Vector2i(cx, iy + icon.get_height() / 2 - 7), "?", WindowArt.DIM, 0)
 		WindowArt.text(self, Vector2i(cx, y + CASE.y + 1), "?", WindowArt.DIM, 0)
@@ -198,6 +248,18 @@ func _draw_detail(w: int, h: int) -> void:
 		return
 	if selected.is_empty():
 		WindowArt.text(self, Vector2i(12, ty), "칸이나 상자를 누르면 설명이 나와요", WindowArt.MUTED)
+		return
+	var evo := SubWeapons.evo_info(selected)
+	if not evo.is_empty():  # 진화: 만들었으면 이름 + 조합법, 아니면 짝 하나만 힌트
+		var sub_name: String = SubWeapons.info(evo["sub"])["name"]
+		var known: bool = win.save.evolved.has(selected)
+		var title: String = evo["name"] if known else "???"
+		WindowArt.text(self, Vector2i(12, ty), title, EVO_COLOR if known else WindowArt.MUTED)
+		var recipe: String = sub_name + " + " + (Upgrades.display_name(evo["skill"]) if known else "?")
+		var rx := 12 + WindowArt.width(title) + 8
+		var fit := WindowArt.wrap(recipe if known else "힌트: " + recipe, w - rx - 10)
+		if not fit.is_empty():
+			WindowArt.text(self, Vector2i(rx, ty), fit[0], WindowArt.INK if known else WindowArt.MUTED)
 		return
 	if not win.save.seen.has(selected):
 		WindowArt.text(self, Vector2i(12, ty), "아직 못 찾았어요", WindowArt.MUTED)

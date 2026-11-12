@@ -25,6 +25,8 @@ var hauled := PackedInt32Array([0, 0, 0, 0])
 var seen: Dictionary = {}
 ## 도감 보상: 받은 보상 id → true (Balance.CODEX_REWARDS의 id). 지점별로 남겨 두 번 받지 않는다
 var codex_claimed: Dictionary = {}
+## 진화 도감: 만든 진화 id → true (Balance.EVOLUTIONS의 id, v0.8.0)
+var evolved: Dictionary = {}
 ## 갈림길: 갈림길 id → 해금한 쪽("a", "b", "ab") / 사용 중인 쪽("a", "b")
 var forks_owned: Dictionary = {}
 var forks_on: Dictionary = {}
@@ -45,7 +47,7 @@ func add_credits(amount: int) -> void:
 
 func to_dict() -> Dictionary:
 	return {"format": FORMAT, "credits": credits, "upgrades": upgrades.duplicate(), "risk_tip_seen": risk_tip_seen, "warp_seen": warp_seen, "drag_hint_seen": drag_hint_seen,
-		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys(), "forks_owned": forks_owned.duplicate(), "forks_on": forks_on.duplicate(), "weapon": weapon, "weapons_owned": weapons_owned.duplicate()}
+		"hauled": Array(hauled), "seen": seen.keys(), "codex_claimed": codex_claimed.keys(), "forks_owned": forks_owned.duplicate(), "forks_on": forks_on.duplicate(), "weapon": weapon, "weapons_owned": weapons_owned.duplicate(), "evolved": evolved.keys()}
 
 
 ## 판에서 가져온 광물(등급별 개수)을 누적한다
@@ -59,6 +61,14 @@ func discover(id: String) -> bool:
 	if seen.has(id) or not Discovery.has(id):
 		return false
 	seen[id] = true
+	return true
+
+
+## 진화 도감에 만든 진화를 기록한다. 새로 기록했으면 true (모르는 id는 버린다)
+func record_evolution(id: String) -> bool:
+	if evolved.has(id) or SubWeapons.evo_info(id).is_empty():
+		return false
+	evolved[id] = true
 	return true
 
 
@@ -82,6 +92,11 @@ static func from_dict(d: Variant) -> SaveData:
 		for id in claimed:
 			if typeof(id) == TYPE_STRING and not Discovery.reward_info(id).is_empty():  # 모르는 id는 버린다
 				s.codex_claimed[id] = true
+	var evo: Variant = d.get("evolved", [])
+	if typeof(evo) == TYPE_ARRAY:
+		for id in evo:
+			if typeof(id) == TYPE_STRING:
+				s.record_evolution(id)
 	var tip: Variant = d.get("risk_tip_seen", false)
 	s.risk_tip_seen = typeof(tip) == TYPE_BOOL and tip  # 참/거짓이 아니면 안 본 것으로
 	var warp: Variant = d.get("warp_seen", false)

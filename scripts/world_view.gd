@@ -140,7 +140,7 @@ func clear_sub_fx() -> void:
 func fx_count() -> int:
 	var n := _effects.size() + sim.subs.missiles.size() + sim.subs.holes.size() + sim.subs.mines.size()
 	if _sfx != null:
-		n += _sfx._bursts.size() + _sfx._zaps.size() + _sfx._waves.size() + _sfx._hits.size() + _sfx._collapses.size()
+		n += _sfx._bursts.size() + _sfx._zaps.size() + _sfx._waves.size() + _sfx._hits.size() + _sfx._collapses.size() + _sfx._links.size() + _sfx._freezes.size() + _sfx._discharges.size() + _sfx._shocks.size()
 	return n
 
 

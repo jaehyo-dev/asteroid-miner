@@ -28,6 +28,12 @@ class Enemy:
 	var hit_time := 0.0  ## 튕김 모션 남은 시간 (그리기용)
 	var last_bullet_damage := 0.0  ## 마지막으로 맞힌 탄의 피해 (고폭 탄두 폭발 계산용, 치명타 제외)
 	var saw_hit_at := -INF  ## 궤도 톱날에 마지막으로 갈린 시각 (같은 적을 SUB_SAW_HIT_GAP마다)
+	var chill := 0.0  ## 냉각 응결탄: 느려진 남은 시간
+	var chill_slow := 0.0  ## 느려지는 비율 (1이면 멈춤: 정지장 붕괴탄 안)
+	var stacks := 0  ## 전하 축적 탄: 맞아서 쌓인 수
+	var ram_hit_at := -INF  ## 관성 충각에 마지막으로 부딪힌 시각
+	var no_echo := false  ## 광맥 공명기 충격파로 부서지면 다시 충격파를 내지 않는다 (연쇄 폭주 방지)
+	var bonus_drop := 0  ## 공명 파쇄로 부서지면 더 떨어뜨리는 광물 수
 	# 고대 경비선 전용
 	var aim := 0.0  ## 선체(포)가 바라보는 방향 (라디안)
 	var charge := -1.0  ## 충전한 시간 (충전 중이 아니면 -1)
@@ -186,6 +192,14 @@ var chain_matrix := false
 var overload := false
 var tractor_beacon := false
 var drones: Array[Drone] = []
+## 짝 스킬 (v0.8.0 5단계, apply_upgrades가 upgrade_bonus에서 다시 계산): 냉각 느려짐 비율, 충각 피해, 궤적 초당 피해, 전하 한 번 피해, 공명 충격파 피해
+var chill_ratio := 0.0
+var ram_power := 0.0
+var trail_dps := 0.0
+var charge_step := 0.0
+var vein_damage := 0.0
+## 잔류 분사 궤적 불꽃 점 {pos, t}
+var trail: Array[Dictionary] = []
 ## 보조 무기 (v0.8.0): 가진 것·단계·날아가는 미사일 등. 칸 수 = SUB_SLOTS + 연구소 "보조 무기 해금" 단계
 var subs := SubWeapons.new()
 var sub_slots := Balance.SUB_SLOTS
@@ -297,6 +311,7 @@ func update(delta: float, move: Vector2) -> void:
 	_auto_fire(delta)
 	_update_drones(delta)
 	subs.update(self, delta)
+	_update_trail(delta)
 	_move_bullets(delta)
 	_check_bullet_hits()
 	_update_shield(delta)
@@ -587,7 +602,9 @@ func _move_enemies(delta: float) -> void:
 				events.append("guard_charge")
 		elif a.kind != ROCK and (a.kind != "bug" or a.age < Balance.BUG_HOMING_TIME):
 			a.vel = steer(a.pos, a.vel, player_pos, creature_speed(a.kind, time), float(Balance.CREATURES[a.kind]["accel"]), delta)
-		a.pos += a.vel * delta
+		var slow := a.chill_slow if a.chill > 0.0 else 0.0  # 냉각 응결탄·정지장
+		a.chill = maxf(a.chill - delta, 0.0)
+		a.pos += a.vel * delta * (1.0 - slow)
 		a.flash = maxf(a.flash - delta, 0.0)
 		a.hit_time = maxf(a.hit_time - delta, 0.0)
 		var keep_limit := limit
@@ -910,6 +927,12 @@ func _hit_enemy(b: Bullet, a: Enemy, sound := true) -> void:
 	b.hits.append(a)
 	a.last_bullet_damage = b.damage
 	var damage := b.damage
+	if charge_step > 0.0:  # 전하 축적 탄: 같은 적을 맞힐수록 세진다 (이번 피해는 이전까지 쌓인 수로)
+		damage *= 1.0 + a.stacks * charge_step
+		a.stacks = mini(a.stacks + 1, Balance.CHARGE_MAX_STACKS)
+	if chill_ratio > 0.0 and not (a.chill > 0.0 and a.chill_slow >= 1.0):  # 냉각 응결탄: 정지장에 언 적은 건드리지 않는다 (정지 시간을 늘리지 않게)
+		a.chill_slow = maxf(a.chill_slow, chill_ratio) if a.chill > 0.0 else chill_ratio
+		a.chill = maxf(a.chill, Balance.CHILL_TIME)
 	if crit_chance > 0.0 and rng.randf() < crit_chance:
 		damage *= Balance.CRIT_MULT
 		fx.append({"type": "crit", "pos": a.pos, "damage": damage, "target": a})
@@ -929,7 +952,19 @@ func _hit_enemy(b: Bullet, a: Enemy, sound := true) -> void:
 func clear_subs() -> void:
 	for id in subs.stages:
 		upgrade_levels.erase(id)
+		upgrade_levels.erase(SubWeapons.evo_of(id).get("id", ""))
 	subs = SubWeapons.new()
+
+
+## ?fxtest: 그 보조 무기 하나만 5단계로 두고 짝 스킬(없으면 에픽 1장)을 준 뒤 바로 진화시킨다. v0.8.0 배포 전에 지운다
+func fx_evolve(id: String) -> void:
+	clear_subs()
+	for i in int(SubWeapons.info(id)["max"]):
+		apply_pick(id, 0)
+	var evo := SubWeapons.evo_of(id)
+	if not upgrade_levels.has(evo["skill"]):
+		apply_pick(evo["skill"], Upgrades.EPIC)
+	apply_pick(evo["id"], Upgrades.LEGENDARY)
 
 
 ## ?fxtest: 다른 보조 무기를 모두 지우고 그 보조 무기 하나만. 누를 때마다 1 → 3 → 5단계로 돈다. 정한 단계를 돌려준다. v0.8.0 배포 전에 지운다
@@ -994,8 +1029,12 @@ func _on_enemy_destroyed(a: Enemy) -> void:
 	kills += 1
 	destroyed.append(a)
 	events.append("destroy")
+	if vein_damage > 0.0 and a.kind == ROCK and not a.no_echo:
+		_vein_shock(a.pos)
+	var bonus := a.bonus_drop  # 공명 파쇄: 첫 광물 묶음에 더한다
 	for drop in drops_of(a):
-		var count := int(drop["count"])
+		var count := int(drop["count"]) + bonus
+		bonus = 0
 		var mult := float(weapon["mining"]) * (1.0 + mineral_bonus)
 		if mult != 1.0 and a.kind == ROCK:  # 무기 채굴량 × 채굴 레이저. 1보다 작으면 확률로 덜 나온다 (1이면 난수를 쓰지 않아 기존 판이 그대로)
 			var total := count * mult
@@ -1012,6 +1051,38 @@ func _on_enemy_destroyed(a: Enemy) -> void:
 			m.xp = mineral_xp(int(drop["grade"]))  # 경험치는 오르기 전 등급 기준
 			# 운석 자리에서 사방으로 튕겨 나가 감속하며 멈춘다 (멈출 때까지 가는 거리 = 속도 / 감속)
 			m.vel = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(Juice.MINERAL_POP_MIN, Juice.MINERAL_POP_MAX) * Juice.MINERAL_POP_DAMP
+
+
+## 광맥 공명기: 운석이 부서져 광물이 떨어진 자리 둘레에 충격파. 충격파로 부서진 운석은 다시 충격파를 내지 않는다
+func _vein_shock(at: Vector2) -> void:
+	fx.append({"type": "vein", "pos": at, "radius": Balance.VEIN_RADIUS})
+	for e in enemies:
+		if e.hp > 0.0 and e.pos.distance_to(at) < Balance.VEIN_RADIUS + e.radius:
+			e.hp -= vein_damage * bullet_damage
+			e.flash = Juice.ENEMY_FLASH_TIME
+			if e.hp <= 0.0:
+				e.no_echo = true
+
+
+## 잔류 분사 궤적: 움직이면 TRAIL_GAP마다 불꽃 점을 남기고, 점에 닿은 적은 초당 피해 (한 프레임에 적마다 한 번)
+func _update_trail(delta: float) -> void:
+	if trail_dps <= 0.0 and trail.is_empty():
+		return
+	trail = trail.filter(func(p: Dictionary) -> bool:
+		p["t"] += delta
+		return p["t"] < Balance.TRAIL_LIFE)
+	if trail_dps <= 0.0:
+		return
+	if alive and player_vel != Vector2.ZERO and (trail.is_empty() or trail.back()["pos"].distance_to(player_pos) >= Balance.TRAIL_GAP):
+		trail.append({"pos": player_pos, "t": 0.0})
+	var hurt := trail_dps * bullet_damage * delta
+	for e in enemies:
+		if e.hp <= 0.0:
+			continue
+		for p in trail:
+			if e.pos.distance_to(p["pos"]) < e.radius + Balance.TRAIL_RADIUS:
+				e.hp -= hurt  # 계속 닿는 피해라 번쩍임 없이 (블랙홀처럼)
+				break
 
 
 ## 탐지기·심부 스캔: 떨어지는 광물이 확률로 한 등급 오른다
@@ -1066,8 +1137,11 @@ func skip() -> int:
 func _roll_choices() -> void:
 	var count: int = Balance.UPGRADE_CHOICE_COUNT + (1 if _base("luck") and rng.randf() < Balance.RES_LUCK_CHANCE else 0)
 	var epic_bonus := Balance.RES_CHIP_EPIC if _base("chip") else 0.0
-	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus, upgrade_bonus, weapon.get("no_cards", []))
+	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus, upgrade_bonus, weapon.get("no_cards", []), subs.stages)
 	choices = SubWeapons.mix_cards(rng, choices, subs.stages, sub_slots, count, screens_done == 0)
+	var evo := SubWeapons.ready_evolution(subs.stages, subs.evolved, upgrade_levels)
+	if not evo.is_empty():  # 진화 조건이 맞으면 진화 카드 1장 확정 (고르지 않으면 다음 화면에도 또 나온다)
+		choices = SubWeapons.put_evolution(choices, evo)
 	if weapon.get("hitscan", false):  # 레일건은 사거리가 무한이라 사거리 카드가 빛줄기 굵기를 올린다
 		for c in choices:
 			if c["id"] == "range":
@@ -1114,6 +1188,12 @@ func choose(index: int) -> void:
 func apply_pick(id: String, grade: int) -> void:
 	if id == Upgrades.REPAIR:
 		hp = minf(hp + Upgrades.value(id, grade), max_hp)
+		return
+	var evo := SubWeapons.evo_info(id)
+	if not evo.is_empty():  # 진화: 보조 무기가 진화 무기로 바뀐다 (칸·짝 스킬 그대로)
+		subs.evolve(evo["sub"])
+		upgrade_levels[id] = 1
+		events.append("evolve")
 		return
 	if SubWeapons.is_sub(id):  # 보조 무기: 등급과 상관없이 1단계씩 (단계는 카드 점 표시용으로 upgrade_levels에도)
 		subs.level_up(id)
@@ -1192,6 +1272,11 @@ func apply_upgrades() -> void:
 	explosive_share = up.call("explosive_share")
 	crit_chance = up.call("crit")
 	mineral_bonus = up.call("mining_laser")
+	chill_ratio = up.call("chill")
+	ram_power = up.call("ram")
+	trail_dps = up.call("trail")
+	charge_step = up.call("charge")
+	vein_damage = up.call("vein")
 	orbit_pierce = up.call("orbit_pierce") > 0.0
 	overload = up.call("overload") > 0.0
 	tractor_beacon = up.call("tractor_beacon") > 0.0
@@ -1326,8 +1411,24 @@ func final_value() -> int:
 ## 우주선과 부딪힌 운석: 무적이 아니면 데미지를 주고 부서진다. 무적 중에는 그냥 지나간다.
 func _check_player_hits() -> void:
 	var kept: Array[Enemy] = []
+	var ramming := ram_power > 0.0 and alive and player_vel.length() >= move_speed * Balance.RAM_SPEED_RATIO
 	for a in enemies:
 		var touching := a.pos.distance_to(player_pos) < a.radius + Balance.SHIP_RADIUS
+		if touching and ramming and a.hp > 0.0:
+			if a.kind == ROCK and not a.golden and a.type <= 1:  # 관성 충각: 작은·중간 운석은 몸으로 부숨 (안 다치고 광물은 그대로, 다음 프레임에 정리)
+				a.last_bullet_damage = bullet_damage
+				a.hp = 0.0
+				fx.append({"type": "ram", "pos": a.pos})
+				events.append("ram")
+				kept.append(a)
+				continue
+			if time - a.ram_hit_at >= Balance.RAM_HIT_GAP:  # 다른 적은 피해를 주고 부딪힘은 그대로
+				a.ram_hit_at = time
+				sub_hit(a, ram_power, player_pos, true)
+				fx.append({"type": "ram", "pos": a.pos})
+		if touching and a.hp <= 0.0 and ramming:
+			kept.append(a)
+			continue
 		if touching and alive and damage_player(a.damage) and not a.sturdy():
 			crashed.append(a)
 			continue  # 부서진 운석은 목록에서 뺀다 (황금 운석·고대 경비선은 부딪혀도 부서지지 않음)

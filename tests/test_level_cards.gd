@@ -17,6 +17,12 @@ static func _all_cards() -> Array:
 			result.append({"id": u["id"], "grade": grade})
 	for u in Balance.LEGENDARY_UPGRADES:
 		result.append({"id": u["id"], "grade": Upgrades.LEGENDARY})
+	for id in ["chill", "ram", "trail", "charge", "vein"]:  # 짝 스킬을 이미 가졌을 때 "지금 → 다음" 문구
+		var bonus := {}
+		Upgrades.add_bonus(bonus, id, Upgrades.UNIQUE)
+		result.append({"id": id, "grade": Upgrades.UNIQUE, "desc": Upgrades.describe_next(id, Upgrades.UNIQUE, bonus), "short": Upgrades.describe_next(id, Upgrades.UNIQUE, bonus, true)})
+	for e in Balance.EVOLUTIONS:  # 진화 카드
+		result.append(SubWeapons.put_evolution([], e["id"])[0])
 	return result
 
 
@@ -81,6 +87,20 @@ func test_설명과_이름은_최대_2줄() -> void:
 				assert_true(LevelCard.FONT.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, lay["name_size"]).x <= lay["inner"], "%s 이름 폭 넘침: %s" % [view, line])
 
 
+func test_진화_조합법과_진화_재료_줄은_칸_안에() -> void:
+	for view in VIEWS:
+		var three := [SubWeapons.put_evolution([], "evo_missile")[0], {"id": "explosive", "grade": Upgrades.EPIC}, {"id": "chill", "grade": Upgrades.EPIC}]
+		var lay := LevelCard.layout_for(view, three)
+		for c in _all_cards():
+			var small := LevelCard.recipe_lines(c, 12, lay["inner"]) + LevelCard.pair_lines(c, 12, lay["inner"])
+			assert_true(small.size() <= 3, "%s %s 작은 줄 %s" % [view, c["id"], small])
+			for line in small:
+				assert_true(LevelCard.FONT.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x <= lay["inner"], "%s 폭 넘침: %s" % [view, line])
+				for i in line.length():
+					assert_true(LevelCard.FONT.has_char(line.unicode_at(i)), "글꼴에 없음: %s" % line[i])
+		assert_true(lay["total"] + 16 <= view.y, "%s 진화 카드가 있어도 화면 안" % view)
+
+
 func test_글꼴에_없는_글자가_없음() -> void:
 	for c in _all_cards():
 		for text in [Upgrades.display_name(c["id"]), Upgrades.describe(c["id"], c["grade"]), Upgrades.describe(c["id"], c["grade"], true), Upgrades.kind_of(c["id"])]:
@@ -118,9 +138,13 @@ func test_카드_화면이_레전드리까지_오류_없이_그려짐() -> void:
 # ── 카드 소리와 후광 (계획서 31번) ─────────────────
 
 func test_카드_소리는_등급마다_전용이고_빌려_쓰지_않음() -> void:
-	assert_eq(LevelUpCards.CARD_GRADE_SOUND.size(), 5)
-	for sound in LevelUpCards.CARD_GRADE_SOUND:
+	assert_eq(LevelUpCards.CARD_GRADE_SOUND.size(), 6, "노멀~레전드리 + 진화")
+	for sound in LevelUpCards.CARD_GRADE_SOUND.slice(0, 5):
 		assert_true(Sfx.SOUNDS.has(sound), sound)
+	for i in [1, 2, 3]:  # 진화 카드 소리 후보 3개씩 (?fxtest V·B로 바꿈), 기본은 레전드리 소리
+		assert_true(Sfx.SOUNDS.has("evo_show_%d" % i) and Sfx.SOUNDS.has("evo_pick_%d" % i), "진화 소리 후보 %d" % i)
+	assert_eq(Sfx.SOUNDS["evo_show_1"]["files"], Sfx.SOUNDS["card_legendary"]["files"], "기본 등장 = 레전드리")
+	assert_eq(Sfx.SOUNDS["evo_pick_1"]["files"], Sfx.SOUNDS["card_pick"]["files"], "기본 고르기 = 카드 고르기")
 	assert_true(Sfx.SOUNDS.has("card_normal") and Sfx.SOUNDS.has("card_gather") and Sfx.SOUNDS.has("card_pick"))
 	assert_false(Sfx.SOUNDS.has("card_show"), "옛 등장 소리는 카드에서 뺌")
 

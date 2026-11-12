@@ -81,9 +81,9 @@ func test_모든_강화에_이름_종류_설명_아이콘이_있음() -> void:
 			assert_eq(icon.get_size(), Vector2(48, 48), u["id"] + " 아이콘")
 
 
-func test_강화는_8종_효과는_7종_레전드리는_4종() -> void:
+func test_강화는_8종_효과는_12종_레전드리는_4종() -> void:
 	assert_eq(Balance.UPGRADES.size(), 8)
-	assert_eq(Balance.EFFECT_UPGRADES.size(), 7)
+	assert_eq(Balance.EFFECT_UPGRADES.size(), 12)  # 효과 7 + 짝 스킬 5 (v0.8.0 5단계)
 	assert_eq(Balance.LEGENDARY_UPGRADES.size(), 4)
 
 

@@ -37,6 +37,11 @@ ICONS = {
     # 보조 무기 6종 (v0.8.0 4단계)
     "missile": ("icons_i.png", 0.0, 1 / 3), "blackhole": ("icons_i.png", 1 / 3, 2 / 3), "saw": ("icons_i.png", 2 / 3, 1.0),
     "mine": ("icons_j.png", 0.0, 1 / 3), "coil": ("icons_j.png", 1 / 3, 2 / 3), "wave": ("icons_j.png", 2 / 3, 1.0),
+    # 짝 스킬 5종과 진화 6개 (v0.8.0 5단계)
+    "chill": ("icons_k.png", 0.0, 1 / 3), "ram": ("icons_k.png", 1 / 3, 2 / 3), "trail": ("icons_k.png", 2 / 3, 1.0),
+    "charge": ("icons_l.png", 0.0, 1 / 3), "vein": ("icons_l.png", 1 / 3, 2 / 3), "evo_missile": ("icons_l.png", 2 / 3, 1.0),
+    "evo_blackhole": ("icons_m.png", 0.0, 1 / 3), "evo_saw": ("icons_m.png", 1 / 3, 2 / 3), "evo_mine": ("icons_m.png", 2 / 3, 1.0),
+    "evo_coil": ("icons_n.png", 0.0, 0.5), "evo_wave": ("icons_n.png", 0.5, 1.0),
 }
 
 
@@ -130,7 +135,7 @@ def icons_sheet(path):
     sheet.convert("RGB").save(path)
 
 
-SUBS = ("missile", "blackhole", "saw", "mine", "coil", "wave")
+SUBS = ("missile", "blackhole", "saw", "mine", "coil", "wave", "evo_missile", "evo_blackhole", "evo_saw", "evo_mine", "evo_coil", "evo_wave")
 SMALL = 16
 
 

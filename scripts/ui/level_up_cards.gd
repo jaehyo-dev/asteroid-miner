@@ -16,7 +16,8 @@ const OFF_COLOR := Color("#5c5164")
 const OFF_MODULATE := Color(0.55, 0.55, 0.55)
 
 ## 등급별로 뒤집힘 위에 쌓는 소리 (노멀은 뒤집힘만)
-const CARD_GRADE_SOUND: Array[String] = ["card_normal", "card_normal", "card_epic", "card_unique", "card_legendary"]
+## 진화 카드("evo")는 Sfx.evo_show_sound()가 지금 고른 후보를 낸다 (?fxtest에서 바꿔 들음)
+const CARD_GRADE_SOUND: Array[String] = ["card_normal", "card_normal", "card_epic", "card_unique", "card_legendary", "evo"]
 
 var state := State.CLOSED
 var cards: Array[LevelCard] = []
@@ -156,7 +157,9 @@ static func card_starts(grades: Array[int], is_reroll: bool) -> Array[float]:
 
 
 static func gather_time(grade: int, is_reroll: bool) -> float:
-	return Juice.CARD_LEGEND_GATHER if grade == Upgrades.LEGENDARY and not is_reroll else 0.0
+	if is_reroll:
+		return 0.0
+	return Juice.CARD_EVO_GATHER if grade == Upgrades.EVOLUTION else (Juice.CARD_LEGEND_GATHER if grade == Upgrades.LEGENDARY else 0.0)
 
 
 func _reveal_end() -> float:
@@ -190,7 +193,7 @@ func _step_reveal() -> void:
 		cards[i].set_reveal(ct, distance, wait)
 		if wait > 0.0 and ct >= Juice.CARD_DROP_TIME and not _gathered[i]:
 			_gathered[i] = true
-			_fx.gather(_card_rect(i), wait)
+			_fx.gather(_card_rect(i), wait, _choices[i]["grade"])
 			Sfx.play_card_gather()
 		# 모으기가 없는 유니크·레전드리(다시 뽑기): 앞면이 보이는 순간 "쾅"이 맞도록 카드가 떨어질 때부터 "쉬익"
 		if wait == 0.0 and _choices[i]["grade"] >= Upgrades.UNIQUE and ct >= 0.0 and not _gathered[i]:
@@ -210,7 +213,8 @@ func _card_rect(i: int) -> Rect2:
 func _voice(i: int) -> void:
 	if not _voiced[i]:
 		_voiced[i] = true
-		Sfx.play(CARD_GRADE_SOUND[_choices[i]["grade"]])
+		var sound := CARD_GRADE_SOUND[_choices[i]["grade"]]
+		Sfx.play(Sfx.evo_show_sound() if sound == "evo" else sound)
 
 
 ## 앞면이 보이는 순간: 등급만큼 소리와 빛. 유니크부터 빛 기둥과 약한 흔들림
@@ -331,7 +335,7 @@ func choose(index: int) -> void:
 	state = State.PICKING
 	_picked = index
 	_set_input_open(false)
-	Sfx.play("card_pick")
+	Sfx.play(Sfx.evo_pick_sound() if _choices[index].get("evo", false) else "card_pick")
 	_fx.clear_halos()
 	for i in cards.size():
 		cards[i].play_pick(i == index)

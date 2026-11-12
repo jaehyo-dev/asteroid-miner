@@ -21,22 +21,30 @@ const RETURN_HP_RATIO := 0.35
 
 ## 한 판을 끝까지(또는 max_time까지) 돌리고 {time, level, value, alive}를 돌려준다.
 ## base: 기지 공용 업그레이드 단계 (id → 단계), weapon: 기본 무기 id (Balance.WEAPONS)
-static func play(style: String, seed_value: int, max_time: float, base: Dictionary = {}, pick := "random", weapon := "pulse") -> Dictionary:
+## setup: 판을 시작하기 전에 sim을 바꾸는 함수 (예: 처음부터 진화한 보조 무기, v0.8.0 5단계 봇)
+static func play(style: String, seed_value: int, max_time: float, base: Dictionary = {}, pick := "random", weapon := "pulse", setup := Callable()) -> Dictionary:
 	var sim := RunSim.new(seed_value)
 	sim.apply_base(base)
 	sim.set_weapon(weapon)
+	if setup.is_valid():
+		setup.call(sim)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 31 + 7
 	var move := Vector2.ZERO
 	var turn := 0.0
 	var levelup_times: Array[float] = []  # 레벨업 강화를 고른 시각 (등급 확률 추정용)
+	var evolved_at := -1.0  # 처음 진화한 시각 (-1이면 진화 못 함, 처음부터 진화한 판은 0)
+	if not sim.subs.evolved.is_empty():
+		evolved_at = 0.0
 	while not sim.is_over() and sim.time < max_time:  # 귀환해도 판이 끝난다
 		if sim.choosing():
 			levelup_times.append(sim.time)
 			if sim.choices.is_empty():
 				sim.skip()  # 고를 카드가 없으면 건너뛰기 (광물은 금고로)
 			else:
-				sim.choose(best_choice(sim.choices) if pick == "best" else sub_choice(sim.choices, pick, rng) if pick.begins_with("sub:") or pick == "nosub" else rng.randi_range(0, sim.choices.size() - 1))
+				sim.choose(best_choice(sim.choices) if pick == "best" else sub_choice(sim.choices, pick, rng) if pick.begins_with("sub:") or pick.begins_with("evo:") or pick == "nosub" else rng.randi_range(0, sim.choices.size() - 1))
+			if evolved_at < 0.0 and not sim.subs.evolved.is_empty():
+				evolved_at = sim.time
 			continue
 		match style:
 			"wander":
@@ -73,17 +81,26 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 			_:
 				move = Vector2.ZERO
 		sim.update(STEP, move)
-	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times, "picks": sim.upgrade_levels, "kills": sim.kills, "collected": Array(sim.collected)}
+	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times, "picks": sim.upgrade_levels, "kills": sim.kills, "collected": Array(sim.collected), "evolved_at": evolved_at}
 
 
 ## 보조 무기 측정용 카드 고르기 (v0.8.0 4단계). "sub:<id>": 그 보조 무기 카드가 있으면 그것, 없으면 보조 무기가 아닌 카드 중 무작위
 ## (다른 보조 무기로 칸을 채우지 않게). "nosub": 보조 무기를 고르지 않음(비교 기준). 고를 것이 없으면 무작위
+## "evo:<보조 무기>"는 진화 카드 → 그 보조 무기 → 짝 스킬 순으로 먼저 고른다 (진화를 만드는 판)
 static func sub_choice(choices: Array, pick: String, rng: RandomNumberGenerator) -> int:
 	var others: Array[int] = []
+	var want: Array = []
+	if pick.begins_with("sub:"):
+		want = [pick.substr(4)]
+	elif pick.begins_with("evo:"):
+		var e := SubWeapons.evo_of(pick.substr(4))
+		want = [e["id"], e["sub"], e["skill"]]
+	for id in want:
+		for i in choices.size():
+			if choices[i]["id"] == id:
+				return i
 	for i in choices.size():
-		if pick.begins_with("sub:") and choices[i]["id"] == pick.substr(4):
-			return i
-		if not SubWeapons.is_sub(choices[i]["id"]):
+		if not SubWeapons.is_sub(choices[i]["id"]) and not choices[i].get("evo", false):
 			others.append(i)
 	if others.is_empty():
 		return rng.randi_range(0, choices.size() - 1)

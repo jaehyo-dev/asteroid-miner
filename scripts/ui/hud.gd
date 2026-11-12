@@ -141,6 +141,13 @@ func _draw_sub_slots(bottom: Vector2) -> void:
 			continue
 		var id: String = owned[i]
 		var stage := sim.subs.stage_of(id)
+		if sim.subs.is_evolved(id):  # 진화: 진화 아이콘 + 단계 점 대신 진홍·금 띠가 흐른다
+			draw_texture(_sub_icon(SubWeapons.evo_of(id)["id"]), Vector2(x, top))
+			var sweep := int(Time.get_ticks_msec() / 90) % 8
+			for d in 5:
+				var hot := (d + 8 - sweep) % 8 < 2
+				draw_rect(Rect2(x + 1 + d * 3, bottom.y - SUB_DOT, SUB_DOT, SUB_DOT), SubWeaponFx.WHITE if hot else (SubWeaponFx.GOLD if d % 2 == 0 else SubWeaponFx.MAGENTA))
+			continue
 		# 3단계부터 아이콘이 밝아지고, 5단계는 오른쪽 위에 금빛 반짝임 (테두리 색이 아니라 아이콘 자체가 달라짐)
 		draw_texture(_sub_icon(id), Vector2(x, top), Color(1.3, 1.3, 1.3) if stage >= 3 else Color.WHITE)
 		if stage >= 5:

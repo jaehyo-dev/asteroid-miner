@@ -10,10 +10,13 @@ const GRADE_SHADER := preload("res://scripts/card_grade.gdshader")
 const INK := Color("#fef8e5")
 ## 이름과 글자 크기가 같아서 설명은 조금 어둡게 구분한다
 const DESC_COLOR := Color("#d9d0c0")
-const NAME_COLORS: Array[Color] = [INK, Color("#99e9e6"), Color("#a884f3"), Color("#f6ce50"), INK]
+const NAME_COLORS: Array[Color] = [INK, Color("#99e9e6"), Color("#a884f3"), Color("#f6ce50"), INK, Color("#f6ce50")]
+## 진화 조합법·"진화 재료" 작은 글자 색
+const RECIPE_COLOR := Color("#f25c76")
+const PAIR_COLOR := Color("#dc7f47")
 ## 등급별 빛 색과 계단 빛의 알파 (0~255). 높은 등급일수록 띠가 많다
-const GLOW_COLORS: Array[Color] = [Color("#5c5164"), Color("#30e1b9"), Color("#a884f3"), Color("#f6ce50"), Color.WHITE]
-const GLOW_ALPHA: Array[Array] = [[], [80, 34], [110, 60, 24], [130, 80, 44, 18], [150, 100, 60, 30, 14]]
+const GLOW_COLORS: Array[Color] = [Color("#5c5164"), Color("#30e1b9"), Color("#a884f3"), Color("#f6ce50"), Color.WHITE, Color("#ff2567")]
+const GLOW_ALPHA: Array[Array] = [[], [80, 34], [110, 60, 24], [130, 80, 44, 18], [150, 100, 60, 30, 14], [180, 130, 90, 56, 30, 14]]
 ## 번쩍일 때 더 퍼지는 빛 띠의 알파
 const GLOW_BOOST_ALPHA := 24.0 / 255.0
 ## 커서를 올린 카드: 테두리 빛 대신 카드 전체를 살짝 밝게 (선택 표시로 테두리 선을 쓰지 않는다, ART_BIBLE)
@@ -24,6 +27,8 @@ const TEAL_LIKE: Array[String] = ["#30e1b9", "#125952", "#1da775", "#4d80cd"]
 const TEAL_LIGHT := "#99e9e6"
 const GOLD := {"#a5b29d": "#f6ce50", "#917487": "#dc7f47", "#5c5164": "#984633", "#3c3544": "#6f2626", "#a5cc5f": "#f6ce50", "#70525e": "#984633", "#577e66": "#dc7f47"}
 const EPIC_TINT := {"#917487": "#6b3e75", "#70525e": "#6b3e75"}
+## 진화 카드 틀: 금속은 진홍·자두색, 발광 부분은 금빛 (레전드리 무지개·유니크 금과 다르게)
+const EVO_TINT := {"#a5b29d": "#fef8e5", "#917487": "#f25c76", "#5c5164": "#861a59", "#3c3544": "#3a1c57", "#a5cc5f": "#f6ce50", "#70525e": "#861a59", "#577e66": "#f25c76"}
 ## 노멀·레어·에픽·유니크의 발광 색 (진한 색, 밝은 색). 노멀은 금속처럼 꺼진 색
 const ACCENT: Array[Array] = [["#5c5164", "#917487"], ["#30e1b9", "#99e9e6"], ["#a884f3", "#fef8e5"], ["#f6ce50", "#fef8e5"]]
 const RAINBOW_BAND_TEAL := 10.0
@@ -64,6 +69,9 @@ var _flash: Panel
 var _ring := StyleBoxFlat.new()
 var _flash_strength := 0.0
 var _boost_bands := 0
+## 진화 카드 등장: 보조 무기·짝 스킬 아이콘이 양쪽에서 가운데로 모이는 그림 (0~1, 음수면 숨김)
+var _merge: Control
+var _merge_k := -1.0
 
 
 ## 등급 색 바꾸기 재질 (등급마다 하나를 함께 쓴다)
@@ -71,7 +79,12 @@ static func grade_material(grade: int) -> ShaderMaterial:
 	if _materials.has(grade):
 		return _materials[grade]
 	var map := {}
-	if grade == Upgrades.LEGENDARY:
+	if grade == Upgrades.EVOLUTION:
+		map = EVO_TINT.duplicate()
+		for c in TEAL_LIKE:
+			map[c] = "#f6ce50"
+		map[TEAL_LIGHT] = "#fef8e5"
+	elif grade == Upgrades.LEGENDARY:
 		map = GOLD.duplicate()
 		map["#a5b29d"] = RAINBOW_BAND_METAL
 		for c in TEAL_LIKE:
@@ -137,6 +150,17 @@ static func wrap_text(text: String, font_size: int, width: float) -> PackedStrin
 	return lines
 
 
+## 진화 카드 이름 위 작은 조합법 줄: "<보조 무기> + <짝 스킬> →" (작은 글자, 공백에서 줄바꿈)
+static func recipe_lines(card: Dictionary, font_size: int, width: float) -> PackedStringArray:
+	return wrap_text(str(card["recipe"]) + " →", font_size, width) if card.has("recipe") else PackedStringArray()
+
+
+## 짝 스킬 카드 설명 아래 작은 줄: "진화 재료: <보조 무기>"
+static func pair_lines(card: Dictionary, font_size: int, width: float) -> PackedStringArray:
+	var sub := SubWeapons.pair_of(card["id"])
+	return wrap_text("진화 재료: " + sub, font_size, width) if not sub.is_empty() else PackedStringArray()
+
+
 ## 설명 줄: 긴 문구가 DESC_MAX_LINES를 넘으면 짧은 문구를 쓴다
 static func desc_lines(card: Dictionary, font_size: int, width: float) -> PackedStringArray:
 	var lines := wrap_text(Upgrades.card_text(card), font_size, width)
@@ -156,21 +180,23 @@ static func layout_for(view: Vector2, cards: Array) -> Dictionary:
 	var text_size := 24 if large else 12
 	var name_lines := 1
 	var desc_count := 1
+	var small_lines := 0  # 조합법·진화 재료 작은 줄 (12px)
 	for c in cards:
 		name_lines = maxi(name_lines, wrap_text(Upgrades.display_name(c["id"]), text_size, inner).size())
 		desc_count = maxi(desc_count, desc_lines(c, text_size, inner).size())
+		small_lines = maxi(small_lines, recipe_lines(c, 12, inner).size() + pair_lines(c, 12, inner).size())
 	var ped := "ped_phone" if large else "ped_pc"
 	var lay := {
 		"large": large, "w": w, "gap": gap, "inner": inner, "name_size": text_size, "desc_size": text_size, "tag_size": 12,
 		"btn_size": text_size, "tag_h": 21, "dot": 6 if large else 5, "glow_u": 2 if large else 1,
-		"name_h": name_lines * (text_size + 1), "ped": ped, "ped_h": tex(ped).get_height(),
+		"name_h": name_lines * (text_size + 1), "ped": ped, "ped_h": tex(ped).get_height(), "small_h": small_lines * 13 + (2 if small_lines > 0 else 0),
 	}
 	for tight in 2:
 		lay["ped_top"] = 20 if tight == 0 else 14
 		lay["btn_gap"] = (6 if large else 5) if tight == 0 else 3
 		var btn_h := (36 if large else 26) if tight == 0 else (32 if large else 25)
 		lay["btn"] = Vector2i(220 if large else 150, btn_h)
-		var body: int = lay["ped_top"] + lay["ped_h"] + lay["tag_h"] / 2 + 3 + lay["name_h"] + 2 + desc_count * (text_size + 1) + 4 + lay["dot"] + 3 + PAD_BOTTOM
+		var body: int = lay["ped_top"] + lay["ped_h"] + lay["tag_h"] / 2 + 3 + lay["small_h"] + lay["name_h"] + 2 + desc_count * (text_size + 1) + 4 + lay["dot"] + 3 + PAD_BOTTOM
 		lay["h"] = maxi(body, FRAME_MIN_H)
 		lay["total"] = CREST_RISE + lay["h"] + lay["btn_gap"] + btn_h
 		if lay["total"] + 16 <= view.y:
@@ -206,7 +232,7 @@ func setup(card: Dictionary, next_level: int, lay: Dictionary) -> void:
 		child.queue_free()
 	size = Vector2(w, h)
 	pivot_offset = Vector2(w, h) / 2.0
-	material = rainbow_material() if grade == Upgrades.LEGENDARY else null
+	material = rainbow_material() if grade == Upgrades.LEGENDARY else null  # 진화 카드는 무지개가 아니라 진홍·금 틀
 	var mat := grade_material(grade)
 
 	var frame := NinePatchRect.new()
@@ -219,7 +245,7 @@ func setup(card: Dictionary, next_level: int, lay: Dictionary) -> void:
 	_add_part(frame, mat)
 	_add_shade(w, h)
 	if grade >= Upgrades.UNIQUE:
-		_add_corners(w, h, grade == Upgrades.LEGENDARY, mat)
+		_add_corners(w, h, grade >= Upgrades.LEGENDARY, mat)
 	var cx := w / 2
 	var crest := tex("crest")
 	if grade >= Upgrades.EPIC:
@@ -235,6 +261,9 @@ func setup(card: Dictionary, next_level: int, lay: Dictionary) -> void:
 	_content.size = size
 	add_child(_content)
 	_add_body(card, next_level, lay, mat)
+	_merge = null
+	if card.get("evo", false):
+		_add_merge(card, lay)
 
 	_flash = Panel.new()
 	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -319,6 +348,12 @@ func _add_body(card: Dictionary, next_level: int, lay: Dictionary, mat: ShaderMa
 	_add_part(pill, mat, _content)
 	_add_line(kind, y + (tag_h - tag_size) / 2, tag_size, INK)
 	y += tag_h + 3
+	var recipe := recipe_lines(card, tag_size, lay["inner"])
+	for line in recipe:
+		_add_line(line, y, tag_size, RECIPE_COLOR)
+		y += 13
+	if not recipe.is_empty():
+		y += 2
 	var name_size: int = lay["name_size"]
 	var name_y := y
 	for line in wrap_text(Upgrades.display_name(card["id"]), name_size, lay["inner"]):
@@ -331,7 +366,34 @@ func _add_body(card: Dictionary, next_level: int, lay: Dictionary, mat: ShaderMa
 	for line in desc_lines(card, desc_size, lay["inner"]):
 		_add_line(line, y, desc_size, DESC_COLOR)
 		y += desc_size + 1
+	y += 2
+	for line in pair_lines(card, tag_size, lay["inner"]):
+		_add_line(line, y, tag_size, PAIR_COLOR)
+		y += 13
 	_add_dots(Upgrades.max_stage(card["id"]), next_level, grade, w, h, lay["dot"])
+
+
+## 진화 카드 뒷면 위에 그리는 합쳐짐: 보조 무기(왼쪽)·짝 스킬(오른쪽) 아이콘이 받침 가운데로 모이며 겹친다 (1배 정수 위치)
+func _add_merge(card: Dictionary, lay: Dictionary) -> void:
+	var evo := SubWeapons.evo_info(card["id"])
+	var left := tex("icons/" + str(evo["sub"]))
+	var right := tex("icons/" + str(evo["skill"]))
+	var cy: int = int(lay["ped_top"]) + (int(lay["ped_h"]) - ICON_SIZE) / 2
+	var w: int = lay["w"]
+	_merge = Control.new()
+	_merge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_merge.size = size
+	_merge.draw.connect(func() -> void:
+		if _merge_k < 0.0:
+			return
+		var k := _merge_k * _merge_k  # 처음엔 느리고 끝에 빨려 들어간다
+		var cx := w / 2 - ICON_SIZE / 2
+		var spread := float(w) * 0.42 * (1.0 - k)
+		_merge.draw_texture(left, Vector2(roundf(cx - spread), cy))
+		_merge.draw_texture(right, Vector2(roundf(cx + spread), cy))
+		if _merge_k > 0.85:  # 겹치는 순간 흰빛
+			_merge.draw_rect(Rect2(cx - 4, cy - 4, ICON_SIZE + 8, ICON_SIZE + 8), Color(1, 1, 1, (_merge_k - 0.85) / 0.15 * 0.8)))
+	add_child(_merge)
 
 
 ## 글자 한 줄 (카드 폭 가운데 정렬). 글꼴 줄 높이가 글자 크기보다 커서 그만큼 위로 올린다
@@ -403,6 +465,7 @@ func set_reveal(ct: float, drop_distance: float, wait := 0.0) -> void:
 	position = home
 	scale.x = 1.0
 	_content.visible = ct >= flip_start + Juice.CARD_FLIP_TIME * 0.5
+	_set_merge(-1.0)
 	var flash := 0.0
 	var boost := 0
 	if ct < Juice.CARD_DROP_TIME:
@@ -410,6 +473,9 @@ func set_reveal(ct: float, drop_distance: float, wait := 0.0) -> void:
 		position.y -= roundf(drop_distance * (1.0 - r) * (1.0 - r))  # 감속하며 내려옴
 	elif ct < flip_start:
 		flash = 0.5 * (ct - Juice.CARD_DROP_TIME) / wait  # 빛이 모이는 동안 카드가 점점 밝아진다
+		if _merge != null:
+			flash *= 0.4  # 진화: 아이콘이 보이게 덜 밝힌다
+			_set_merge((ct - Juice.CARD_DROP_TIME) / wait)
 	elif ct < flash_start:
 		scale.x = maxf(absf(1.0 - 2.0 * (ct - flip_start) / Juice.CARD_FLIP_TIME), 0.04)  # 폭이 줄었다 늘어남
 	else:
@@ -417,6 +483,12 @@ func set_reveal(ct: float, drop_distance: float, wait := 0.0) -> void:
 		flash = Juice.CARD_FLASH_STRENGTH[grade] * k
 		boost = int(Juice.CARD_FLASH_RING[grade] * k) * int(layout["glow_u"])
 	_set_flash(flash, boost)
+
+
+func _set_merge(k: float) -> void:
+	if _merge != null and k != _merge_k:
+		_merge_k = k
+		_merge.queue_redraw()
 
 
 func _set_flash(strength: float, boost: int) -> void:
@@ -434,6 +506,7 @@ func settle() -> void:
 	modulate = Color.WHITE
 	_content.visible = true
 	_set_flash(0.0, 0)
+	_set_merge(-1.0)
 
 
 ## 얼마나 번쩍이는지 (테스트·연출 확인용)

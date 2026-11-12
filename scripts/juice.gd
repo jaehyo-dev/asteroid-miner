@@ -113,6 +113,10 @@ const SUB_FX := {"burst_time": 0.3, "smoke_time": 0.55, "zap_time": [0.22, 0.24,
 	"crack_time": 0.45, "dust": 8, "mine_blink": 3.0, "mine_alert": 40.0, "mine_flash": 0.2,
 	"missile_trail": [4, 4, 6], "missile_sparks": 10, "hatch_time": 0.12, "saw_teeth": [5, 6, 8], "saw_trail": [0, 4, 8], "saw_chips": [0, 3, 4],
 	"minor_bright": 0.15}
+## 진화·짝 스킬 그리기 (v0.8.0 5단계): 연쇄 불줄기 시간, 정지장 얼음 조각 수·붕괴 시간·튀는 조각 수, 회전 충각 톱니 수·속도에 따른 잔상 배율,
+## 불타는 선 깜빡이는 불티 수(선마다), 방전 시간·번개 꺾임 수·충전 불꽃 최대 수, 파쇄 조각 수, 공명 충격파 시간, 궤적 불꽃 크기, 냉각 서리 점 수
+const EVO_FX := {"link_time": 0.18, "ice_shards": 8, "freeze_time": 0.6, "freeze_shards": 14, "saw_teeth": 10, "saw_speed_trail": 2.0,
+	"fire_embers": 3, "discharge_time": 0.45, "discharge_kinks": 4, "charge_sparks": 8, "shatter_bits": 10, "vein_time": 0.28, "trail_size": 2.0, "frost_dots": 3}
 ## 한꺼번에 그리는 보조 무기 폭발·번개·붕괴 수, 맞은 자리 표시(금·불꽃) 수 (폰 성능용, 넘으면 오래된 것부터 지움)
 const SUB_FX_MAX := 16
 const SUB_HIT_MAX := 24
@@ -208,23 +212,25 @@ const CARD_FLASH_TIME := 0.25
 ## 다시 뽑을 때는 짧게 (어두워짐 없음)
 const CARD_REROLL_STAGGER := 0.08
 const CARD_REROLL_DROP_DISTANCE := 24.0
-## 등급별(노멀~레전드리) 앞면 번쩍임 세기(흰색 섞는 비율), 더 퍼지는 빛 고리 폭(칸), 등장 소리 크기(dB)
-const CARD_FLASH_STRENGTH := [0.25, 0.4, 0.55, 0.7, 0.85]
-const CARD_FLASH_RING := [0, 3, 6, 10, 16]
+## 등급별(노멀~레전드리, 마지막은 진화 카드) 앞면 번쩍임 세기(흰색 섞는 비율), 더 퍼지는 빛 고리 폭(칸)
+const CARD_FLASH_STRENGTH := [0.25, 0.4, 0.55, 0.7, 0.85, 1.0]
+const CARD_FLASH_RING := [0, 3, 6, 10, 16, 22]
 ## 레전드리: 뒤집히기 전에 빛이 모이는 시간과 모이는 알갱이 수
 const CARD_LEGEND_GATHER := 0.3
 const CARD_GATHER_PARTS := 48
+## 진화 카드 (v0.8.0 5단계): 뒤집히기 전 보조 무기·짝 스킬 아이콘이 양쪽에서 날아와 합쳐지는 시간 (그동안 빛도 모인다)
+const CARD_EVO_GATHER := 0.75
 ## 앞면이 나오는 순간의 폭발 (등급별 노멀~레전드리): 파티클 수, 빛줄기 수, 빛줄기 길이, 파티클 속도(PC 카드 폭 기준), 지속 시간
-const CARD_BURST_PARTS := [8, 18, 34, 60, 120]
-const CARD_BURST_RAYS := [0, 6, 10, 14, 24]
-const CARD_BURST_RAY_LEN := [0.0, 50.0, 80.0, 120.0, 220.0]
-const CARD_BURST_SPEED := [40.0, 60.0, 80.0, 110.0, 170.0]
-const CARD_BURST_TIME := [0.35, 0.45, 0.55, 0.7, 0.9]
+const CARD_BURST_PARTS := [8, 18, 34, 60, 120, 160]
+const CARD_BURST_RAYS := [0, 6, 10, 14, 24, 32]
+const CARD_BURST_RAY_LEN := [0.0, 50.0, 80.0, 120.0, 220.0, 260.0]
+const CARD_BURST_SPEED := [40.0, 60.0, 80.0, 110.0, 170.0, 190.0]
+const CARD_BURST_TIME := [0.35, 0.45, 0.55, 0.7, 0.9, 1.1]
 ## 유니크부터: 빛 기둥 시간, 약한 흔들림 세기(픽셀, 등급별)와 시간
 const CARD_PILLAR_TIME := 0.6
 ## 높은 등급 카드 뒤 후광: 등급별 가장 안쪽 진하기(0이면 없음), 계단 띠 수, 띠 두께(작은 카드 기준 픽셀)
-const CARD_HALO_ALPHA := [0.0, 0.0, 0.2, 0.32, 0.5]
-const CARD_HALO_BANDS := [0, 0, 2, 3, 4]
+const CARD_HALO_ALPHA := [0.0, 0.0, 0.2, 0.32, 0.5, 0.55]
+const CARD_HALO_BANDS := [0, 0, 2, 3, 4, 5]
 const CARD_HALO_BAND_PX := 3
 ## 빛줄기가 터진 뒤 후광이 나오기까지, 나타나는 시간, 숨 쉬는 주기, 어두울 때 밝기 비율
 const CARD_HALO_DELAY := 0.25
@@ -233,7 +239,7 @@ const CARD_HALO_PERIOD := 2.0
 const CARD_HALO_LOW := 0.35
 ## 레전드리 후광의 색이 한 칸 넘어가는 시간
 const CARD_HALO_RAINBOW_STEP := 0.25
-const CARD_SHAKE := [0.0, 0.0, 0.0, 1.0, 2.0]
+const CARD_SHAKE := [0.0, 0.0, 0.0, 1.0, 2.0, 3.0]
 const CARD_SHAKE_TIME := 0.25
 ## 등장 효과 파티클 총량 상한, 건너뛸 때 가장 높은 등급 연출의 세기
 const CARD_FX_MAX := 240

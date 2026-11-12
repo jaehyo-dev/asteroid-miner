@@ -296,12 +296,44 @@ const UPGRADES := [
 const EFFECT_UPGRADES := [
 	{"id": "pierce", "name": "텅스텐 관통탄", "kind": "공격", "max": 3, "blocked_by": "orbit_pierce", "desc": ["탄이 대상 1개를 더 뚫고 지나감", "탄이 대상 2개를 더 뚫고 지나감"], "short": ["1개 더 관통", "2개 더 관통"]},
 	{"id": "ricochet", "name": "반사 코팅 탄", "kind": "공격", "max": 2, "desc": ["맞은 뒤 1번 튕김 (피해 70%)", "맞은 뒤 2번 튕김 (피해 70%)"], "short": ["1번 튕김 피해 70%", "2번 튕김 피해 70%"]},
-	{"id": "explosive", "name": "고폭 탄두", "kind": "공격", "max": 3, "desc": ["부술 때 반경 24 폭발, 탄 피해의 50%", "부술 때 반경 36 폭발, 탄 피해의 75%"], "short": ["부수면 폭발 피해 50%", "부수면 폭발 피해 75%"]},
+	{"id": "explosive", "name": "고폭 탄두", "kind": "공격", "max": 3, "pair": "missile", "pair_free": true, "desc": ["부술 때 반경 24 폭발, 탄 피해의 50%", "부술 때 반경 36 폭발, 탄 피해의 75%"], "short": ["부수면 폭발 피해 50%", "부수면 폭발 피해 75%"]},
 	{"id": "crit", "name": "표적 분석 AI", "kind": "공격", "max": 3, "desc": ["치명타 확률 15% (2배 피해)", "치명타 확률 25% (2배 피해)"], "short": ["치명타 15%", "치명타 25%"]},
 	{"id": "shield", "name": "자동 방어막 발생기", "kind": "방어", "max": 3, "desc": ["20초마다 피해 1번을 막음", "12초마다 피해 1번을 막음"], "short": ["20초마다 1번 막음", "12초마다 1번 막음"]},
 	{"id": "drone", "name": "호위 드론 사출", "kind": "드론", "max": 3, "desc": ["드론 +1기가 따라다니며 함께 공격", "드론 +2기가 따라다니며 함께 공격"], "short": ["드론 +1기 함께 공격", "드론 +2기 함께 공격"]},
 	{"id": "mining_laser", "name": "정밀 채굴 레이저", "kind": "채굴", "max": 3, "desc": ["운석에서 나오는 광물 +25%", "운석에서 나오는 광물 +50%"], "short": ["운석 광물 +25%", "운석 광물 +50%"]},
+	# 짝 스킬 5종 (v0.8.0 5단계): pair 보조 무기를 가졌을 때만 카드에 나온다 (pair_free면 늘 나오고 가졌을 때 더 자주, 2026-11-13 사용자 결정 A안)
+	{"id": "chill", "name": "냉각 응결탄", "kind": "공격", "max": 3, "pair": "blackhole", "desc": ["맞은 적이 1초 동안 30% 느려짐", "맞은 적이 1초 동안 40% 느려짐"], "short": ["맞으면 30% 느려짐", "맞으면 40% 느려짐"]},
+	{"id": "ram", "name": "관성 충각", "kind": "이동", "max": 3, "pair": "saw", "desc": ["빠르게 움직이면 작은·중간 운석을 몸으로 부숨, 다른 적 피해 150", "빠르게 움직이면 작은·중간 운석을 몸으로 부숨, 다른 적 피해 300"], "short": ["몸으로 부숨 150", "몸으로 부숨 300"]},
+	{"id": "trail", "name": "잔류 분사 궤적", "kind": "이동", "max": 3, "pair": "mine", "desc": ["지나간 자리에 1.5초 불꽃 (초당 피해 80)", "지나간 자리에 1.5초 불꽃 (초당 피해 120)"], "short": ["지나간 자리 불꽃 80", "지나간 자리 불꽃 120"]},
+	{"id": "charge", "name": "전하 축적 탄", "kind": "공격", "max": 3, "pair": "coil", "desc": ["같은 적을 맞힐수록 피해 +8%씩 (5번까지)", "같은 적을 맞힐수록 피해 +12%씩 (5번까지)"], "short": ["맞힐수록 +8%", "맞힐수록 +12%"]},
+	{"id": "vein", "name": "광맥 공명기", "kind": "채굴", "max": 3, "pair": "wave", "desc": ["운석에서 광물이 떨어지면 둘레에 충격파 (피해 60)", "운석에서 광물이 떨어지면 둘레에 충격파 (피해 100)"], "short": ["광물 충격파 60", "광물 충격파 100"]},
 ]
+## 짝 보조 무기를 가졌을 때 짝 스킬이 뽑기 목록에 들어가는 횟수 (2 = 두 배 자주)
+const PAIR_SKILL_WEIGHT := 2
+## 냉각 응결탄: 느려지는 비율 [에픽, 유니크], 겹쳐도 넘지 않는 상한, 느려지는 시간(초)
+const CHILL_ADD := [0.3, 0.4]
+const CHILL_CAP := 0.6
+const CHILL_TIME := 1.0
+## 관성 충각: 몸으로 부딪힌 다른 적(큰 운석·생명체·단단한 적) 피해 [에픽, 유니크] (탄 피해에 곱함), 상한,
+## 이동 속도의 이 비율 이상으로 움직여야 켜짐, 같은 적을 다시 치는 간격
+const RAM_ADD := [1.5, 3.0]
+const RAM_CAP := 6.0
+const RAM_SPEED_RATIO := 0.7
+const RAM_HIT_GAP := 0.5
+## 잔류 분사 궤적: 초당 피해 [에픽, 유니크] (탄 피해에 곱함), 상한, 불꽃이 남는 시간, 불꽃 점 간격(픽셀), 닿는 반지름
+const TRAIL_ADD := [0.8, 1.2]
+const TRAIL_CAP := 2.4
+const TRAIL_LIFE := 1.5
+const TRAIL_GAP := 8.0
+const TRAIL_RADIUS := 6.0
+## 전하 축적 탄: 한 번 쌓일 때 피해 [에픽, 유니크], 상한, 최대 쌓임 수
+const CHARGE_ADD := [0.08, 0.12]
+const CHARGE_CAP := 0.24
+const CHARGE_MAX_STACKS := 5
+## 광맥 공명기: 충격파 피해 [에픽, 유니크] (탄 피해에 곱함), 상한, 반경. 충격파로 부서진 운석은 다시 충격파를 내지 않는다
+const VEIN_ADD := [0.6, 1.0]
+const VEIN_CAP := 2.0
+const VEIN_RADIUS := 34.0
 ## 레전드리 4종: 한 판에 1번, 한 화면에 1장까지
 const LEGENDARY_UPGRADES := [
 	{"id": "orbit_pierce", "name": "궤도 관통 가속기", "kind": "공격", "max": 1, "desc": "모든 탄이 사거리 끝까지 관통", "short": "모든 탄이 끝까지 관통"},
@@ -408,6 +440,40 @@ const SUB_WEAPONS := [
 		"stats": {"interval": [3.6, 3.3, 3.0, 2.7, 2.3], "radius": [55.0, 62.0, 70.0, 78.0, 90.0], "damage": [2.2, 2.8, 3.5, 4.2, 5.3]},
 		"labels": {"radius": "파동 반경 %s", "damage": "피해 %s", "interval": "간격 %s초"}},
 ]
+## 진화 6개 (v0.8.0 5단계): 보조 무기 5단계 + 짝 스킬(skill) 1단계 이상이면 다음 레벨업에 진화 카드 1장 확정.
+## 고르면 보조 무기가 진화 무기로 바뀐다(칸 수 그대로, 짝 스킬은 남음). 5단계 수치는 그대로 쓰고 동작이 하나 더 생긴다
+const EVOLUTIONS := [
+	{"id": "evo_missile", "sub": "missile", "skill": "explosive", "name": "연쇄 폭격", "kind": "진화", "max": 1, "desc": "미사일 폭발이 옆 적으로 3번 이어 터짐", "short": "폭발 3번 연쇄"},
+	{"id": "evo_blackhole", "sub": "blackhole", "skill": "chill", "name": "정지장 붕괴탄", "kind": "진화", "max": 1, "desc": "끌어모은 적을 얼렸다가 한꺼번에 무너뜨림", "short": "얼린 뒤 붕괴"},
+	{"id": "evo_saw", "sub": "saw", "skill": "ram", "name": "회전 충각", "kind": "진화", "max": 1, "desc": "톱날이 커지고, 빠르게 움직일수록 세게 갈아냄", "short": "큰 톱날, 빠를수록 셈"},
+	{"id": "evo_mine", "sub": "mine", "skill": "trail", "name": "연소 기뢰선", "kind": "진화", "max": 1, "desc": "기뢰가 불타는 선으로 이어져 길이 덫이 됨", "short": "기뢰를 불꽃선으로"},
+	{"id": "evo_coil", "sub": "coil", "skill": "charge", "name": "과충전 방전", "kind": "진화", "max": 1, "desc": "맞힐수록 전하가 쌓이다 화면 절반에 큰 방전", "short": "전하가 차면 큰 방전"},
+	{"id": "evo_wave", "sub": "wave", "skill": "vein", "name": "공명 파쇄", "kind": "진화", "max": 1, "desc": "파동이 운석을 한 번에 부수고 광물을 더 줌", "short": "운석 파쇄, 광물+1"},
+]
+## 연쇄 폭격: 이어 터지는 횟수, 다음 대상을 찾는 거리, 터지는 사이 시간, 이어 터질 때마다 곱하는 피해
+const EVO_CHAIN_COUNT := 3
+const EVO_CHAIN_JUMP := 70.0
+const EVO_CHAIN_DELAY := 0.12
+const EVO_CHAIN_DAMAGE := 0.8
+## 정지장 붕괴탄: 끌린 적은 블랙홀 안에서 얼어 멈춤, 끝날 때 반경 × EVO_COLLAPSE_REACH 안 모두에게 피해(탄 피해에 곱함)
+const EVO_COLLAPSE_DAMAGE := 9.0
+const EVO_COLLAPSE_REACH := 1.2
+## 회전 충각: 톱날 반지름, 도는 반경 더하기, 최고 속도일 때 피해·도는 속도 배율 더하기 (움직이는 빠르기 비율에 곱함)
+const EVO_SAW_RADIUS := 8.0
+const EVO_SAW_ORBIT_ADD := 6.0
+const EVO_SAW_SPEED_DAMAGE := 1.5
+const EVO_SAW_SPEED_SPIN := 0.75
+## 연소 기뢰선: 이웃 기뢰를 잇는 최대 거리(5단계 간격 0.8초 × 최고 속도 약 96~125픽셀보다 길게), 선에 닿은 적 초당 피해(탄 피해에 곱함), 선 굵기(판정 반지름)
+const EVO_MINE_LINK := 130.0
+const EVO_MINE_LINE_DPS := 2.5
+const EVO_MINE_LINE_WIDTH := 4.0
+## 과충전 방전: 번개가 맞힌 수가 이만큼 쌓이면 큰 방전, 방전 반경(화면 절반쯤), 피해(탄 피해에 곱함)
+const EVO_COIL_CHARGE := 20
+const EVO_COIL_RADIUS := 200.0
+const EVO_COIL_DAMAGE := 6.0
+## 공명 파쇄: 작은·중간 운석(황금 아님)은 파동에 닿으면 한 번에 부서지고 광물 +EVO_WAVE_DROP, 큰 운석·다른 적은 피해 ×EVO_WAVE_BIG_MULT
+const EVO_WAVE_DROP := 1
+const EVO_WAVE_BIG_MULT := 2.0
 ## 유도 미사일: 노리는 거리, 속도, 도는 힘(라디안/초), 날아가는 최대 시간, 맞는 반지름
 const SUB_MISSILE_RANGE := 220.0
 const SUB_MISSILE_SPEED := 150.0

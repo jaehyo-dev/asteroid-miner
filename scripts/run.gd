@@ -122,14 +122,38 @@ func _update_fx_label() -> void:
 		return
 	var subs: PackedStringArray = []
 	for id: String in sim.subs.stages:
-		subs.append("%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
-	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
+		subs.append(Upgrades.display_name(SubWeapons.evo_of(id)["id"]) + " 진화" if sim.subs.is_evolved(id) else "%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
+	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]\n[Alt+Shift+1~6 바로 진화] [Shift+7 진화 카드] [V 등장 소리 %d] [B 고를 때 소리 %d]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음", Sfx.evo_show, Sfx.evo_pick]
 	if fx_stage:  # 촬영 모드는 화면을 덜 가리게 짧게: 가진 보조 무기 + FPS·효과 수
 		fx_label.text = "%s\nFPS %d  효과 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count()]
 	if sim.subs.stages.size() == 1:  # 하나만 볼 때(Alt+1~6)는 맨 위에 크게 "채굴 펄스 3단계"
 		var id: String = sim.subs.stages.keys()[0]
-		var head := "%s %d단계" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)]
+		var head := Upgrades.display_name(SubWeapons.evo_of(id)["id"]) + " (진화)" if sim.subs.is_evolved(id) else "%s %d단계" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)]
 		fx_label.text = head + "\n" + (fx_label.text.get_slice("\n", 1) if fx_stage else fx_label.text)
+
+
+## ?fxtest Shift+7: 진화 조건을 맞춰(가진 보조 무기 중 진화 안 한 첫 것, 없으면 진화 안 한 첫 보조 무기를 5단계 + 짝 스킬) 레벨업 화면을 연다. v0.8.0 배포 전에 지운다
+func _fx_evolution_card() -> void:
+	var id := ""
+	for sid: String in Array(sim.subs.stages.keys()) + Array(SubWeapons.ids()):
+		if not sim.subs.is_evolved(sid):
+			id = sid
+			break
+	if id.is_empty():
+		return
+	while sim.subs.stage_of(id) < int(SubWeapons.info(id)["max"]):
+		sim.apply_pick(id, 0)
+	var skill: String = SubWeapons.evo_of(id)["skill"]
+	if not sim.upgrade_levels.has(skill):
+		sim.apply_pick(skill, Upgrades.EPIC)
+	sim.xp = 0
+	sim.gain_xp(Upgrades.xp_to_next(sim.level))
+	for i in sim.choices.size():  # 확인용: 진화 카드 옆에 그 짝 스킬 카드도 1장 (진화 재료 줄 확인)
+		if not sim.choices[i].get("evo", false) and not sim.choices.any(func(c: Dictionary) -> bool: return c["id"] == skill):
+			var bonus := sim.upgrade_bonus
+			sim.choices[i] = {"id": skill, "grade": Upgrades.UNIQUE, "desc": Upgrades.describe_next(skill, Upgrades.UNIQUE, bonus), "short": Upgrades.describe_next(skill, Upgrades.UNIQUE, bonus, true)}
+			break
+	_update_fx_label()
 
 
 ## ?fxtest 촬영 모드 한 프레임: 체력 가득, 포격 없음, 경험치 멈춤, 0.5초마다 가까이(30~80) 운석·해파리 채우기.
@@ -230,6 +254,8 @@ func _process(delta: float) -> void:
 		_step_intro(delta)
 		return
 	sim.view_size = get_viewport_rect().size
+	if fx_label != null:
+		fx_label.visible = current_menu == Menu.NONE  # ?fxtest 안내가 레벨업 카드·버튼을 가리지 않게
 	Music.set_run_time(sim.time)
 	if current_menu == Menu.NONE and not sim.is_over() and hitstop > 0.0:
 		# 히트스톱: 시뮬레이션·월드 효과는 멈추고 화면 흔들림·HUD만 진행 (입력은 매 프레임 다시 읽으므로 끊기지 않음)
@@ -319,6 +345,28 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.physical_keycode == KEY_BACKSPACE:
 			sim.clear_subs()
 			world.clear_sub_fx()
+			_update_fx_label()
+			get_viewport().set_input_as_handled()
+			return
+		if (event.alt_pressed or event.ctrl_pressed or event.meta_pressed) and event.shift_pressed and slot >= 0 and slot < SubWeapons.ids().size():
+			sim.fx_evolve(SubWeapons.ids()[slot])  # 그 보조 무기 하나만 남기고 바로 진화 (진화 도감에도 기록: 전시관 확인용)
+			if save.record_evolution(SubWeapons.evo_of(SubWeapons.ids()[slot])["id"]):
+				save.save_file()
+			world.clear_sub_fx()
+			_update_fx_label()
+			get_viewport().set_input_as_handled()
+			return
+		if event.shift_pressed and event.physical_keycode == KEY_7:  # 진화 카드 화면 바로 띄우기
+			_fx_evolution_card()
+			get_viewport().set_input_as_handled()
+			return
+		if event.physical_keycode == KEY_V or event.physical_keycode == KEY_B:  # 진화 카드 소리 후보 바꾸고 들어 보기 (V 등장, B 고를 때)
+			if event.physical_keycode == KEY_V:
+				Sfx.evo_show = Sfx.evo_show % 3 + 1
+				Sfx.play(Sfx.evo_show_sound())
+			else:
+				Sfx.evo_pick = Sfx.evo_pick % 3 + 1
+				Sfx.play(Sfx.evo_pick_sound())
 			_update_fx_label()
 			get_viewport().set_input_as_handled()
 			return
@@ -664,7 +712,12 @@ func _on_menu_chosen(index: int) -> void:
 
 
 func _on_card_chosen(index: int) -> void:
+	var card: Dictionary = sim.choices[index] if index >= 0 and index < sim.choices.size() else {}
 	sim.choose(index)
+	if card.get("evo", false):  # 진화 도감에 기록 (판이 끝나기 전에 저장해 두어 사망해도 남는다)
+		if save.record_evolution(card["id"]):
+			save.save_file()
+		hud.show_banner("진화! " + Upgrades.display_name(card["id"]), SubWeaponFx.GOLD)
 	_close_menu()  # 남은 레벨업이 있으면 다음 프레임에 다시 뜬다
 
 

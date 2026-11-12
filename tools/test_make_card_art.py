@@ -11,12 +11,15 @@ PAL = {tuple(int(c) for c in line.split()[:3]) for line in open(ROOT / "assets/p
 IDS = {"fire_rate", "multishot", "damage", "range", "max_hp", "repair", "speed", "magnet",
        "pierce", "ricochet", "explosive", "crit", "shield", "drone", "mining_laser",
        "orbit_pierce", "chain_matrix", "overload", "tractor_beacon",
-       "missile", "blackhole", "saw", "mine", "coil", "wave"}  # 보조 무기 6종 (v0.8.0)
-SUBS = {"missile", "blackhole", "saw", "mine", "coil", "wave"}
+       "missile", "blackhole", "saw", "mine", "coil", "wave",  # 보조 무기 6종 (v0.8.0)
+       "chill", "ram", "trail", "charge", "vein"}  # 짝 스킬 5종 (v0.8.0 5단계)
+EVOS = {"evo_missile", "evo_blackhole", "evo_saw", "evo_mine", "evo_coil", "evo_wave"}  # 진화 6개: 카드·판 화면 칸 둘 다
+IDS |= EVOS
+SUBS = {"missile", "blackhole", "saw", "mine", "coil", "wave"} | EVOS
 
 
 class TestCardArt(unittest.TestCase):
-    def test_아이콘은_25개_48px_void32_10색_이하(self):
+    def test_아이콘은_36개_48px_void32_10색_이하(self):
         names = {p.stem for p in (OUT / "icons").glob("*.png")}
         self.assertEqual(names, IDS)
         for name in IDS:

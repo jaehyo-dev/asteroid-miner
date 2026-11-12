@@ -11,11 +11,13 @@ const RARE := 1
 const EPIC := 2
 const UNIQUE := 3
 const LEGENDARY := 4
+## 진화 카드 (v0.8.0 5단계): 다섯 등급과 다른 특별한 모양. 뽑기 등급이 아니라 진화 조건이 맞으면 넣는다
+const EVOLUTION := 5
 
 
 ## id → Balance의 강화 항목 (수치·효과·레전드리 전부에서 찾는다). 없으면 빈 Dictionary.
 static func info(id: String) -> Dictionary:
-	for list in [Balance.UPGRADES, Balance.EFFECT_UPGRADES, Balance.LEGENDARY_UPGRADES, Balance.SUB_WEAPONS]:
+	for list in [Balance.UPGRADES, Balance.EFFECT_UPGRADES, Balance.LEGENDARY_UPGRADES, Balance.SUB_WEAPONS, Balance.EVOLUTIONS]:
 		for u in list:
 			if u["id"] == id:
 				return u
@@ -103,6 +105,13 @@ static func describe_next(id: String, grade: int, bonus: Dictionary, short: bool
 			return "드론 %d기 → %d기" % [now_v, next_v] if short else "드론 %d기 → %d기 (함께 공격)" % [now_v, next_v]
 		"mining_laser":
 			return "운석 광물 +%d%% → +%d%%" % [roundi(now_v * 100.0), roundi(next_v * 100.0)]
+		"chill", "ram", "trail", "charge", "vein":  # 짝 스킬: 느려짐·전하는 %, 나머지는 피해 ×100
+			var pct: bool = id in ["chill", "charge"]
+			var fmt: String = {"chill": "느려짐 %s → %s", "ram": "부딪힘 피해 %s → %s", "trail": "불꽃 초당 피해 %s → %s", "charge": "쌓일 때 %s → %s", "vein": "충격파 피해 %s → %s"}[id]
+			if short:
+				fmt = {"chill": "느려짐 %s → %s", "ram": "피해 %s → %s", "trail": "불꽃 %s → %s", "charge": "%s → %s", "vein": "충격파 %s → %s"}[id]
+			var unit := "%d%%" if pct else "%d"
+			return fmt % [unit % roundi(now_v * 100.0), unit % roundi(next_v * 100.0)]
 	return describe(id, grade, short)
 
 
@@ -139,27 +148,45 @@ static func cap_of(id: String) -> float:
 			return Balance.DRONE_CAP
 		"mining_laser":
 			return Balance.MINING_CAP
+		"chill":
+			return Balance.CHILL_CAP
+		"ram":
+			return Balance.RAM_CAP
+		"trail":
+			return Balance.TRAIL_CAP
+		"charge":
+			return Balance.CHARGE_CAP
+		"vein":
+			return Balance.VEIN_CAP
 	return INF
 
 
-## 목록 중 아직 최대 단계가 아니고 상한에 닿지 않은 강화 id (bonus: 지금 누적값)
-static func available_in(list: Array, levels: Dictionary, bonus: Dictionary = {}) -> PackedStringArray:
+## 목록 중 아직 최대 단계가 아니고 상한에 닿지 않은 강화 id (bonus: 지금 누적값).
+## 짝 스킬(pair)은 짝 보조 무기(subs: id → 단계)를 가졌을 때만 들어가고 PAIR_SKILL_WEIGHT번 들어간다. pair_free면 없어도 1번
+static func available_in(list: Array, levels: Dictionary, bonus: Dictionary = {}, subs: Dictionary = {}) -> PackedStringArray:
 	var result: PackedStringArray = []
 	for u in list:
+		var copies := 1
+		if u.has("pair"):
+			copies = Balance.PAIR_SKILL_WEIGHT if subs.has(u["pair"]) else (1 if u.get("pair_free", false) else 0)
+		if copies == 0:
+			continue
 		if u.has("blocked_by") and levels.has(u["blocked_by"]):
 			continue  # 더 강한 레전드리를 이미 가졌으면 쓸모없는 카드는 뺀다 (궤도 관통 가속기 → 관통탄)
 		if float(bonus.get(u["id"], 0.0)) >= cap_of(u["id"]):
 			continue
 		if int(u["max"]) <= 0 or int(levels.get(u["id"], 0)) < int(u["max"]):
-			result.append(u["id"])
+			for i in copies:
+				result.append(u["id"])
 	return result
 
 
-## 목록에서 무작위 하나를 빼서 돌려준다
+## 목록에서 무작위 하나를 빼서 돌려준다 (가중치로 여러 번 들어간 id는 모두 뺀다: 한 화면에 같은 카드 두 장 없게)
 static func _take(random: RandomNumberGenerator, pool: PackedStringArray) -> String:
 	var i := random.randi_range(0, pool.size() - 1)
 	var id := pool[i]
-	pool.remove_at(i)
+	while pool.has(id):
+		pool.remove_at(pool.find(id))
 	return id
 
 
@@ -168,15 +195,15 @@ static func _take(random: RandomNumberGenerator, pool: PackedStringArray) -> Str
 ## force_effect: 화면에 효과 카드가 없으면 레전드리가 아닌 한 장을 에픽 효과로 바꾼다 (효과 카드 보정).
 ## repair_on: 수리를 뽑기에 넣을지 (체력이 넉넉하면 빼고, 고를 카드가 없으면 빈 목록 = 건너뛰기만).
 ## bonus: 지금 누적값. 상한에 닿은 효과는 빼고, 이미 가진 효과 카드에는 "지금 → 다음" 문구(desc·short)를 붙인다.
-static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true, epic_bonus := 0.0, bonus: Dictionary = {}, skip: Array = []) -> Array:
+static func roll_choices(random: RandomNumberGenerator, levels: Dictionary, count: int, time: float = 0.0, effects_on: bool = Balance.EFFECT_CARDS_ENABLED, force_effect: bool = false, repair_on: bool = true, epic_bonus := 0.0, bonus: Dictionary = {}, skip: Array = [], subs: Dictionary = {}) -> Array:
 	var stats := available_in(Balance.UPGRADES, levels)
 	if not repair_on and stats.has(REPAIR):
 		stats.remove_at(stats.find(REPAIR))
-	var effects := available_in(Balance.EFFECT_UPGRADES, levels, bonus) if effects_on else PackedStringArray()
+	var effects := available_in(Balance.EFFECT_UPGRADES, levels, bonus, subs) if effects_on else PackedStringArray()
 	var legends := available_in(Balance.LEGENDARY_UPGRADES, levels) if effects_on else PackedStringArray()
 	for id in skip:  # 장착한 기본 무기에 효과가 없는 카드 (Balance.WEAPONS의 no_cards)
 		for pool: PackedStringArray in [stats, effects, legends]:
-			if pool.has(id):
+			while pool.has(id):
 				pool.remove_at(pool.find(id))
 	var result: Array = []
 	var has_legend := false
@@ -246,6 +273,16 @@ static func add_bonus(bonus: Dictionary, id: String, grade: int) -> void:
 			add.call(Balance.DRONE_ADD, Balance.DRONE_CAP)
 		"mining_laser":
 			add.call(Balance.MINING_ADD, Balance.MINING_CAP)
+		"chill":
+			add.call(Balance.CHILL_ADD, Balance.CHILL_CAP)
+		"ram":
+			add.call(Balance.RAM_ADD, Balance.RAM_CAP)
+		"trail":
+			add.call(Balance.TRAIL_ADD, Balance.TRAIL_CAP)
+		"charge":
+			add.call(Balance.CHARGE_ADD, Balance.CHARGE_CAP)
+		"vein":
+			add.call(Balance.VEIN_ADD, Balance.VEIN_CAP)
 		"explosive":
 			var had: float = bonus.get("explosive_radius", 0.0)
 			bonus["explosive_radius"] = Balance.EXPLOSIVE_RADIUS[i] if had <= 0.0 else maxf(had, Balance.EXPLOSIVE_RADIUS[i]) + Balance.EXPLOSIVE_STAGE_RADIUS

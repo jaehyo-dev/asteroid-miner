@@ -6,6 +6,8 @@ extends Control
 
 const RAINBOW: Array[Color] = [Color("#f25c76"), Color("#f89419"), Color("#f6ce50"), Color("#a5cc5f"), Color("#30e1b9"), Color("#99e9e6"), Color("#a884f3")]
 const GRADE_COLORS: Array[Color] = [Color("#a5b29d"), Color("#30e1b9"), Color("#a884f3"), Color("#f6ce50")]
+## 진화 카드: 진홍·금·흰빛 (레전드리 무지개와 구분)
+const EVO_COLORS: Array[Color] = [Color("#ff2567"), Color("#f6ce50"), Color("#fef8e5"), Color("#f25c76"), Color("#f89419")]
 
 ## 카드 앞에 그리는 층 (LevelUpCards가 카드들 위에 놓는다)
 var front := Control.new()
@@ -27,6 +29,8 @@ func _ready() -> void:
 
 
 static func grade_color(grade: int, rng: RandomNumberGenerator) -> Color:
+	if grade == Upgrades.EVOLUTION:
+		return EVO_COLORS[rng.randi_range(0, EVO_COLORS.size() - 1)]
 	return RAINBOW[rng.randi_range(0, RAINBOW.size() - 1)] if grade == Upgrades.LEGENDARY else GRADE_COLORS[grade]
 
 
@@ -79,18 +83,18 @@ func burst(rect: Rect2, grade: int, strength := 1.0) -> void:
 			"len": Juice.CARD_BURST_RAY_LEN[grade] * scale_by * _rng.randf_range(0.7, 1.1), "t": 0.0, "life": life * 0.7, "color": grade_color(grade, _rng)})
 	if grade >= Upgrades.UNIQUE:
 		pillars.append({"rect": rect, "t": 0.0, "life": Juice.CARD_PILLAR_TIME * lerpf(0.6, 1.0, strength), "grade": grade})
-		for i in (3 if grade == Upgrades.LEGENDARY else 1):
+		for i in (3 if grade >= Upgrades.LEGENDARY else 1):
 			rings.append({"pos": center, "t": -0.06 * i, "life": life, "radius": rect.size.y * (0.7 + 0.25 * i), "grade": grade})
 	_redraw()
 
 
-## 레전드리: 앞면이 나오기 전에 카드 둘레에서 빛 알갱이가 가운데로 모인다.
-func gather(rect: Rect2, time: float) -> void:
+## 레전드리·진화: 앞면이 나오기 전에 카드 둘레에서 빛 알갱이가 가운데로 모인다.
+func gather(rect: Rect2, time: float, grade := Upgrades.LEGENDARY) -> void:
 	var center := rect.get_center()
 	for i in Juice.CARD_GATHER_PARTS:
 		var dir := Vector2.from_angle(_rng.randf() * TAU)
 		var dist := rect.size.y * _rng.randf_range(0.55, 0.95)
-		_spawn(center + dir * dist, -dir * dist / time, time, grade_color(Upgrades.LEGENDARY, _rng), 1.0)
+		_spawn(center + dir * dist, -dir * dist / time, time, grade_color(grade, _rng), 1.0)
 	_redraw()
 
 
@@ -168,6 +172,8 @@ func _draw_halo_ring(outer: Rect2, px: int, color: Color) -> void:
 func _halo_color(h: Dictionary, band: int) -> Color:
 	if h["grade"] == Upgrades.LEGENDARY:
 		return RAINBOW[(int(h["t"] / Juice.CARD_HALO_RAINBOW_STEP) + band) % RAINBOW.size()]
+	if h["grade"] == Upgrades.EVOLUTION:  # 진화: 진홍과 금이 띠마다 번갈아 흐른다
+		return EVO_COLORS[(int(h["t"] / Juice.CARD_HALO_RAINBOW_STEP) + band) % 2]
 	return GRADE_COLORS[h["grade"]]
 
 
@@ -178,7 +184,7 @@ func _draw() -> void:
 	for p in pillars:
 		var k: float = p["t"] / p["life"]
 		var rect: Rect2 = p["rect"]
-		var color: Color = GRADE_COLORS[Upgrades.UNIQUE] if p["grade"] == Upgrades.UNIQUE else RAINBOW[int(p["t"] * 24.0) % RAINBOW.size()]
+		var color: Color = GRADE_COLORS[Upgrades.UNIQUE] if p["grade"] == Upgrades.UNIQUE else (EVO_COLORS[int(p["t"] * 24.0) % 2] if p["grade"] == Upgrades.EVOLUTION else RAINBOW[int(p["t"] * 24.0) % RAINBOW.size()])
 		for band in 3:
 			var half := roundi(rect.size.x * 0.5 * (1.0 - k) * (1.0 - band * 0.3))
 			if half > 0:
@@ -197,7 +203,7 @@ func _draw_front() -> void:
 		if r["t"] < 0.0:
 			continue
 		var k: float = r["t"] / r["life"]
-		var color: Color = GRADE_COLORS[Upgrades.UNIQUE] if r["grade"] == Upgrades.UNIQUE else RAINBOW[int(k * 14.0) % RAINBOW.size()]
+		var color: Color = GRADE_COLORS[Upgrades.UNIQUE] if r["grade"] == Upgrades.UNIQUE else (EVO_COLORS[int(k * 14.0) % 3] if r["grade"] == Upgrades.EVOLUTION else RAINBOW[int(k * 14.0) % RAINBOW.size()])
 		front.draw_arc(r["pos"], maxf(r["radius"] * (1.0 - (1.0 - k) * (1.0 - k)), 1.0), 0.0, TAU, 48, Color(color, 0.9 * (1.0 - k)), 1.0)
 	for p in parts:
 		var c: Color = p[4]
