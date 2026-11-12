@@ -236,6 +236,7 @@ func _update_waves(sim: RunSim, delta: float) -> void:
 				hits.append(e)
 				var mult := 1.0 if e.kind == RunSim.ROCK else Balance.SUB_WAVE_CREATURE_MULT
 				sim.sub_hit(e, float(w["damage"]) * mult, w["pos"])
+				sim.fx.append({"type": "sub_hit", "kind": "wave", "pos": e.pos, "target": e})  # 그리기용 (금 가는 운석)
 		if w["r"] < w["radius"]:
 			kept.append(w)
 	waves = kept
@@ -249,6 +250,7 @@ func _update_saw(sim: RunSim, delta: float, s: int) -> void:
 			if e.hp > 0.0 and sim.time - e.saw_hit_at >= Balance.SUB_SAW_HIT_GAP and e.pos.distance_to(p) < e.radius + Balance.SUB_SAW_RADIUS:
 				e.saw_hit_at = sim.time
 				sim.sub_hit(e, stat("saw", "damage", s), p, true)
+				sim.fx.append({"type": "sub_hit", "kind": "saw", "pos": p.lerp(e.pos, 0.5), "target": e})  # 그리기용 (불꽃·부스러기)
 
 
 ## 톱날 위치들 (그리기와 판정이 같은 값)

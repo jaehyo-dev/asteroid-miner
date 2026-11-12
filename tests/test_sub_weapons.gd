@@ -197,7 +197,7 @@ func test_체력_0인_적은_노리지_않음() -> void:
 	assert_true(alive.hp < 1000.0, "살아 있는 적을 맞힘")
 
 
-## ?fxtest 확인용 (v0.8.0 배포 전에 지움): Backspace 모두 지우기, Alt+1~6 하나만 5단계
+## ?fxtest 확인용 (v0.8.0 배포 전에 지움): Backspace 모두 지우기, Alt+1~6 하나만 1 → 3 → 5단계로 돌기
 func test_확인용_보조_무기_지우기와_하나만_최대() -> void:
 	var sim := _sim()
 	sim.apply_pick("missile", 0)
@@ -211,6 +211,92 @@ func test_확인용_보조_무기_지우기와_하나만_최대() -> void:
 	assert_true(sim.subs.missiles.is_empty() and sim.subs.mines.is_empty(), "나와 있던 것도 사라짐")
 	assert_false(sim.upgrade_levels.has("missile"))
 	sim.apply_pick("saw", 0)
-	sim.only_sub("coil")
+	assert_eq(sim.only_sub("coil"), 1)
+	assert_eq(sim.subs.stages, {"coil": 1}, "다른 것이 있으면 코일 하나만 1단계부터")
+	assert_eq(sim.only_sub("coil"), 3)
+	assert_eq(sim.only_sub("coil"), 5)
 	assert_eq(sim.subs.stages, {"coil": 5}, "코일 하나만 5단계")
 	assert_eq(sim.upgrade_levels["coil"], 5)
+	assert_eq(sim.only_sub("coil"), 1, "5단계 다음은 다시 1단계")
+	assert_eq(sim.only_sub("wave"), 1, "다른 보조 무기로 바꾸면 1단계부터")
+
+
+## 단계 연출 (2026-11-12): 1·2단계 / 3·4단계 / 5단계로 모양이 바뀐다
+func test_보조_무기_연출은_1_3_5단계에서_모양이_바뀜() -> void:
+	var sim := _sim()
+	var fx := SubWeaponFx.new(sim)
+	var tiers: Array = []
+	for i in 5:
+		sim.apply_pick("wave", 0)
+		tiers.append(fx._tier("wave"))
+	assert_eq(tiers, [0, 0, 1, 1, 2])
+	assert_eq(fx._lift("wave", Color.BLACK), Color.BLACK, "5단계는 밝기 덤 없음")
+	sim.only_sub("wave")
+	sim.apply_pick("wave", 0)
+	assert_true(fx._lift("wave", Color.BLACK).v > 0.0, "2단계는 조금 밝게")
+
+
+func test_채굴_펄스와_톱날은_맞은_자리를_그리기용으로_남김() -> void:
+	var sim := _sim()
+	var fx := SubWeaponFx.new(sim)
+	sim.apply_pick("wave", 0)
+	_rock(sim, Vector2(30, 0), 1000.0)
+	var kinds := {}
+	for i in 30:
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		for f: Dictionary in sim.fx:
+			if f["type"] == "sub_hit":
+				kinds[f["kind"]] = true
+		fx.step(1.0 / 60.0)
+	assert_true(kinds.has("wave"), "파동이 운석에 닿으면 sub_hit")
+	assert_false(fx._hits.is_empty(), "1단계 파동도 금이 간다")
+	assert_false(fx._waves.is_empty() and fx._hits.is_empty())
+
+
+func test_5단계_블랙홀은_사라질_때_붕괴_연출() -> void:
+	var sim := _sim()
+	var fx := SubWeaponFx.new(sim)
+	for i in 5:
+		sim.apply_pick("blackhole", 0)
+	_rock(sim, Vector2(60, 0), 1.0e6)
+	var seen := false
+	for i in 60 * 5:
+		sim.update(1.0 / 60.0, Vector2.ZERO)
+		fx.step(1.0 / 60.0)
+		seen = seen or not fx._collapses.is_empty()
+	assert_true(seen, "블랙홀이 끝나면 붕괴")
+
+
+func test_보조_무기_효과_개수는_상한을_넘지_않음() -> void:
+	var sim := _sim()
+	var fx := SubWeaponFx.new(sim)
+	for id in ["wave", "saw", "coil", "mine", "missile"]:
+		for i in 5:
+			sim.apply_pick(id, 0)
+	for i in 40:
+		_rock(sim, Vector2.from_angle(i * 0.7) * (20.0 + i * 3.0), 1.0e6)
+	for i in 60 * 6:
+		sim.update(1.0 / 60.0, Vector2.from_angle(i * 0.05))
+		fx.step(1.0 / 60.0)
+		assert_true(fx._hits.size() <= Juice.SUB_HIT_MAX and fx._bursts.size() <= Juice.SUB_FX_MAX and fx._zaps.size() <= Juice.SUB_FX_MAX and fx._waves.size() <= Juice.SUB_FX_MAX)
+
+
+## 그리기 코드가 단계마다 오류 없이 도는지 (화면에 붙여 실제로 그린다)
+func test_보조_무기_6종_1_3_5단계_그리기() -> void:
+	for id in SubWeapons.ids():
+		for stage in [1, 3, 5]:
+			var sim := _sim()
+			for i in stage:
+				sim.apply_pick(id, 0)
+			for i in 6:
+				_rock(sim, Vector2.from_angle(i) * 40.0, 1.0e6)
+			var view := WorldView.new()
+			view.sim = sim
+			add_child(view)
+			for f in 20:
+				sim.update(1.0 / 20.0, Vector2.RIGHT if f % 4 < 2 else Vector2.LEFT)
+				view.step(1.0 / 20.0)
+				view.queue_redraw()
+				await wait_frames(1)
+			assert_true(sim.alive, "%s %d단계" % [id, stage])
+			view.queue_free()

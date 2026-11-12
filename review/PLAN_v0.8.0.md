@@ -168,5 +168,15 @@ GAME_SPEC.md 11장 "레일건 사거리·굵기, 연구소 선행 조건, 선택
 ## 16. 4단계 결과 (2026-11-12, review/v080_step4/)
 
 - 보조 무기 6종(`scripts/logic/sub_weapons.gd`, 수치 `Balance.SUB_WEAPONS`·`SUB_*`, 효과 `scripts/sub_weapon_fx.gd`·`Juice.SUB_FX`), 레벨업 카드 섞기(칸마다 35%, 첫 화면 1장 보장), 판 화면 칸, 연구소 보조 무기 해금 2단계, `?fxtest` Shift+1~6. 자세한 것은 [v080_step4/README.md](v080_step4/README.md).
-- **확인용 숨은 스위치 `?fxtest`**(숫자키 1~5 무기, Shift+1~6 보조 무기, Backspace 보조 무기 지우기, Alt(Ctrl·Cmd)+1~6 보조 무기 하나만 5단계, Shift+0 촬영 모드, Shift+9 레벨업)는 **v0.8.0 배포 전에 지운다.** 쓰는 곳: `scripts/logic/weapons.gd`(`test_mode`), `scripts/app.gd`, `scripts/run.gd`, `scripts/logic/run_sim.gd`(`clear_subs`·`only_sub`), `scripts/world_view.gd`(`clear_sub_fx`), `tests/test_sub_weapons.gd`(확인용 테스트 1개).
+- **확인용 숨은 스위치 `?fxtest`**(숫자키 1~5 무기, Shift+1~6 보조 무기, Backspace 보조 무기 지우기, Alt(Ctrl·Cmd)+1~6 보조 무기 하나만 누를 때마다 1→3→5단계, Shift+0 촬영 모드(FPS·효과 수 표시), Shift+9 레벨업)는 **v0.8.0 배포 전에 지운다.** 쓰는 곳: `scripts/logic/weapons.gd`(`test_mode`), `scripts/app.gd`, `scripts/run.gd`, `scripts/logic/run_sim.gd`(`clear_subs`·`only_sub`), `scripts/world_view.gd`(`clear_sub_fx`), `tests/test_sub_weapons.gd`(확인용 테스트 1개).
 - 진화 카드와 짝 스킬은 아직 없다(5단계 이후).
+
+## 17. 사용자 결정 (2026-11-12, 4단계 확인 뒤, 위 내용보다 우선)
+
+| 항목 | 결정 |
+|---|---|
+| 보조 무기 특성 | 6종의 서로 다른 특성은 합격 |
+| 단계 연출 | 단계가 오르면 범위만 커지지 않고 생김새·공격 이펙트·맞을 때 연출이 달라진다. 1·3·5단계에서 모양이 확 바뀌고 2·4단계는 밝기·크기 같은 작은 변화만 |
+| 범위 | 동작 규칙과 피해 수치는 그대로(밸런스는 6단계). 이번엔 연출만 |
+| ?fxtest | Alt(Ctrl·Cmd)+1~6을 누를 때마다 그 보조 무기 하나만 1 → 3 → 5단계로 돌고, 구석에 "채굴 펄스 3단계"처럼 표시 |
+| 확인 자료 | review/v080_step4b/: 6종 × 1·3·5단계 GIF 18개(1280x720, 4초), 무기별 비교 그림 sheet_<무기>.png, 폰 844x390 성능(5단계 3개 같이) |

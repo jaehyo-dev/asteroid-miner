@@ -932,11 +932,14 @@ func clear_subs() -> void:
 	subs = SubWeapons.new()
 
 
-## ?fxtest: 다른 보조 무기를 모두 지우고 그 보조 무기 하나만 최대 단계로. v0.8.0 배포 전에 지운다
-func only_sub(id: String) -> void:
+## ?fxtest: 다른 보조 무기를 모두 지우고 그 보조 무기 하나만. 누를 때마다 1 → 3 → 5단계로 돈다. 정한 단계를 돌려준다. v0.8.0 배포 전에 지운다
+func only_sub(id: String) -> int:
+	var now := subs.stage_of(id) if subs.stages.size() == 1 else 0
+	var stage := 1 if now == 0 or now >= 5 else (3 if now < 3 else 5)
 	clear_subs()
-	for i in Upgrades.max_stage(id):
+	for i in stage:
 		apply_pick(id, 0)
+	return stage
 
 
 ## 보조 무기 한 번의 피해: 탄 피해(레벨업·기지 공격력)에 곱하고, 치명타·고폭 탄두는 기본 무기 탄처럼.

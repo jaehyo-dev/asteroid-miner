@@ -121,16 +121,22 @@ func _update_fx_label() -> void:
 	var subs: PackedStringArray = []
 	for id: String in sim.subs.stages:
 		subs.append("%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
-	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 5단계]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
-	if fx_stage:
-		fx_label.text += "\n촬영 모드 [Shift+0]"
+	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
+	if fx_stage:  # 촬영 모드는 화면을 덜 가리게 짧게: 가진 보조 무기 + FPS·효과 수
+		fx_label.text = "%s\nFPS %d  효과 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count()]
+	if sim.subs.stages.size() == 1:  # 하나만 볼 때(Alt+1~6)는 맨 위에 크게 "채굴 펄스 3단계"
+		var id: String = sim.subs.stages.keys()[0]
+		var head := "%s %d단계" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)]
+		fx_label.text = head + "\n" + (fx_label.text.get_slice("\n", 1) if fx_stage else fx_label.text)
 
 
-## ?fxtest 촬영 모드 한 프레임: 체력 가득, 포격 없음, 경험치 멈춤, 0.5초마다 가까이(36~120) 운석·해파리 채우기.
+## ?fxtest 촬영 모드 한 프레임: 체력 가득, 포격 없음, 경험치 멈춤, 0.5초마다 가까이(30~80) 운석·해파리 채우기.
 ## 해파리가 부딪히면 화면이 붉게 번쩍여 효과를 가려서 닿기 직전에 부순다. v0.8.0 배포 전에 지운다
 func _fx_stage_step(delta: float) -> void:
 	sim.hp = sim.max_hp
 	sim.xp = 0
+	sim.pending_levelups = 0  # 이번 프레임 처치로 막 생긴 레벨업도 없앤다 (카드가 끼어들지 않게)
+	sim.choices.clear()
 	sim.set("_barrage_timer", 999.0)
 	sim.barrages.clear()
 	for e in sim.enemies:
@@ -140,12 +146,13 @@ func _fx_stage_step(delta: float) -> void:
 	if _fx_feed > 0.0:
 		return
 	_fx_feed = 0.5
+	_update_fx_label()  # FPS·효과 수 갱신
 	var near := sim.enemies.filter(func(e: RunSim.Enemy) -> bool: return e.pos.distance_to(sim.player_pos) < 120.0)
 	var jellies := near.filter(func(e: RunSim.Enemy) -> bool: return e.kind != RunSim.ROCK).size()
 	for i in maxi(0, 8 - near.size()):
 		var a := sim.spawn_creature("jelly") if jellies + i < 2 else sim.spawn_asteroid()
 		var ang := randf() * TAU
-		a.pos = sim.player_pos + Vector2.from_angle(ang) * randf_range(36.0, 115.0)
+		a.pos = sim.player_pos + Vector2.from_angle(ang) * randf_range(30.0, 80.0)  # 보조 무기 반경(26~90) 안에 들게
 		a.vel = Vector2.from_angle(ang + PI * 0.5) * randf_range(4.0, 12.0)
 
 
@@ -292,7 +299,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 	# 확인용 숨은 스위치(?fxtest): 판 중 숫자키 1~5로 기본 무기, Shift+1~6으로 보조 무기 얻기·1단계 올리기(칸 수 무시),
-	# Backspace 보조 무기 모두 지우기, Alt(Ctrl·Cmd)+1~6 그 보조 무기 하나만 5단계. v0.8.0 배포 전에 지운다
+	# Backspace 보조 무기 모두 지우기, Alt(Ctrl·Cmd)+1~6 그 보조 무기 하나만 누를 때마다 1 → 3 → 5단계. v0.8.0 배포 전에 지운다
 	# (웹에서 Ctrl·Cmd+숫자는 크롬이 탭 바꾸기로 먼저 가져가 게임에 오지 않아 안내는 Alt로. 데스크톱에서는 Ctrl·Cmd도 같게 동작)
 	if Weapons.test_mode and current_menu == Menu.NONE and event is InputEventKey and event.pressed and not event.echo:
 		var slot := number_key_index(event.physical_keycode)

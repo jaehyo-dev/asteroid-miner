@@ -74,7 +74,7 @@ const OVERLOAD_COLOR := Color("#f25c76")
 const BEACON_COLOR := Color("#99e9e6")
 const RIM_COLOR := Color("#14111c")
 ## 기본 무기 효과가 따로 쓰는 fx (WeaponFx가 그림)
-const WEAPON_FX_TYPES := ["hit", "rail", "plasma", "sub_burst", "zap"]  # 기본·보조 무기 효과는 WeaponFx·SubWeaponFx가 맡음
+const WEAPON_FX_TYPES := ["hit", "rail", "plasma", "sub_burst", "zap", "sub_hit"]  # 기본·보조 무기 효과는 WeaponFx·SubWeaponFx가 맡음
 
 var sim: RunSim
 ## 워프 게이트 연출 (귀환할 때 우주선이 빨려 들어가는 모습에 씀)
@@ -134,6 +134,14 @@ func _ready() -> void:
 ## ?fxtest 보조 무기 지우기: 남아 있는 폭발·번개 그림도 바로 없앤다. v0.8.0 배포 전에 지운다
 func clear_sub_fx() -> void:
 	_sfx = null
+
+
+## ?fxtest 촬영 모드 표시용: 지금 그리는 효과 수 (판 효과 + 보조 무기 폭발·번개·파동·맞은 자리·붕괴 + 미사일·블랙홀·기뢰). v0.8.0 배포 전에 지운다
+func fx_count() -> int:
+	var n := _effects.size() + sim.subs.missiles.size() + sim.subs.holes.size() + sim.subs.mines.size()
+	if _sfx != null:
+		n += _sfx._bursts.size() + _sfx._zaps.size() + _sfx._waves.size() + _sfx._hits.size() + _sfx._collapses.size()
+	return n
 
 
 ## 매 프레임 효과를 갱신한다 (RunSim.update 다음에 부름).
