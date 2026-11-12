@@ -195,3 +195,22 @@ func test_체력_0인_적은_노리지_않음() -> void:
 	var alive := _rock(sim, Vector2(60, 0), 1000.0)
 	sim.subs.update(sim, 1.0 / 60.0)
 	assert_true(alive.hp < 1000.0, "살아 있는 적을 맞힘")
+
+
+## ?fxtest 확인용 (v0.8.0 배포 전에 지움): Backspace 모두 지우기, Alt+1~6 하나만 5단계
+func test_확인용_보조_무기_지우기와_하나만_최대() -> void:
+	var sim := _sim()
+	sim.apply_pick("missile", 0)
+	sim.apply_pick("mine", 0)
+	_rock(sim, Vector2(60, 0), 1000.0)
+	for i in 30:
+		sim.update(1.0 / 60.0, Vector2.RIGHT)
+	assert_false(sim.subs.missiles.is_empty() and sim.subs.mines.is_empty(), "미사일·기뢰가 나와 있음")
+	sim.clear_subs()
+	assert_true(sim.subs.stages.is_empty())
+	assert_true(sim.subs.missiles.is_empty() and sim.subs.mines.is_empty(), "나와 있던 것도 사라짐")
+	assert_false(sim.upgrade_levels.has("missile"))
+	sim.apply_pick("saw", 0)
+	sim.only_sub("coil")
+	assert_eq(sim.subs.stages, {"coil": 5}, "코일 하나만 5단계")
+	assert_eq(sim.upgrade_levels["coil"], 5)

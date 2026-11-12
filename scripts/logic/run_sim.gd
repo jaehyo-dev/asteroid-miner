@@ -925,6 +925,20 @@ func _hit_enemy(b: Bullet, a: Enemy, sound := true) -> void:
 		fx.append({"type": "laser", "pos": a.pos + (b.pos - a.pos).limit_length(a.radius)})
 
 
+## ?fxtest: 보조 무기를 모두 지운다 (날아가는 미사일·블랙홀·기뢰·파동도). v0.8.0 배포 전에 지운다
+func clear_subs() -> void:
+	for id in subs.stages:
+		upgrade_levels.erase(id)
+	subs = SubWeapons.new()
+
+
+## ?fxtest: 다른 보조 무기를 모두 지우고 그 보조 무기 하나만 최대 단계로. v0.8.0 배포 전에 지운다
+func only_sub(id: String) -> void:
+	clear_subs()
+	for i in Upgrades.max_stage(id):
+		apply_pick(id, 0)
+
+
 ## 보조 무기 한 번의 피해: 탄 피해(레벨업·기지 공격력)에 곱하고, 치명타·고폭 탄두는 기본 무기 탄처럼.
 ## 기본 무기 맞은 자리 효과는 내지 않는다(drone 탄으로 처리). 부서진 적은 _check_bullet_hits에서 함께 정리된다
 func sub_hit(e: Enemy, damage: float, from: Vector2, sound := false) -> void:

@@ -168,5 +168,5 @@ GAME_SPEC.md 11장 "레일건 사거리·굵기, 연구소 선행 조건, 선택
 ## 16. 4단계 결과 (2026-11-12, review/v080_step4/)
 
 - 보조 무기 6종(`scripts/logic/sub_weapons.gd`, 수치 `Balance.SUB_WEAPONS`·`SUB_*`, 효과 `scripts/sub_weapon_fx.gd`·`Juice.SUB_FX`), 레벨업 카드 섞기(칸마다 35%, 첫 화면 1장 보장), 판 화면 칸, 연구소 보조 무기 해금 2단계, `?fxtest` Shift+1~6. 자세한 것은 [v080_step4/README.md](v080_step4/README.md).
-- **확인용 숨은 스위치 `?fxtest`**(숫자키 1~5 무기, Shift+1~6 보조 무기)는 **v0.8.0 배포 전에 지운다.** 쓰는 곳: `scripts/logic/weapons.gd`(`test_mode`), `scripts/app.gd`, `scripts/run.gd`.
+- **확인용 숨은 스위치 `?fxtest`**(숫자키 1~5 무기, Shift+1~6 보조 무기, Backspace 보조 무기 지우기, Alt(Ctrl·Cmd)+1~6 보조 무기 하나만 5단계, Shift+0 촬영 모드, Shift+9 레벨업)는 **v0.8.0 배포 전에 지운다.** 쓰는 곳: `scripts/logic/weapons.gd`(`test_mode`), `scripts/app.gd`, `scripts/run.gd`, `scripts/logic/run_sim.gd`(`clear_subs`·`only_sub`), `scripts/world_view.gd`(`clear_sub_fx`), `tests/test_sub_weapons.gd`(확인용 테스트 1개).
 - 진화 카드와 짝 스킬은 아직 없다(5단계 이후).

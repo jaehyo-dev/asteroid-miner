@@ -121,7 +121,7 @@ func _update_fx_label() -> void:
 	var subs: PackedStringArray = []
 	for id: String in sim.subs.stages:
 		subs.append("%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
-	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
+	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 5단계]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
 	if fx_stage:
 		fx_label.text += "\n촬영 모드 [Shift+0]"
 
@@ -291,9 +291,23 @@ func _unhandled_input(event: InputEvent) -> void:
 				cards.choose(index)
 			get_viewport().set_input_as_handled()
 			return
-	# 확인용 숨은 스위치(?fxtest): 판 중 숫자키 1~5로 기본 무기, Shift+1~6으로 보조 무기 얻기·1단계 올리기(칸 수 무시). v0.8.0 배포 전에 지운다
+	# 확인용 숨은 스위치(?fxtest): 판 중 숫자키 1~5로 기본 무기, Shift+1~6으로 보조 무기 얻기·1단계 올리기(칸 수 무시),
+	# Backspace 보조 무기 모두 지우기, Alt(Ctrl·Cmd)+1~6 그 보조 무기 하나만 5단계. v0.8.0 배포 전에 지운다
+	# (웹에서 Ctrl·Cmd+숫자는 크롬이 탭 바꾸기로 먼저 가져가 게임에 오지 않아 안내는 Alt로. 데스크톱에서는 Ctrl·Cmd도 같게 동작)
 	if Weapons.test_mode and current_menu == Menu.NONE and event is InputEventKey and event.pressed and not event.echo:
 		var slot := number_key_index(event.physical_keycode)
+		if event.physical_keycode == KEY_BACKSPACE:
+			sim.clear_subs()
+			world.clear_sub_fx()
+			_update_fx_label()
+			get_viewport().set_input_as_handled()
+			return
+		if (event.alt_pressed or event.ctrl_pressed or event.meta_pressed) and slot >= 0 and slot < SubWeapons.ids().size():
+			sim.only_sub(SubWeapons.ids()[slot])
+			world.clear_sub_fx()
+			_update_fx_label()
+			get_viewport().set_input_as_handled()
+			return
 		if event.shift_pressed and event.physical_keycode == KEY_0:  # 촬영 모드 켜고 끄기 (웹 빌드 캡처용)
 			fx_stage = not fx_stage
 			_update_fx_label()

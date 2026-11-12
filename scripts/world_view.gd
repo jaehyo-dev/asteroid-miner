@@ -131,6 +131,11 @@ func _ready() -> void:
 	add_child(_flash_layer)
 
 
+## ?fxtest 보조 무기 지우기: 남아 있는 폭발·번개 그림도 바로 없앤다. v0.8.0 배포 전에 지운다
+func clear_sub_fx() -> void:
+	_sfx = null
+
+
 ## 매 프레임 효과를 갱신한다 (RunSim.update 다음에 부름).
 func step(delta: float) -> void:
 	if sim == null:
