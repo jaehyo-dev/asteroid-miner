@@ -19,6 +19,9 @@ static func max_level(id: String) -> int:
 
 ## level 단계에서 다음 단계로 올리는 비용
 static func cost(id: String, level: int) -> int:
+	var costs: Array = info(id).get("costs", [])
+	if level < costs.size():
+		return int(costs[level])  # 단계별 가격이 따로 있는 칸 (보조 무기 해금)
 	return roundi(float(info(id)["cost"]) * pow(Balance.BASE_COST_GROWTH, level))
 
 

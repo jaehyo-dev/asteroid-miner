@@ -30,6 +30,11 @@ const BANNER_Y := 88.0
 ## 포격 표시를 하나로 묶는 거리 (거의 같은 곳에서 쏘면 "!" 하나만)
 const BARRAGE_MARKER_MERGE := 24.0
 const COLOR_BAR_BG := Color("#2a2a40")
+## 보조 무기 칸 (판 화면 왼쪽 아래, 레벨 글자 옆): 아이콘 크기, 칸 사이, 단계 점 크기, 빈 칸 색
+const SUB_ICON := 16
+const SUB_GAP := 2
+const SUB_DOT := 2
+const COLOR_SUB_EMPTY := Color(0.16, 0.16, 0.25, 0.6)
 ## 연구소 편향 실드 남은 횟수 칸 (체력 막대 높이에 맞춤)
 const BLOCK_SIZE := Vector2(4, 6)
 const COLOR_BLOCK := Color("#99e9e6")
@@ -109,6 +114,7 @@ func _draw() -> void:
 	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, size.x, XP_BAR_HEIGHT), COLOR_BAR_BG)
 	draw_rect(Rect2(0, size.y - XP_BAR_HEIGHT, roundf(size.x * clampf(float(sim.xp) / need, 0.0, 1.0)), XP_BAR_HEIGHT), COLOR_XP)
 	draw_string(font, Vector2(MARGIN, size.y - XP_BAR_HEIGHT - 4), "Lv %d" % sim.level, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_XP)
+	_draw_sub_slots(Vector2(MARGIN + font.get_string_size("Lv %d" % sim.level, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 8, size.y - XP_BAR_HEIGHT - 2))
 	_draw_raid_direction()
 	_draw_golden_markers()
 	_draw_gate_marker()
@@ -121,6 +127,33 @@ func _draw() -> void:
 		draw_string(font, Vector2(0, MARGIN + 24), "%d FPS · 호출 %d" % [Engine.get_frames_per_second(), Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)], HORIZONTAL_ALIGNMENT_CENTER, size.x, FONT_SIZE, COLOR_TEXT)
 	if white > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(1, 1, 1, white))
+
+
+## 보조 무기 칸 (레벨 글자 오른쪽): 칸마다 16px 아이콘 + 아래 단계 점 5개. 빈 칸은 어두운 네모 (테두리 없음)
+## bottom: 칸 아래쪽 끝 (경험치 막대 바로 위)
+func _draw_sub_slots(bottom: Vector2) -> void:
+	var owned: Array = sim.subs.stages.keys()
+	for i in sim.sub_slots:
+		var x := bottom.x + i * (SUB_ICON + SUB_GAP)
+		var top := bottom.y - SUB_ICON - SUB_DOT - 1
+		if i >= owned.size():
+			draw_rect(Rect2(x + 2, top + 2, SUB_ICON - 4, SUB_ICON - 4), COLOR_SUB_EMPTY)
+			continue
+		var id: String = owned[i]
+		draw_texture(_sub_icon(id), Vector2(x, top))
+		var stage := sim.subs.stage_of(id)
+		for d in 5:
+			draw_rect(Rect2(x + 1 + d * 3, bottom.y - SUB_DOT, SUB_DOT, SUB_DOT), COLOR_XP if d < stage else COLOR_BAR_BG)
+
+
+## 그림은 붙잡아 둔다: _draw 안에서 load만 하고 버리면 그리기 전에 풀려 흰 네모로 그려진다
+static var _sub_icons: Dictionary = {}
+
+
+static func _sub_icon(id: String) -> Texture2D:
+	if not _sub_icons.has(id):
+		_sub_icons[id] = load("res://assets/sprites/run/card/icons_small/%s.png" % id)
+	return _sub_icons[id]
 
 
 ## 화면 밖 황금 운석마다 가장자리에 금색 화살표를 띄운다 (카메라는 우주선을 따라감).

@@ -74,6 +74,7 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 - 게임 로직(데미지, 경험치, 귀환, 보존 비율, 배율, 비용 등)은 화면·노드와 분리된 스크립트(`scripts/logic/`)에 두고, 직접 호출해서 테스트해. 무작위 값은 시드를 받을 수 있게 만들어 테스트에서 결과를 고정해.
 - GAME_SPEC.md "9. 테스트할 로직"은 해당 기능을 만드는 단계에서 자동 테스트로 만들어.
 - 화면 확인: 웹으로 내보낸 결과를 로컬 웹 서버로 열고 Playwright(Chromium)로 PC(1280x720)와 휴대폰(390x844) 크기 스크린샷을 찍어 직접 확인해. 콘솔 오류가 없어야 해.
+- **맥: Godot 창 띄우기 금지, 캡처는 웹 빌드 + Playwright headless** (2026-11-12 사용자 결정). 맥에서는 Godot 에디터·게임·캡처 스크립트 창을 화면에 띄우지 않는다(`open -g`로 뒤에 띄우는 것도 안 됨). 캡처·GIF는 웹으로 내보낸 빌드를 Playwright headless 브라우저로 열어 찍는다(PC 1280x720, 폰 844x390, 필요하면 `?fxtest`). 테스트와 봇은 `godot --headless`로 돌린다. 웹 빌드로 찍을 수 없는 장면은 억지로 창을 띄우지 말고 목록으로 남겨 윈도우(WSL `xvfb-run`)에서 찍는다.
 - GitHub Actions가 모든 브랜치 푸시마다 위 1~4를 실행해. 작업 브랜치에 푸시한 뒤 Actions 결과도 확인해.
 
 ## 코드 리뷰

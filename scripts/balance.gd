@@ -377,6 +377,64 @@ const WEAPON_RATE_STEPS := [0.65, 0.9, 1.5, 5.0]
 ## 화면에 한꺼번에 있을 수 있는 탄 수 (다중 포신·드론·관통이 겹칠 때 폰 성능용)
 const MAX_BULLETS := 160
 
+# ── 보조 무기 6종 (v0.8.0 4단계, 레벨업 카드로 얻고 같은 카드로 1단계씩, 1~5단계) ─────
+## 기본 무기와 따로 자동으로 동작한다. 수치는 임시 (6단계 밸런스에서 다시 맞춤).
+## 피해는 처음 안의 1.4배: 처음 안은 무작위로 고르는 봇의 4분 생존이 보조 무기 전(34%)보다 낮아져(23%) 올림 (1.4배로 33%, 시드 2000~2099)
+## stats: 단계별 값 [1단계, …, 5단계]. 피해(damage·dps)는 탄 피해(레벨업·기지 공격력)에 곱한다.
+## labels: 카드 "지금 → 다음" 문구 (%s에 값). 피해는 격납고 공격력처럼 ×100으로 보여 준다.
+## 칸: SUB_SLOTS칸으로 시작, 연구소 "보조 무기 해금" 단계마다 1칸 (최대 SUB_SLOTS + 2)
+const SUB_SLOTS := 3
+## 레벨업 카드 한 칸이 보조 무기 카드가 될 확률 (흐름표: 고르기 22번 중 무기 쪽 약 11번)
+const SUB_CARD_SHARE := 0.35
+## 보조 무기 카드는 등급으로 세기가 달라지지 않아(1단계씩) 등급 색 하나로 보여 준다 (1 = 레어 시안)
+const SUB_CARD_GRADE := 1
+const SUB_WEAPONS := [
+	{"id": "missile", "name": "유도 미사일 포드", "kind": "보조 무기", "max": 5, "desc": "몇 초마다 적을 쫓아가는 미사일을 쏜다", "short": "적을 쫓는 미사일",
+		"stats": {"interval": [2.6, 2.4, 2.2, 2.0, 1.7], "count": [1, 1, 2, 2, 3], "damage": [2.8, 3.6, 3.6, 4.5, 5.3], "blast": [18.0, 20.0, 22.0, 24.0, 28.0]},
+		"labels": {"count": "미사일 %s발", "damage": "피해 %s", "blast": "폭발 반경 %s", "interval": "간격 %s초"}},
+	{"id": "blackhole", "name": "블랙홀 발사기", "kind": "보조 무기", "max": 5, "desc": "중력점을 던져 주변 적과 광물을 끌어모은다", "short": "적·광물을 끌어모음",
+		"stats": {"interval": [6.0, 5.5, 5.0, 4.5, 4.0], "radius": [40.0, 44.0, 48.0, 54.0, 62.0], "time": [2.0, 2.3, 2.6, 3.0, 3.5], "dps": [1.4, 1.8, 2.2, 2.8, 3.5]},
+		"labels": {"radius": "끄는 반경 %s", "dps": "초당 피해 %s", "time": "%s초 유지", "interval": "간격 %s초"}},
+	{"id": "saw", "name": "궤도 톱날", "kind": "보조 무기", "max": 5, "desc": "우주선 둘레를 도는 톱날이 닿는 것을 갈아낸다", "short": "둘레를 도는 톱날",
+		"stats": {"count": [1, 2, 2, 3, 4], "orbit": [26.0, 28.0, 30.0, 32.0, 36.0], "damage": [1.4, 1.7, 2.1, 2.5, 3.1]},
+		"labels": {"count": "톱날 %s개", "damage": "피해 %s", "orbit": "도는 반경 %s"}},
+	{"id": "mine", "name": "기뢰 살포기", "kind": "보조 무기", "max": 5, "desc": "지나간 자리에 닿으면 터지는 기뢰를 남긴다", "short": "지나간 자리에 기뢰",
+		"stats": {"interval": [1.6, 1.4, 1.2, 1.0, 0.8], "max": [4, 5, 6, 7, 9], "damage": [3.1, 3.9, 4.8, 5.6, 6.7], "blast": [22.0, 24.0, 26.0, 28.0, 32.0]},
+		"labels": {"max": "기뢰 %s개까지", "damage": "피해 %s", "blast": "폭발 반경 %s", "interval": "간격 %s초"}},
+	{"id": "coil", "name": "방전 코일", "kind": "보조 무기", "max": 5, "desc": "가까운 적 여럿에게 번개를 튕겨 보낸다", "short": "번개가 여럿에게 튕김",
+		"stats": {"interval": [1.5, 1.35, 1.2, 1.05, 0.9], "chains": [2, 3, 3, 4, 5], "damage": [1.7, 2.0, 2.4, 2.8, 3.4]},
+		"labels": {"chains": "번개 %s곳", "damage": "피해 %s", "interval": "간격 %s초"}},
+	{"id": "wave", "name": "채굴 펄스", "kind": "보조 무기", "max": 5, "desc": "둘레에 파동을 퍼뜨려 운석을 금 가게 한다", "short": "둘레에 파동",
+		"stats": {"interval": [3.6, 3.3, 3.0, 2.7, 2.3], "radius": [55.0, 62.0, 70.0, 78.0, 90.0], "damage": [2.2, 2.8, 3.5, 4.2, 5.3]},
+		"labels": {"radius": "파동 반경 %s", "damage": "피해 %s", "interval": "간격 %s초"}},
+]
+## 유도 미사일: 노리는 거리, 속도, 도는 힘(라디안/초), 날아가는 최대 시간, 맞는 반지름
+const SUB_MISSILE_RANGE := 220.0
+const SUB_MISSILE_SPEED := 150.0
+const SUB_MISSILE_TURN := 5.0
+const SUB_MISSILE_LIFE := 2.5
+const SUB_MISSILE_RADIUS := 3.0
+## 블랙홀: 던지는 거리(적이 모인 곳), 날아가는 시간, 끄는 속도(픽셀/초), 단단한 적(황금 운석·경비선)은 이 비율로만 끌림
+const SUB_HOLE_RANGE := 160.0
+const SUB_HOLE_FLIGHT := 0.35
+const SUB_HOLE_PULL := 70.0
+const SUB_HOLE_STURDY_PULL := 0.3
+## 궤도 톱날: 도는 속도(라디안/초), 톱날 반지름, 같은 적을 다시 가는 간격(초)
+const SUB_SAW_SPIN := 4.0
+const SUB_SAW_RADIUS := 5.0
+const SUB_SAW_HIT_GAP := 0.35
+## 기뢰: 남아 있는 시간, 놓인 뒤 터질 수 있을 때까지(초), 닿는 거리(적 반지름에 더함), 이 거리 안에 기뢰가 있으면 새로 놓지 않음(멈춰 있을 때 겹쳐 쌓이지 않게)
+const SUB_MINE_LIFE := 10.0
+const SUB_MINE_ARM := 0.4
+const SUB_MINE_TRIGGER := 6.0
+const SUB_MINE_GAP := 12.0
+## 방전 코일: 첫 대상 거리, 다음 대상으로 튀는 거리
+const SUB_COIL_RANGE := 130.0
+const SUB_COIL_JUMP := 75.0
+## 채굴 펄스: 파동이 퍼지는 속도(픽셀/초), 운석이 아닌 적에게 주는 피해 배율 (운석을 금 가게 하는 무기라 적에게는 약함)
+const SUB_WAVE_SPEED := 220.0
+const SUB_WAVE_CREATURE_MULT := 0.5
+
 # ── 피격·위험 표시 (조작감) ─────────────────────────
 ## (맞았을 때 화면 흔들림·붉은 번쩍임 수치는 scripts/juice.gd)
 ## 적이 탄에 맞으면 탄이 날아온 쪽으로 잠깐 튕기는 모션 시간 (그림만 밀림, 실제 위치는 그대로)
@@ -444,9 +502,10 @@ const RESEARCH_TREE := {
 	"elec": ["shield", "reroll", {"a": "chip", "b": "bolt", "cost": 500}, "luck"],
 	"survey": ["appraise", "radar", {"a": "deep", "b": "wide_scan", "cost": 500}, "planet"],
 }
-## 새 칸 (임시, 나중에 밸런스 조정). effect: 효과 글. step이 있으면 단계마다 값 %d 또는 %.0f에 넣는다. soon: 기능이 아직 없어 잠김.
+## 새 칸 (임시, 나중에 밸런스 조정). effect: 효과 글. step이 있으면 단계마다 값 %d 또는 %.0f에 넣는다(base가 있으면 base + step × 단계). soon: 기능이 아직 없어 잠김.
+## costs: 단계별 가격 (없으면 cost × BASE_COST_GROWTH^단계). 보조 무기 해금: 1단계 4칸(800), 2단계 5칸(2000), 가격 임시
 const RESEARCH_NODES := [
-	{"id": "sub", "name": "보조 무기 해금", "max": 1, "cost": 300, "effect": "보조 무기 칸 1개", "soon": true},
+	{"id": "sub", "name": "보조 무기 해금", "max": 2, "cost": 800, "costs": [800, 2000], "effect": "보조 무기 칸 %.0f칸", "step": 1, "base": 3},
 	{"id": "over", "name": "증폭 탄창", "max": 1, "cost": 800, "effect": "6발마다 공격력 1.6배 탄"},
 	{"id": "repair", "name": "긴급 수리", "max": 1, "cost": 800, "effect": "판마다 1번 체력 30% 회복"},
 	{"id": "drill", "name": "정밀 드릴", "max": 1, "cost": 800, "effect": "10% 확률로 광물 +1개"},

@@ -27,6 +27,7 @@ class Enemy:
 	var hit_dir := Vector2.ZERO  ## 마지막으로 맞은 탄이 날아온 방향 (맞으면 그쪽으로 튕기는 모션)
 	var hit_time := 0.0  ## 튕김 모션 남은 시간 (그리기용)
 	var last_bullet_damage := 0.0  ## 마지막으로 맞힌 탄의 피해 (고폭 탄두 폭발 계산용, 치명타 제외)
+	var saw_hit_at := -INF  ## 궤도 톱날에 마지막으로 갈린 시각 (같은 적을 SUB_SAW_HIT_GAP마다)
 	# 고대 경비선 전용
 	var aim := 0.0  ## 선체(포)가 바라보는 방향 (라디안)
 	var charge := -1.0  ## 충전한 시간 (충전 중이 아니면 -1)
@@ -185,6 +186,11 @@ var chain_matrix := false
 var overload := false
 var tractor_beacon := false
 var drones: Array[Drone] = []
+## 보조 무기 (v0.8.0): 가진 것·단계·날아가는 미사일 등. 칸 수 = SUB_SLOTS + 연구소 "보조 무기 해금" 단계
+var subs := SubWeapons.new()
+var sub_slots := Balance.SUB_SLOTS
+## 지금까지 고르거나 건너뛴 레벨업 화면 수 (첫 화면에 보조 무기 카드 1장 보장)
+var screens_done := 0
 ## 도감 보상: 이동 속도 더하기, 사망 보존 더하기
 var codex_speed := 0.0
 var keep_bonus := 0.0
@@ -290,6 +296,7 @@ func update(delta: float, move: Vector2) -> void:
 	_move_enemies(delta)
 	_auto_fire(delta)
 	_update_drones(delta)
+	subs.update(self, delta)
 	_move_bullets(delta)
 	_check_bullet_hits()
 	_update_shield(delta)
@@ -918,6 +925,18 @@ func _hit_enemy(b: Bullet, a: Enemy, sound := true) -> void:
 		fx.append({"type": "laser", "pos": a.pos + (b.pos - a.pos).limit_length(a.radius)})
 
 
+## 보조 무기 한 번의 피해: 탄 피해(레벨업·기지 공격력)에 곱하고, 치명타·고폭 탄두는 기본 무기 탄처럼.
+## 기본 무기 맞은 자리 효과는 내지 않는다(drone 탄으로 처리). 부서진 적은 _check_bullet_hits에서 함께 정리된다
+func sub_hit(e: Enemy, damage: float, from: Vector2, sound := false) -> void:
+	var b := Bullet.new()
+	b.drone = true
+	b.style = "sub"
+	b.pos = from
+	b.vel = (e.pos - from).normalized()
+	b.damage = damage * bullet_damage
+	_hit_enemy(b, e, sound)
+
+
 ## 튕길 대상이 있으면 탄을 그쪽으로 꺾는다 (피해가 줄어든다). 꺾었으면 true.
 func _try_bounce(b: Bullet, from: Enemy) -> bool:
 	if b.bounces <= 0:
@@ -1019,6 +1038,7 @@ func skip() -> int:
 	if effects_enabled:
 		effect_dry = 0 if Upgrades.has_effect(choices) else effect_dry + 1
 	pending_levelups -= 1
+	screens_done += 1
 	choices = []
 	if pending_levelups > 0:
 		_roll_choices()
@@ -1030,6 +1050,7 @@ func _roll_choices() -> void:
 	var count: int = Balance.UPGRADE_CHOICE_COUNT + (1 if _base("luck") and rng.randf() < Balance.RES_LUCK_CHANCE else 0)
 	var epic_bonus := Balance.RES_CHIP_EPIC if _base("chip") else 0.0
 	choices = Upgrades.roll_choices(rng, upgrade_levels, count, time, effects_enabled, effects_enabled and effect_dry >= Balance.EFFECT_PITY_LEVELUPS, hp < max_hp * Balance.REPAIR_POOL_HP_RATIO, epic_bonus, upgrade_bonus, weapon.get("no_cards", []))
+	choices = SubWeapons.mix_cards(rng, choices, subs.stages, sub_slots, count, screens_done == 0)
 	if weapon.get("hitscan", false):  # 레일건은 사거리가 무한이라 사거리 카드가 빛줄기 굵기를 올린다
 		for c in choices:
 			if c["id"] == "range":
@@ -1066,6 +1087,7 @@ func choose(index: int) -> void:
 		effect_dry = 0 if Upgrades.has_effect(choices) else effect_dry + 1
 	apply_pick(card["id"], card["grade"])
 	pending_levelups = maxi(pending_levelups - 1, 0)
+	screens_done += 1
 	choices = []
 	if pending_levelups > 0:
 		_roll_choices()
@@ -1075,6 +1097,10 @@ func choose(index: int) -> void:
 func apply_pick(id: String, grade: int) -> void:
 	if id == Upgrades.REPAIR:
 		hp = minf(hp + Upgrades.value(id, grade), max_hp)
+		return
+	if SubWeapons.is_sub(id):  # 보조 무기: 등급과 상관없이 1단계씩 (단계는 카드 점 표시용으로 upgrade_levels에도)
+		subs.level_up(id)
+		upgrade_levels[id] = subs.stage_of(id)
 		return
 	upgrade_levels[id] = int(upgrade_levels.get(id, 0)) + 1
 	Upgrades.add_bonus(upgrade_bonus, id, grade)
@@ -1121,6 +1147,7 @@ func apply_base(levels: Dictionary) -> void:
 	blocks_top = blv.call("shield")
 	blocks_left = blocks_top
 	repairs_left = blv.call("repair")
+	sub_slots = Balance.SUB_SLOTS + blv.call("sub")
 	cargo.capacity = Balance.CARGO_CAPACITY + Balance.BASE_CARGO_ADD * blv.call("cargo")
 	apply_upgrades()
 	hp = max_hp

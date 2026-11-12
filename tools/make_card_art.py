@@ -1,8 +1,8 @@
 """레벨업 카드 그림 정리: Codex 원본 → assets/sprites/run/card/ (게임에서 쓰는 그림).
-- 아이콘 19개: 시트를 칸으로 나눠 48x48, 블록마다 가장 많은 색 → void32, 아이콘당 최대 10색.
+- 아이콘 25개: 시트를 칸으로 나눠 48x48, 블록마다 가장 많은 색 → void32, 아이콘당 최대 10색.
   (tools/pixelate.py는 외곽선을 잃고 강조색이 바뀌어 쓰지 않는다. make_minerals.py도 같은 이유로 따로 있음)
 - 프레임·버튼: S 부품을 9칸 나누기용으로 줄인다 (가운데 줄을 1픽셀만 남겨, 늘려도 픽셀이 찌그러지지 않게).
-- review/v070_step5/icons_all.png: 19개를 받침 안에 넣어 본 시트.
+- review/v070_step5/icons_all.png: 25개를 받침 안에 넣어 본 시트.
 실행: python3 tools/make_card_art.py"""
 import os
 import re
@@ -24,7 +24,7 @@ PLATE = (0x2b, 0x19, 0x25)
 TEAL = [(0x30, 0xe1, 0xb9), (0x99, 0xe9, 0xe6)]
 PAL = [tuple(int(c) for c in line.split()[:3]) for line in open("assets/palette/void32.gpl") if re.match(r"\s*\d", line)]
 
-# 강화 id → (원본, 왼쪽 비율, 오른쪽 비율). 이 표가 아이콘 19개의 전부다.
+# 강화 id → (원본, 왼쪽 비율, 오른쪽 비율). 이 표가 아이콘 25개의 전부다.
 ICONS = {
     "fire_rate": ("icons_sample.png", 0.0, 0.33), "multishot": ("icons_a.png", 0.0, 1 / 3), "damage": ("icons_a.png", 1 / 3, 2 / 3),
     "range": ("icons_a.png", 2 / 3, 1.0), "max_hp": ("icons_b.png", 0.0, 1 / 3), "repair": ("icons_b.png", 1 / 3, 2 / 3),
@@ -34,6 +34,9 @@ ICONS = {
     "mining_laser": ("icons_c.png", 1 / 3, 2 / 3),
     "orbit_pierce": ("icons_e.png", 0.5, 1.0), "chain_matrix": ("icons_f.png", 0.0, 1 / 3), "overload": ("icons_f.png", 1 / 3, 2 / 3),
     "tractor_beacon": ("icons_f.png", 2 / 3, 1.0),
+    # 보조 무기 6종 (v0.8.0 4단계)
+    "missile": ("icons_i.png", 0.0, 1 / 3), "blackhole": ("icons_i.png", 1 / 3, 2 / 3), "saw": ("icons_i.png", 2 / 3, 1.0),
+    "mine": ("icons_j.png", 0.0, 1 / 3), "coil": ("icons_j.png", 1 / 3, 2 / 3), "wave": ("icons_j.png", 2 / 3, 1.0),
 }
 
 
@@ -127,11 +130,32 @@ def icons_sheet(path):
     sheet.convert("RGB").save(path)
 
 
+SUBS = ("missile", "blackhole", "saw", "mine", "coil", "wave")
+SMALL = 16
+
+
+def small_icon(icon):
+    """판 화면 보조 무기 칸용 16px: 3x3 블록마다 가장 많은 색 (투명이 절반 넘으면 투명)"""
+    a = np.array(icon)
+    out = np.zeros((SMALL, SMALL, 4), np.uint8)
+    k = SIZE // SMALL
+    for y in range(SMALL):
+        for x in range(SMALL):
+            block = [tuple(p) for p in a[y * k:(y + 1) * k, x * k:(x + 1) * k].reshape(-1, 4)]
+            solid = [p for p in block if p[3] > 0]
+            if len(solid) * 2 > len(block):
+                out[y, x] = Counter(solid).most_common(1)[0][0]
+    return Image.fromarray(out, "RGBA")
+
+
 def main():
     os.makedirs(f"{OUT}/icons", exist_ok=True)
+    os.makedirs(f"{OUT}/icons_small", exist_ok=True)
     for name, (src, x0, x1) in ICONS.items():
         icon = make_icon(src, x0, x1)
         icon.save(f"{OUT}/icons/{name}.png")
+        if name in SUBS:
+            small_icon(icon).save(f"{OUT}/icons_small/{name}.png")
         print(name, len(icon.getcolors(999)) - 1, "색")
     for part in ("crest", "corner", "pill", "ped_pc", "ped_phone", "wing_s_l", "wing_s_r", "wing_b_l", "wing_b_r"):
         shutil.copy(f"{PARTS}/{part}.png", f"{OUT}/{part}.png")

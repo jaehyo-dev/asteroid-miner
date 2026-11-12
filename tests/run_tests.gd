@@ -91,10 +91,13 @@ func _run() -> void:
 	quit(1 if failed > 0 or passed == 0 else 0)
 
 
-## tests/ 폴더에서 test_*.gd 파일 목록 (이름순)
+## tests/ 폴더에서 test_*.gd 파일 목록 (이름순). 환경 변수 TEST_ONLY="sub_weapons,research"면 이름에 그 글자가 든 파일만 (바뀐 부분만 빨리 돌릴 때)
 func _test_files() -> PackedStringArray:
 	var result: PackedStringArray = []
+	var only := OS.get_environment("TEST_ONLY").split(",", false)
 	for file in DirAccess.get_files_at(TEST_DIR):
+		if not only.is_empty() and not Array(only).any(func(o: String) -> bool: return file.contains(o)):
+			continue
 		if file.begins_with("test_") and file.ends_with(".gd") and file != "test_case.gd":
 			result.append(TEST_DIR.path_join(file))
 	result.sort()

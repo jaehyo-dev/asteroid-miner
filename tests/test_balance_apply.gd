@@ -152,6 +152,7 @@ func test_고를_카드가_없어도_건너뛰기로_넘어감() -> void:
 	for u in Balance.UPGRADES:
 		sim.upgrade_levels[u["id"]] = u["max"]
 	sim.effects_enabled = false
+	sim.sub_slots = 0  # 보조 무기 카드도 안 나오게 (칸 0)
 	sim.gain_xp(Upgrades.xp_to_next(1))
 	assert_true(sim.choosing() and sim.choices.is_empty(), "카드 없이 레벨업 화면")
 	var t := sim.time

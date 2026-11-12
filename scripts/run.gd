@@ -62,8 +62,11 @@ var intro_t := -1.0
 var tunnel := WarpTunnel.new()
 var _white := ColorRect.new()
 var _arrived := false
-## 확인용 숨은 스위치(?fxtest): 화면 구석에 지금 무기 ("산탄포  [1~5 무기]"). v0.8.0 배포 전에 지운다
+## 확인용 숨은 스위치(?fxtest): 화면 구석에 지금 무기와 가진 보조 무기·단계 ("산탄포  [1~5 무기]" / "미사일 3  톱날 1  [Shift+1~6 보조]"). v0.8.0 배포 전에 지운다
 var fx_label: Label
+## ?fxtest 촬영 모드 (Shift+0): 체력 유지, 우주선 가까이에 운석 6 + 해파리 2를 늘 채움, 포격·레벨업 멈춤. 다음 채우기까지 남은 시간
+var fx_stage := false
+var _fx_feed := 0.0
 
 
 func _ready() -> void:
@@ -111,10 +114,39 @@ func _ready() -> void:
 		_update_fx_label()
 
 
-## ?fxtest 표시 글자: "산탄포   [1~5 무기]"
+## ?fxtest 표시 글자: "산탄포   [1~5 무기]" + 가진 보조 무기와 단계
 func _update_fx_label() -> void:
-	if fx_label != null:
-		fx_label.text = "%s   [1~5 무기]" % sim.weapon["name"]
+	if fx_label == null:
+		return
+	var subs: PackedStringArray = []
+	for id: String in sim.subs.stages:
+		subs.append("%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
+	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
+	if fx_stage:
+		fx_label.text += "\n촬영 모드 [Shift+0]"
+
+
+## ?fxtest 촬영 모드 한 프레임: 체력 가득, 포격 없음, 경험치 멈춤, 0.5초마다 가까이(36~120) 운석·해파리 채우기.
+## 해파리가 부딪히면 화면이 붉게 번쩍여 효과를 가려서 닿기 직전에 부순다. v0.8.0 배포 전에 지운다
+func _fx_stage_step(delta: float) -> void:
+	sim.hp = sim.max_hp
+	sim.xp = 0
+	sim.set("_barrage_timer", 999.0)
+	sim.barrages.clear()
+	for e in sim.enemies:
+		if e.kind != RunSim.ROCK and e.pos.distance_to(sim.player_pos) < e.radius + 10.0:
+			e.hp = 0.0
+	_fx_feed -= delta
+	if _fx_feed > 0.0:
+		return
+	_fx_feed = 0.5
+	var near := sim.enemies.filter(func(e: RunSim.Enemy) -> bool: return e.pos.distance_to(sim.player_pos) < 120.0)
+	var jellies := near.filter(func(e: RunSim.Enemy) -> bool: return e.kind != RunSim.ROCK).size()
+	for i in maxi(0, 8 - near.size()):
+		var a := sim.spawn_creature("jelly") if jellies + i < 2 else sim.spawn_asteroid()
+		var ang := randf() * TAU
+		a.pos = sim.player_pos + Vector2.from_angle(ang) * randf_range(36.0, 115.0)
+		a.vel = Vector2.from_angle(ang + PI * 0.5) * randf_range(4.0, 12.0)
 
 
 ## 워프 터널로 판을 시작한다: 시뮬레이션은 멈춰 있고, HUD와 조이스틱은 도착할 때까지 없다.
@@ -208,6 +240,8 @@ func _process(delta: float) -> void:
 		_discover()
 		_announce(sim.events)
 		danger.time = sim.time
+		if fx_stage:
+			_fx_stage_step(delta)
 		if not sim.alive:
 			_show_game_over()
 		elif sim.choosing() and slowmo <= 0.0:
@@ -257,9 +291,25 @@ func _unhandled_input(event: InputEvent) -> void:
 				cards.choose(index)
 			get_viewport().set_input_as_handled()
 			return
-	# 확인용 숨은 스위치(?fxtest): 판 중 숫자키 1~5로 기본 무기. v0.8.0 배포 전에 지운다
+	# 확인용 숨은 스위치(?fxtest): 판 중 숫자키 1~5로 기본 무기, Shift+1~6으로 보조 무기 얻기·1단계 올리기(칸 수 무시). v0.8.0 배포 전에 지운다
 	if Weapons.test_mode and current_menu == Menu.NONE and event is InputEventKey and event.pressed and not event.echo:
 		var slot := number_key_index(event.physical_keycode)
+		if event.shift_pressed and event.physical_keycode == KEY_0:  # 촬영 모드 켜고 끄기 (웹 빌드 캡처용)
+			fx_stage = not fx_stage
+			_update_fx_label()
+			get_viewport().set_input_as_handled()
+			return
+		if event.shift_pressed and event.physical_keycode == KEY_9:  # 레벨업 1번: 첫 화면처럼 보조 무기 카드 보장
+			sim.screens_done = 0
+			sim.xp = 0
+			sim.gain_xp(Upgrades.xp_to_next(sim.level))
+			get_viewport().set_input_as_handled()
+			return
+		if event.shift_pressed and slot >= 0 and slot < SubWeapons.ids().size():
+			sim.apply_pick(SubWeapons.ids()[slot], 0)
+			_update_fx_label()
+			get_viewport().set_input_as_handled()
+			return
 		if slot >= 0 and slot < Weapons.ids().size():
 			sim.set_weapon(Weapons.ids()[slot])
 			_update_fx_label()

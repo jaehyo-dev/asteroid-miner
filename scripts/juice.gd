@@ -81,7 +81,7 @@ const WEAPON_FX := {
 		"hit_n": 3, "hit_speed": 45.0, "hit_life": 0.14, "hit_size": 1.0, "hit_colors": [Color("#99e9e6"), Color("#fef8e5")], "hit_ring": 0.0, "hit_flash": 0.0},
 	"shotgun": {"muzzle": 6.0, "muzzle_time": 0.1, "muzzle_color": Color("#f89419"), "recoil": 5.0, "size": 3.0, "glow": 3.0, "trail": 3.0, "cone": 11.0, "smoke": 4,
 		"hit_n": 3, "hit_speed": 30.0, "hit_life": 0.32, "hit_size": 2.0, "hit_colors": [Color("#f89419"), Color("#dc7f47")], "hit_ring": 0.0, "hit_flash": 3.0},
-	"rail": {"muzzle": 6.0, "muzzle_time": 0.1, "muzzle_color": Color("#fef8e5"), "recoil": 5.0, "charge": 4.0, "charge_time": 0.5, "glow_w": 6.0, "fade": 0.7, "core_time": 0.12, "dots": true,
+	"rail": {"muzzle": 6.0, "muzzle_time": 0.1, "muzzle_color": Color("#fef8e5"), "recoil": 5.0, "charge": 4.0, "charge_time": 0.5, "glow_w": 6.0, "fade": 0.25, "core_time": 0.08, "dots": true,
 		"hit_n": 4, "hit_speed": 45.0, "hit_life": 0.35, "hit_size": 2.0, "hit_colors": [Color("#f6ce50"), Color("#f89419"), Color("#fef8e5")], "hit_ring": 0.0, "hit_flash": 5.0},
 	"plasma": {"muzzle": 5.0, "muzzle_time": 0.08, "muzzle_color": Color("#a884f3"), "recoil": 3.0, "orb": 4.0, "orb_glow": 8.0, "tail": 7, "tail_step": 0.025, "rings": 2, "blast_time": 0.5, "embers": 12, "ember_life": 0.7, "scorch": 0.0,
 		"hit_n": 2, "hit_speed": 50.0, "hit_life": 0.2, "hit_size": 1.0, "hit_colors": [Color("#fef8e5"), Color("#a884f3")], "hit_ring": 0.0, "hit_flash": 0.0},
@@ -94,6 +94,16 @@ const CHIP_COLORS := [Color("#625565"), Color("#966c6c"), Color("#f6ce50")]
 const WEAPON_PARTICLE_MAX := 140
 const WEAPON_TRAIL_MAX := 8
 const WEAPON_BLAST_MAX := 8
+
+# ── 보조 무기 효과 (v0.8.0 4단계, scripts/sub_weapon_fx.gd) ─────────────────
+## 모두 내 효과라 적 탄 아래에 그린다 (블랙홀·파동·기뢰·폭발·번개는 적 아래, 미사일·톱날은 내 탄과 같은 층).
+## burst_time 미사일·기뢰 폭발 시간, zap_time 번개가 남는 시간·zap_kinks 번개 꺾임 수·zap_jitter 옆으로 벌어지는 폭(픽셀),
+## hole_dots 블랙홀 둘레를 도는 빛 점 수·hole_spin 도는 빠르기(라디안/초)·hole_alpha 가운데 어둠 진하기,
+## wave_alpha 파동 고리 진하기, mine_blink 기뢰 불빛 깜빡임(초당), missile_trail 미사일 꼬리 점 수, saw_teeth 톱날 이 수
+const SUB_FX := {"burst_time": 0.3, "zap_time": 0.14, "zap_kinks": 3, "zap_jitter": 4.0, "hole_dots": 6, "hole_spin": 5.0, "hole_alpha": 0.55,
+	"wave_alpha": 0.7, "mine_blink": 3.0, "missile_trail": 3, "saw_teeth": 6}
+## 한꺼번에 그리는 보조 무기 폭발·번개 수 (폰 성능용, 넘으면 오래된 것부터 지움)
+const SUB_FX_MAX := 16
 ## 적 탄 어두운 테두리: 탄 반지름보다 이만큼 크게, 진하기
 const ENEMY_SHOT_RIM := 2.0
 const ENEMY_SHOT_RIM_ALPHA := 0.75

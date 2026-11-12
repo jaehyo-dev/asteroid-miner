@@ -36,7 +36,7 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 			if sim.choices.is_empty():
 				sim.skip()  # 고를 카드가 없으면 건너뛰기 (광물은 금고로)
 			else:
-				sim.choose(best_choice(sim.choices) if pick == "best" else rng.randi_range(0, sim.choices.size() - 1))
+				sim.choose(best_choice(sim.choices) if pick == "best" else sub_choice(sim.choices, pick, rng) if pick.begins_with("sub:") or pick == "nosub" else rng.randi_range(0, sim.choices.size() - 1))
 			continue
 		match style:
 			"wander":
@@ -74,6 +74,20 @@ static func play(style: String, seed_value: int, max_time: float, base: Dictiona
 				move = Vector2.ZERO
 		sim.update(STEP, move)
 	return {"time": sim.time, "level": sim.level, "value": sim.mineral_value, "alive": sim.alive, "returned": sim.returned, "home": sim.final_value(), "levelup_times": levelup_times, "picks": sim.upgrade_levels, "kills": sim.kills, "collected": Array(sim.collected)}
+
+
+## 보조 무기 측정용 카드 고르기 (v0.8.0 4단계). "sub:<id>": 그 보조 무기 카드가 있으면 그것, 없으면 보조 무기가 아닌 카드 중 무작위
+## (다른 보조 무기로 칸을 채우지 않게). "nosub": 보조 무기를 고르지 않음(비교 기준). 고를 것이 없으면 무작위
+static func sub_choice(choices: Array, pick: String, rng: RandomNumberGenerator) -> int:
+	var others: Array[int] = []
+	for i in choices.size():
+		if pick.begins_with("sub:") and choices[i]["id"] == pick.substr(4):
+			return i
+		if not SubWeapons.is_sub(choices[i]["id"]):
+			others.append(i)
+	if others.is_empty():
+		return rng.randi_range(0, choices.size() - 1)
+	return others[rng.randi_range(0, others.size() - 1)]
 
 
 ## "가장 좋아 보이는" 카드 번호: 등급이 높은 것, 같으면 효과·레전드리가 수치보다 먼저 (사람이 눈에 띄는 카드를 고르는 플레이)

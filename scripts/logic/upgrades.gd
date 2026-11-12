@@ -15,7 +15,7 @@ const LEGENDARY := 4
 
 ## id → Balance의 강화 항목 (수치·효과·레전드리 전부에서 찾는다). 없으면 빈 Dictionary.
 static func info(id: String) -> Dictionary:
-	for list in [Balance.UPGRADES, Balance.EFFECT_UPGRADES, Balance.LEGENDARY_UPGRADES]:
+	for list in [Balance.UPGRADES, Balance.EFFECT_UPGRADES, Balance.LEGENDARY_UPGRADES, Balance.SUB_WEAPONS]:
 		for u in list:
 			if u["id"] == id:
 				return u

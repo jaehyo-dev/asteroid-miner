@@ -148,8 +148,9 @@ static func effect_text(id: String, level: int) -> String:
 		return String(info["effect"]) if level >= 1 else "없음 → %s" % info["effect"]
 	var step := float(info["step"])
 	var fmt := String(info["effect"])
-	var now := fmt % (step * level) if level > 0 else "없음"
+	var base := float(info.get("base", 0.0))  # 0단계에도 기본값이 있는 칸 (보조 무기 칸 3칸 → 4칸)
+	var now := fmt % (base + step * level) if level > 0 or info.has("base") else "없음"
 	if level >= top:
 		return now
-	var next := fmt % (step * (level + 1))
-	return "%s → %s" % [now, next.substr(next.rfind(" ") + 1) if level > 0 else next]
+	var next := fmt % (base + step * (level + 1))
+	return "%s → %s" % [now, next.substr(next.rfind(" ") + 1) if level > 0 or info.has("base") else next]

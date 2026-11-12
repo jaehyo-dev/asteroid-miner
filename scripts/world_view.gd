@@ -74,7 +74,7 @@ const OVERLOAD_COLOR := Color("#f25c76")
 const BEACON_COLOR := Color("#99e9e6")
 const RIM_COLOR := Color("#14111c")
 ## 기본 무기 효과가 따로 쓰는 fx (WeaponFx가 그림)
-const WEAPON_FX_TYPES := ["hit", "rail", "plasma"]
+const WEAPON_FX_TYPES := ["hit", "rail", "plasma", "sub_burst", "zap"]  # 기본·보조 무기 효과는 WeaponFx·SubWeaponFx가 맡음
 
 var sim: RunSim
 ## 워프 게이트 연출 (귀환할 때 우주선이 빨려 들어가는 모습에 씀)
@@ -117,6 +117,8 @@ var _shield_full_t := -1.0
 var _shield_break_t := -1.0
 ## 기본 무기 효과 (총구 섬광, 탄, 튐, 레일 자국, 플라스마 폭발, 채굴 빔)
 var _wfx: WeaponFx
+## 보조 무기 그리기 (v0.8.0)
+var _sfx: SubWeaponFx
 
 
 func _ready() -> void:
@@ -138,6 +140,9 @@ func step(delta: float) -> void:
 	if _wfx == null or _wfx.sim != sim:
 		_wfx = WeaponFx.new(sim)
 	_wfx.step(delta)
+	if _sfx == null or _sfx.sim != sim:
+		_sfx = SubWeaponFx.new(sim)
+	_sfx.step(delta)
 	_step_effects(delta)
 	for a in sim.destroyed + sim.crashed:
 		_add_boom(a)
@@ -315,6 +320,8 @@ func _draw() -> void:
 		if sim.orbit_pierce:
 			_draw_orbit_tail(b)
 		_draw_bullet(b, bullet_frame)
+	if _sfx != null:
+		_sfx.draw_over(self)
 	if _wfx != null:
 		_wfx.draw_over(self)
 	_draw_barrages()
@@ -348,6 +355,8 @@ func _draw_under_effects() -> void:
 		RunSprites.ring(self, pos, r, Color(PIERCE_COLOR, 1.0 - k))
 	if _wfx != null:
 		_wfx.draw_under(self)
+	if _sfx != null:
+		_sfx.draw_under(self)
 
 
 ## 궤도 관통 가속기: 탄 뒤로 긴 빛 꼬리

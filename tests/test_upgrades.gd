@@ -133,7 +133,7 @@ func test_잠겨_있으면_효과와_레전드리가_뽑히지_않음() -> void:
 		sim.reroll()
 		for card in sim.choices:
 			assert_false(card["grade"] == Upgrades.LEGENDARY, "레전드리 없음")
-			assert_true(Balance.UPGRADES.any(func(u: Dictionary) -> bool: return u["id"] == card["id"]), "수치 강화만 " + card["id"])
+			assert_true(SubWeapons.is_sub(card["id"]) or Balance.UPGRADES.any(func(u: Dictionary) -> bool: return u["id"] == card["id"]), "수치 강화(또는 보조 무기)만 " + card["id"])
 
 
 func test_효과_카드는_켜져_있음() -> void:

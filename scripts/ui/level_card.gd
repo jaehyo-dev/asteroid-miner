@@ -302,7 +302,7 @@ func _add_body(card: Dictionary, next_level: int, lay: Dictionary, mat: ShaderMa
 	_add_sprite(ped, Vector2(cx - ped.get_width() / 2, py), mat, 1, _content)
 	_add_sprite(tex("icons/" + str(card["id"])), Vector2(cx - ICON_SIZE / 2, py + (int(lay["ped_h"]) - ICON_SIZE) / 2), null, 1, _content)
 	# 알약 꼬리표: 받침 아래쪽에 걸침. 양끝은 그대로 두고 가운데 한 줄만 늘린다
-	var kind := Upgrades.kind_of(card["id"])
+	var kind: String = card.get("tag", Upgrades.kind_of(card["id"]))  # 보조 무기는 칸 수까지 ("보조 무기 2/3")
 	var tag_size: int = lay["tag_size"]
 	var tag_h: int = lay["tag_h"]
 	var tag_w := maxi(int(FONT.get_string_size(kind, HORIZONTAL_ALIGNMENT_LEFT, -1, tag_size).x) + TAG_SIDE, tex("pill").get_width())

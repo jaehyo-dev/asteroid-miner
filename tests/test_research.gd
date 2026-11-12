@@ -47,16 +47,32 @@ func test_옛_저장에서_앞_칸_없이_올린_칸은_잠그지_않음() -> vo
 	assert_true(Research.buy(s, "hull", 1))
 
 
-func test_곧_추가_칸은_못_사고_그_위_칸도_모두_잠김() -> void:
+func test_곧_추가_칸은_못_삼() -> void:
 	var s := _rich()
-	assert_eq(Research.state(s, "weapon", 1), "soon")
-	assert_false(Research.buy(s, "weapon", 1))
-	assert_true(Research.buy(s, "weapon", 0), "펄스 증폭기만 연구")
-	assert_eq(Research.fork_state(s, "weapon", 2, "a"), "locked", "보조 무기 해금(곧 추가) 위 갈림길 잠김")
-	assert_eq(Research.fork_state(s, "weapon", 2, "b"), "locked")
-	assert_false(Research.unlock_fork(s, "weapon", 2, "a"))
-	assert_eq(Research.state(s, "weapon", 3), "locked", "그 위 증폭 탄창도 잠김")
-	assert_false(Research.buy(s, "weapon", 3))
+	var i := Research.tree("survey").find("planet")
+	assert_eq(Research.state(s, "survey", i), "soon")
+	assert_false(Research.buy(s, "survey", i))
+
+
+## v0.8.0 4단계: 무기 가지 "보조 무기 해금" 칸이 열림. 1단계 4칸(800), 2단계 5칸(2000), 1단계 뒤 위 갈림길(연사형/한 방형) 열림
+func test_보조_무기_해금_1단계_뒤_갈림길_열림() -> void:
+	var s := _rich()
+	assert_true(Research.buy(s, "weapon", 0), "펄스 증폭기")
+	assert_eq(Research.state(s, "weapon", 1), "can", "보조 무기 해금은 이제 살 수 있음")
+	assert_eq(Research.fork_state(s, "weapon", 2, "a"), "locked", "보조 무기 해금 0단계면 갈림길 잠김")
+	assert_eq(BaseUpgrades.cost("sub", 0), 800)
+	assert_eq(BaseUpgrades.cost("sub", 1), 2000)
+	var before := s.credits
+	assert_true(Research.buy(s, "weapon", 1))
+	assert_eq(before - s.credits, 800)
+	assert_eq(Research.fork_state(s, "weapon", 2, "a"), "can", "1단계 뒤 연사형 열림")
+	assert_eq(Research.fork_state(s, "weapon", 2, "b"), "can", "한 방형 열림")
+	assert_eq(Research.effect_text("sub", 1), "보조 무기 칸 4칸 → 5칸")
+	assert_true(Research.buy(s, "weapon", 1))
+	assert_eq(Research.state(s, "weapon", 1), "max")
+	var sim := RunSim.new(1)
+	sim.apply_base(Research.run_levels(s))
+	assert_eq(sim.sub_slots, 5, "2단계면 칸 5개")
 
 
 ## 2026-11-12 사용자 결정: 어떤 칸이든 바로 아래 칸을 1단계 이상 연구해야 열린다 (갈림길 포함, 모든 가지 같은 규칙)
