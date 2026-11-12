@@ -119,6 +119,8 @@ var _shield_break_t := -1.0
 var _wfx: WeaponFx
 ## 보조 무기 그리기 (v0.8.0)
 var _sfx: SubWeaponFx
+## ?fxtest 기뢰 후보 비교판 (Shift+M): 우주선 자리에 후보 1~3 × 1·3·5단계 + 적 탄 2종 + 펄스 연사포 탄. v0.8.0 배포 전에 지운다
+var mine_gallery := false
 
 
 func _ready() -> void:
@@ -347,7 +349,28 @@ func _draw() -> void:
 		_draw_drones()
 		_draw_ship()
 		_draw_shield()
+	if mine_gallery:
+		_draw_mine_gallery()
 	_flash_layer.queue_redraw()
+
+
+## ?fxtest 기뢰 후보 비교판: 줄 = 후보 1~3, 칸 = 1·3·5단계(가로 40px 간격), 오른쪽 칸 = 포격 탄·경비선 탄·펄스 연사포 탄. v0.8.0 배포 전에 지운다
+func _draw_mine_gallery() -> void:
+	var o := sim.player_pos.round()
+	RunSprites.rect(self, Rect2(o - Vector2(140, 70), Vector2(280, 140)), Color("#080812"))
+	for look in 3:
+		for tier in 3:
+			SubWeaponFx.draw_mine_body(self, o + Vector2(-100 + tier * 40, -40 + look * 40), look, tier, SubWeaponFx.RED)
+	var orb := RunSim.Shot.new()
+	orb.pos = o + Vector2(40, -40)
+	orb.vel = Vector2(-Balance.BARRAGE_SHOT_SPEED, 0)
+	_draw_orb(orb)
+	RunSprites.disc(self, o + Vector2(40, 0), Balance.GUARD_SHOT_RADIUS + 3.0, Color(GUARD_SHOT_GLOW, 0.3))
+	RunSprites.draw(self, "guard_shot", int(_time * ENGINE_FPS), PixelArt.dir8(PI * 1.5), o + Vector2(40, 0))
+	var b := RunSim.Bullet.new()
+	b.pos = o + Vector2(40, 40)
+	b.vel = Vector2(0, -200)
+	_draw_bullet(b, int(_time * BULLET_FPS))
 
 
 ## 내 탄: 기본 무기는 WeaponFx, 드론은 그림
