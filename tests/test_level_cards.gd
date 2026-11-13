@@ -139,12 +139,12 @@ func test_카드_화면이_레전드리까지_오류_없이_그려짐() -> void:
 
 func test_카드_소리는_등급마다_전용이고_빌려_쓰지_않음() -> void:
 	assert_eq(LevelUpCards.CARD_GRADE_SOUND.size(), 6, "노멀~레전드리 + 진화")
-	for sound in LevelUpCards.CARD_GRADE_SOUND.slice(0, 5):
+	for sound in LevelUpCards.CARD_GRADE_SOUND:
 		assert_true(Sfx.SOUNDS.has(sound), sound)
-	for i in [1, 2, 3]:  # 진화 카드 소리 후보 3개씩 (?fxtest V·B로 바꿈), 기본은 레전드리 소리
-		assert_true(Sfx.SOUNDS.has("evo_show_%d" % i) and Sfx.SOUNDS.has("evo_pick_%d" % i), "진화 소리 후보 %d" % i)
-	assert_eq(Sfx.SOUNDS["evo_show_1"]["files"], Sfx.SOUNDS["card_legendary"]["files"], "기본 등장 = 레전드리")
-	assert_eq(Sfx.SOUNDS["evo_pick_1"]["files"], Sfx.SOUNDS["card_pick"]["files"], "기본 고르기 = 카드 고르기")
+	assert_eq(Sfx.SOUNDS["evo_show"]["files"], ["evo_show_2"], "진화 등장 = 후보 2 (2026-11-13 결정)")
+	assert_eq(Sfx.SOUNDS["evo_pick"]["files"], ["evo_pick_2"], "진화 고르기 = 후보 2")
+	for i in [1, 2, 3]:
+		assert_false(Sfx.SOUNDS.has("evo_show_%d" % i) or Sfx.SOUNDS.has("evo_pick_%d" % i), "후보 소리는 지움 %d" % i)
 	assert_true(Sfx.SOUNDS.has("card_normal") and Sfx.SOUNDS.has("card_gather") and Sfx.SOUNDS.has("card_pick"))
 	assert_false(Sfx.SOUNDS.has("card_show"), "옛 등장 소리는 카드에서 뺌")
 

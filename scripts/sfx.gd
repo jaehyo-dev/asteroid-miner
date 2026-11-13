@@ -46,13 +46,9 @@ const SOUNDS := {
 	"card_swell": {"files": ["card_a_swell"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_gather": {"files": ["card_a_gather"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 3},
 	"card_pick": {"files": ["card_pick"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	# 진화 카드 소리 후보 (v0.8.0 5단계, tools/make_evo_sfx.py): 1번은 기존 레전드리 카드 소리, 사용자가 ?fxtest에서 들어 보고 고른다
-	"evo_show_1": {"files": ["card_a_legend"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"evo_show_2": {"files": ["evo_show_2"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"evo_show_3": {"files": ["evo_show_3"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"evo_pick_1": {"files": ["card_pick"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"evo_pick_2": {"files": ["evo_pick_2"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
-	"evo_pick_3": {"files": ["evo_pick_3"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	# 진화 카드 소리 (tools/make_evo_sfx.py, 2026-11-13 사용자 결정): 등장 = 낮은 모으기 → 금속판 쿵 + 낮은 레전드리 울림, 고를 때 = 카드 고르기 + 금속판 쿵
+	"evo_show": {"files": ["evo_show_2"], "db": 0.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	"evo_pick": {"files": ["evo_pick_2"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	# 공명 파쇄 종소리: 광물 종(pickup_2)을 연쇄 세대마다 높게 (run.gd, 한 프레임에 한 번 + 겹침 상한 2)
 	"res_bell": {"files": ["pickup_2"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
 	# UI 버튼: 부드러운 톡 (review/v070_fix/listen4/ 1번). 연타해도 덜 피곤하게 음 높이를 조금 흔든다
@@ -195,19 +191,6 @@ func pool(sound_name: String) -> Array:
 
 
 ## 레전드리 카드에 빛이 모이는 소리
-## 진화 카드 소리 후보 번호 (1~3). ?fxtest에서 바꾼다 (사용자가 고르면 고른 것만 남기고 지운다)
-var evo_show := 1
-var evo_pick := 1
-
-
-func evo_show_sound() -> String:
-	return "evo_show_%d" % evo_show
-
-
-func evo_pick_sound() -> String:
-	return "evo_pick_%d" % evo_pick
-
-
 func play_card_gather() -> void:
 	play("card_gather")
 

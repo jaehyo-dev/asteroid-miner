@@ -16,8 +16,7 @@ const OFF_COLOR := Color("#5c5164")
 const OFF_MODULATE := Color(0.55, 0.55, 0.55)
 
 ## 등급별로 뒤집힘 위에 쌓는 소리 (노멀은 뒤집힘만)
-## 진화 카드("evo")는 Sfx.evo_show_sound()가 지금 고른 후보를 낸다 (?fxtest에서 바꿔 들음)
-const CARD_GRADE_SOUND: Array[String] = ["card_normal", "card_normal", "card_epic", "card_unique", "card_legendary", "evo"]
+const CARD_GRADE_SOUND: Array[String] = ["card_normal", "card_normal", "card_epic", "card_unique", "card_legendary", "evo_show"]
 
 var state := State.CLOSED
 var cards: Array[LevelCard] = []
@@ -214,7 +213,7 @@ func _voice(i: int) -> void:
 	if not _voiced[i]:
 		_voiced[i] = true
 		var sound := CARD_GRADE_SOUND[_choices[i]["grade"]]
-		Sfx.play(Sfx.evo_show_sound() if sound == "evo" else sound)
+		Sfx.play(sound)
 
 
 ## 앞면이 보이는 순간: 등급만큼 소리와 빛. 유니크부터 빛 기둥과 약한 흔들림
@@ -335,7 +334,7 @@ func choose(index: int) -> void:
 	state = State.PICKING
 	_picked = index
 	_set_input_open(false)
-	Sfx.play(Sfx.evo_pick_sound() if _choices[index].get("evo", false) else "card_pick")
+	Sfx.play("evo_pick" if _choices[index].get("evo", false) else "card_pick")
 	_fx.clear_halos()
 	for i in cards.size():
 		cards[i].play_pick(i == index)

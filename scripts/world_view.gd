@@ -140,7 +140,7 @@ func clear_sub_fx() -> void:
 func fx_count() -> int:
 	var n := _effects.size() + sim.subs.missiles.size() + sim.subs.holes.size() + sim.subs.mines.size()
 	if _sfx != null:
-		n += _sfx._bursts.size() + _sfx._zaps.size() + _sfx._waves.size() + _sfx._hits.size() + _sfx._collapses.size() + _sfx._links.size() + _sfx._freezes.size() + _sfx._discharges.size() + _sfx._shocks.size()
+		n += _sfx._bursts.size() + _sfx._zaps.size() + _sfx._waves.size() + _sfx._hits.size() + _sfx._collapses.size() + _sfx._links.size() + _sfx._freezes.size() + _sfx._discharges.size() + _sfx._shocks.size() + _sfx._veins.size() + _sfx._cracks.size() + _sfx._flights.size()
 	return n
 
 
@@ -534,14 +534,15 @@ func _draw_orb(s: RunSim.Shot) -> void:
 
 ## 운석: 8방향 그림으로 천천히 돌고, 맞으면 튕기고(흰 번쩍임은 _draw_flash), 체력이 줄면 금 간 프레임으로 바뀐다.
 func _draw_rock(a: RunSim.Enemy) -> void:
-	RunSprites.draw(self, RunSprites.rock(a.type, a.golden), crack_level(a.hp, a.max_hp), rock_dir(a), (a.pos + knock_offset(a) + res_shake(a)).round())
+	RunSprites.draw(self, RunSprites.rock(a.type, a.golden), crack_level(a.hp, a.max_hp), rock_dir(a), (a.pos + knock_offset(a) + res_shake(a, sim.time)).round())
 
 
-## 공명 파쇄 표시가 붙은 운석은 곧 터질 듯 떤다 (정수 픽셀만큼)
-static func res_shake(a: RunSim.Enemy) -> Vector2:
-	if not a.res_mark:
+## 공명 파쇄 후보 2(진동): 표시가 붙은 운석이 좌우로 부르르 떤다. 표시된 지 오래될수록 크게 (정수 픽셀)
+static func res_shake(a: RunSim.Enemy, now: float) -> Vector2:
+	if not a.res_mark or SubWeaponFx.res_style != 2:
 		return Vector2.ZERO
-	return Vector2(sin(a.age * 70.0), cos(a.age * 53.0)).round() * Juice.RES_SHAKE
+	var amp := roundf(1.0 + (float(Juice.RES_FX["shake"]) - 1.0) * minf((now - a.res_mark_at) / float(Juice.RES_FX["heat"]), 1.0))
+	return Vector2(signf(sin(a.age * 70.0)) * amp, 0.0)
 
 
 static func rock_dir(a: RunSim.Enemy) -> int:

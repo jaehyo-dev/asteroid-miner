@@ -127,9 +127,9 @@ func _update_fx_label() -> void:
 	var subs: PackedStringArray = []
 	for id: String in sim.subs.stages:
 		subs.append(Upgrades.display_name(SubWeapons.evo_of(id)["id"]) + " 진화" if sim.subs.is_evolved(id) else "%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
-	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]\n[Alt+Shift+1~6 바로 진화] [Shift+7 진화 카드] [V 등장 소리 %d] [B 고를 때 소리 %d]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음", Sfx.evo_show, Sfx.evo_pick]
+	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]\n[Alt+Shift+1~6 바로 진화] [Shift+7 진화 카드]\n공명 파쇄 후보 %d [R]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음", SubWeaponFx.res_style]
 	if fx_stage:  # 촬영 모드는 화면을 덜 가리게 짧게: 가진 보조 무기 + FPS·효과 수
-		fx_label.text = "%s\nFPS %d  효과 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count()]
+		fx_label.text = "%s\nFPS %d  효과 %d\n공명 파쇄 후보 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count(), SubWeaponFx.res_style]
 	if sim.subs.stages.size() == 1:  # 하나만 볼 때(Alt+1~6)는 맨 위에 크게 "채굴 펄스 3단계"
 		var id: String = sim.subs.stages.keys()[0]
 		var head := Upgrades.display_name(SubWeapons.evo_of(id)["id"]) + " (진화)" if sim.subs.is_evolved(id) else "%s %d단계" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)]
@@ -370,13 +370,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			_fx_evolution_card()
 			get_viewport().set_input_as_handled()
 			return
-		if event.physical_keycode == KEY_V or event.physical_keycode == KEY_B:  # 진화 카드 소리 후보 바꾸고 들어 보기 (V 등장, B 고를 때)
-			if event.physical_keycode == KEY_V:
-				Sfx.evo_show = Sfx.evo_show % 3 + 1
-				Sfx.play(Sfx.evo_show_sound())
-			else:
-				Sfx.evo_pick = Sfx.evo_pick % 3 + 1
-				Sfx.play(Sfx.evo_pick_sound())
+		if event.physical_keycode == KEY_R and not event.shift_pressed:  # 공명 파쇄 그림 후보 1 → 2 → 3 (v0.8.0 배포 전에 지운다)
+			SubWeaponFx.res_style = SubWeaponFx.res_style % 3 + 1
+			world.clear_sub_fx()
 			_update_fx_label()
 			get_viewport().set_input_as_handled()
 			return

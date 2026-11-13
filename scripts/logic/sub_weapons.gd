@@ -516,7 +516,7 @@ func _update_sweeps(sim: RunSim, delta: float) -> void:
 					continue
 				swept.append(e)
 				if _shatters(e):
-					e.res_mark = true
+					_res_mark(sim, e, sw["pos"])
 					marks.append({"e": e, "gen": 0})
 				else:
 					_res_hurt(sim, e, float(sw["damage"]), sw["pos"])
@@ -564,8 +564,15 @@ func _res_pop(sim: RunSim, sw: Dictionary) -> void:
 			_res_hurt(sim, o, float(sw["damage"]) * Balance.EVO_RES_DAMAGE, e.pos)
 		elif not swept.has(o) and int(m["gen"]) < Balance.EVO_RES_DEPTH:
 			swept.append(o)
-			o.res_mark = true
+			_res_mark(sim, o, e.pos)
 			marks.append({"e": o, "gen": int(m["gen"]) + 1})
+
+
+## 공명 표시 붙이기. 그리기용으로 표시를 옮겨 준 자리(우주선 또는 터진 운석)를 남긴다
+func _res_mark(sim: RunSim, e: RunSim.Enemy, from: Vector2) -> void:
+	e.res_mark = true
+	e.res_mark_at = sim.time
+	sim.fx.append({"type": "res_mark", "from": from, "target": e})
 
 
 ## 공명 파쇄로 큰 운석·다른 적에게 주는 피해 (운석 아니면 약하게). 부서진 운석의 광물은 끌려온다

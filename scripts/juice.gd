@@ -120,10 +120,10 @@ const SUB_FX := {"burst_time": 0.3, "smoke_time": 0.55, "zap_time": [0.22, 0.24,
 const EVO_FX := {"link_time": 0.18, "ice_shards": 8, "freeze_time": 0.6, "freeze_shards": 14, "saw_teeth": 10,
 	"fire_embers": 3, "discharge_time": 0.45, "discharge_kinks": 4, "charge_sparks": 8, "shatter_bits": 10, "vein_time": 0.28, "trail_size": 2.0, "frost_dots": 3,
 	"frost_tail": 12, "pool_flames": 12, "fuse_after": 0.12, "saw_arc_time": 0.05, "saw_arc_max": 0.6, "saw_hot": 0.6}
-## 공명 파쇄 (2026-11-13 사용자 결정): 표시된 운석 떨림(픽셀), 스윕 빛줄기 뒤로 남는 부채꼴 각(라디안)·빛줄기 수, 광맥 줄 남는 시간·뻗는 시간,
-## 연쇄 몇 번째에 결정 조각이 가장 하얘지는지
-const RES_SHAKE := 1.0
-const RES_FX := {"fan": 1.0, "rays": 12, "vein_life": 0.4, "vein_grow": 0.06, "white_at": 8}
+## 공명 파쇄 (2026-11-13 사용자 결정, 레이더 스윕 그림 없앰, 후보 1 균열 / 2 진동 / 3 결정화를 ?fxtest R로 고름):
+## 연쇄 줄(균열·음파 점선) 남는 시간·뻗는 시간, 연쇄 몇 번째에 가장 하얘지는지, 표시 뒤 균열·결정 가시가 다 자라는 시간,
+## 결정 조각이 옆 운석까지 날아가는 시간, 진동 최대 흔들림(픽셀)·달아오르는 시간, 결정 가시 수, 진동 점선 점 간격(픽셀)
+const RES_FX := {"vein_life": 0.4, "vein_grow": 0.06, "white_at": 8, "grow": 0.1, "fly": 0.1, "shake": 2.0, "heat": 0.4, "spikes": 7, "dot_gap": 5.0}
 ## 공명 파쇄 종소리: 세대마다 올리는 반음 수, 몰림 창(초) (창 안에 Juice.BREAK_SOUND_MAX개까지, 갈수록 작게)
 const RES_BELL_SEMITONES := 2
 const RES_BELL_WINDOW := 0.15

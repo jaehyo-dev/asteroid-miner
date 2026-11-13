@@ -526,6 +526,43 @@ func test_진화_화면_효과는_그려도_오류가_없고_상한을_지킴() 
 		canvas.queue_redraw()
 		await wait_frames(2)
 		canvas.queue_free()
-		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts, fx._fuses, fx._veins]:
+		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts, fx._fuses, fx._veins, fx._cracks, fx._flights]:
 			assert_true(list.size() <= Juice.SUB_FX_MAX, id + " 효과 상한")
 		sim.enemies.clear()
+
+
+func test_공명_파쇄_그림_후보_3개는_그려도_오류가_없고_상한을_지킴() -> void:
+	for style in [1, 2, 3]:
+		SubWeaponFx.res_style = style
+		var sim := _sim()
+		var fx := SubWeaponFx.new(sim)
+		sim.fx_evolve("wave")
+		for i in 40:  # 촘촘한 운석밭 (표시가 줄줄이 옮겨 붙게)
+			_rock(sim, Vector2.from_angle(i * 0.7) * (30.0 + i * 3.0), 1.0e5, 0)
+		var canvas := Node2D.new()
+		add_child(canvas)
+		var marked := 0
+		var seen := [0, 0, 0]  # 균열, 음파 점선, 날아가는 결정이 보인 프레임 수
+		for i in 150:
+			sim.update(0.016, Vector2.ZERO)
+			for f in sim.fx:
+				if f["type"] == "res_mark":
+					marked += 1
+					assert_true((f["target"] as RunSim.Enemy).res_mark, "표시 이벤트 = 표시 붙은 운석")
+			fx.step(0.016)
+			seen[0] += fx._cracks.size()
+			seen[1] += fx._veins.size()
+			seen[2] += fx._flights.size()
+		canvas.draw.connect(func() -> void:
+			fx.draw_under(canvas)
+			fx.draw_over(canvas))
+		canvas.queue_redraw()
+		await wait_frames(2)
+		canvas.queue_free()
+		assert_true(marked > 0, "표시가 붙음 %d" % style)
+		for k in 3:
+			assert_eq(seen[k] > 0, k + 1 == style, "후보 %d는 자기 연쇄 그림만 (%d번 그림)" % [style, k + 1])
+		for list in [fx._veins, fx._cracks, fx._flights]:
+			assert_true(list.size() <= Juice.SUB_FX_MAX, "효과 상한 %d" % style)
+		assert_true(fx._hits.size() <= Juice.SUB_HIT_MAX)
+	SubWeaponFx.res_style = 1
