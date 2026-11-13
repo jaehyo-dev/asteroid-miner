@@ -177,6 +177,47 @@ func test_전시관은_못_본_것을_물음표로() -> void:
 	main.queue_free()
 
 
+## 전시관 끌기 (2026-11-13 사용자 지적: 폰에서 진화 칸 틀이 위 줄 밑에 가려 "?" 이름만 떠 보임):
+## 손을 떼면 줄 맨 위에 멈추고(최대값도 멈출 자리), 틀이 다 가려진 칸은 그리지 않으며, 어느 멈춤 자리에서든 모든 칸이 한 번은 통째로 보인다
+func test_전시관_끌기는_줄_맨_위에_멈추고_모든_칸이_보임() -> void:
+	var main: Control = await _main()
+	main.press("museum")
+	await wait_frames()
+	var win: BaseWindow = main.panel.view.win
+	for view_size: Vector2 in [Vector2(600, 280), Vector2(422, 195), Vector2(422, 160)]:  # PC쯤, 폰(논리 크기), 더 낮은 폰
+		var v := MuseumView.new()
+		v.win = win
+		v.size = view_size
+		add_child(v)
+		v.setup()
+		var stops := v._stops()
+		if v.max_scroll > 0:
+			assert_true(stops.has(v.max_scroll), "최대값도 멈출 자리 %d" % v.max_scroll)
+		var usable := stops.filter(func(x: int) -> bool: return x <= v.max_scroll)
+		for k in usable.size():
+			var s: int = usable[k]
+			assert_eq(v.snap_scroll(s + 5, 5), s, "조금 끌면 제자리")
+			if k + 1 < usable.size():
+				assert_eq(v.snap_scroll(s + MuseumView.SNAP_DEAD + 1, MuseumView.SNAP_DEAD + 1), usable[k + 1], "더 끌면 아래 다음 자리")
+				assert_eq(v.snap_scroll(usable[k + 1] - MuseumView.SNAP_DEAD - 1, -MuseumView.SNAP_DEAD - 1), s, "위로 끌면 위 다음 자리")
+		var top := MuseumView.HEAD_H + 4
+		var bottom := int(v.size.y) - MuseumView.DETAIL_H - 2
+		var total := Discovery.ENTRIES.size() + Balance.EVOLUTIONS.size()
+		var seen := {}
+		for s in stops.filter(func(x: int) -> bool: return x <= v.max_scroll):
+			for i in total:
+				var evo := i >= Discovery.ENTRIES.size()
+				var j := i - Discovery.ENTRIES.size() if evo else i
+				var y: int = top - s + (v._evo_top() + MuseumView.EVO_HEAD if evo else 0) + j / v._cols * v._cell.y
+				if y >= top and y + MuseumView.CASE.y + 14 <= bottom:
+					seen[i] = true
+				if y + MuseumView.CASE.y <= top:
+					assert_false(v._shown(y), "틀이 다 가려진 칸은 안 그림")
+		assert_eq(seen.size(), total, "%s: 모든 칸(발견 12 + 진화 6)이 어느 멈춤 자리에서 통째로 보임" % view_size)
+		v.queue_free()
+	main.queue_free()
+
+
 # ── 광물 창고 ───────────────────────────────────────
 
 func test_광물_금고_더미_눈금() -> void:

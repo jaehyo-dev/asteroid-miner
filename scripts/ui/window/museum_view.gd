@@ -14,6 +14,8 @@ const HEAD_H := 20
 const DETAIL_H := 26
 ## 진화 도감 (v0.8.0 5단계): 발견 칸 아래 따로 줄을 두고 발견 보상 수에는 세지 않는다. 진화는 금 틀 + 진홍 이름
 const EVO_HEAD := 18
+## 끌기를 멈출 때: 이보다 적게 끌면 가까운 자리로, 많이 끌면 끈 쪽 다음 자리로
+const SNAP_DEAD := 12
 const EVO_COLOR := Color("#ff2567")
 const REWARD_TEXT := {"credits": "광물 %d", "speed": "이동 속도 +%d%%", "keep": "사망 보존 +%d%%", "paint": "금빛 도색"}
 
@@ -36,7 +38,16 @@ func setup() -> void:
 	var grid_h := int(size.y) - HEAD_H - 4 - DETAIL_H - 2
 	var rows := ceili(float(Discovery.ENTRIES.size()) / _cols) + _evo_rows()
 	_cell = Vector2i((int(size.x) - 6) / _cols, maxi(CASE.y + 16, (grid_h - EVO_HEAD) / rows))
-	max_scroll = maxi(0, rows * _cell.y + EVO_HEAD - grid_h)
+	# 끝까지 끌어도 줄 맨 위에 멈추게 최대값도 멈출 자리 중 하나로 (아래에 빈 곳이 조금 생겨도 위에 잘린 칸의 이름만 떠 보이지 않게)
+	var need := rows * _cell.y + EVO_HEAD - grid_h
+	max_scroll = 0
+	if need > 0:
+		var stops := _stops()
+		max_scroll = stops.back()
+		for v in stops:
+			if v >= need:
+				max_scroll = v
+				break
 	claim_button = WinButton.new()
 	claim_button.size = Vector2(72, 22)
 	claim_button.pressed.connect(_claim)
@@ -56,6 +67,40 @@ func _evo_rows() -> int:
 ## 진화 도감 머리 줄의 y (스크롤 반영 전, 칸 맨 위 기준)
 func _evo_top() -> int:
 	return ceili(float(Discovery.ENTRIES.size()) / _cols) * _cell.y
+
+
+## 칸을 그릴지: 틀이 위 줄 밑으로 다 올라간 칸은 이름도 그리지 않는다
+## (2026-11-13 사용자 지적: 폰에서 틀은 위 줄에 덮이고 아래 이름 "?"만 떠 보였다. 폰은 칸이 한 줄 남짓만 보여 자주 보였음)
+func _shown(y: int) -> bool:
+	return y + CASE.y > HEAD_H + 4
+
+
+## 끌기를 멈출 자리: 발견 칸 줄마다, 진화 도감 머리 줄, 진화 칸 둘째 줄부터 (늘 줄 맨 위가 보이게)
+func _stops() -> Array[int]:
+	var out: Array[int] = [0]
+	for k in range(1, ceili(float(Discovery.ENTRIES.size()) / _cols) + 1):
+		out.append(k * _cell.y)  # 마지막 k는 진화 도감 머리 줄 (_evo_top)
+	for k in range(1, _evo_rows()):
+		out.append(_evo_top() + EVO_HEAD + k * _cell.y)
+	return out
+
+
+## 조금(SNAP_DEAD 이하) 끌었으면 가장 가까운 자리, 더 끌었으면 끈 쪽의 다음 자리 (진화 머리 줄 + 한 줄처럼 간격이 큰 곳도 한 번에 넘어가게)
+func snap_scroll(v: int, moved := 0) -> int:
+	var stops := _stops().filter(func(s: int) -> bool: return s <= max_scroll)
+	var best: int = stops[0]
+	for s: int in stops:
+		if absi(s - v) < absi(best - v):
+			best = s
+	if moved > SNAP_DEAD and best < v:
+		for s: int in stops:
+			if s >= v:
+				return s
+	elif moved < -SNAP_DEAD and best > v:
+		for i in range(stops.size() - 1, -1, -1):
+			if stops[i] <= v:
+				return stops[i]
+	return best
 
 
 func _found() -> int:
@@ -82,7 +127,7 @@ func _click(p: Vector2i) -> void:
 	var top := HEAD_H + 4 - scroll
 	for i in Discovery.ENTRIES.size():
 		var r := Rect2i(i % _cols * _cell.x, top + i / _cols * _cell.y, _cell.x, _cell.y)
-		if r.has_point(p) and p.y >= HEAD_H + 4 and p.y < int(size.y) - DETAIL_H:
+		if r.has_point(p) and _shown(r.position.y) and p.y >= HEAD_H + 4 and p.y < int(size.y) - DETAIL_H:
 			selected = Discovery.ENTRIES[i]["id"]
 			reward = ""
 			Sfx.play("click")
@@ -91,7 +136,7 @@ func _click(p: Vector2i) -> void:
 	var etop := top + _evo_top() + EVO_HEAD
 	for i in Balance.EVOLUTIONS.size():
 		var r := Rect2i(i % _cols * _cell.x, etop + i / _cols * _cell.y, _cell.x, _cell.y)
-		if r.has_point(p) and p.y >= HEAD_H + 4 and p.y < int(size.y) - DETAIL_H:
+		if r.has_point(p) and _shown(r.position.y) and p.y >= HEAD_H + 4 and p.y < int(size.y) - DETAIL_H:
 			selected = Balance.EVOLUTIONS[i]["id"]
 			reward = ""
 			Sfx.play("click")
@@ -170,6 +215,8 @@ func _draw() -> void:
 
 
 func _draw_case(e: Dictionary, cx: int, y: int) -> void:
+	if not _shown(y):
+		return
 	var known: bool = win.save.seen.has(e["id"])
 	var rank: String = RANK_OF[e["id"]]
 	var t := WindowArt.tex("case_" + rank if known else "case_off")
@@ -191,6 +238,8 @@ func _draw_case(e: Dictionary, cx: int, y: int) -> void:
 
 ## 진화 칸: 만든 것은 금 틀 + 진화 그림 + 이름, 못 만든 것은 꺼진 틀 + 검은 실루엣 + "?"
 func _draw_evo_case(e: Dictionary, cx: int, y: int) -> void:
+	if not _shown(y):
+		return
 	var known: bool = win.save.evolved.has(e["id"])
 	var t := WindowArt.tex("case_legend" if known else "case_off")
 	var pad := 3 if known else 0
@@ -257,9 +306,14 @@ func _draw_detail(w: int, h: int) -> void:
 		WindowArt.text(self, Vector2i(12, ty), title, EVO_COLOR if known else WindowArt.MUTED)
 		var recipe: String = sub_name + " + " + (Upgrades.display_name(evo["skill"]) if known else "?")
 		var rx := 12 + WindowArt.width(title) + 8
-		var fit := WindowArt.wrap(recipe if known else "힌트: " + recipe, w - rx - 10)
+		var room := w - rx - 10
+		if known:  # 만든 진화: 무엇을 하는지(짧은 설명) + 들어가면 조합법
+			var line := "%s (%s)" % [evo["short"], recipe]
+			WindowArt.text(self, Vector2i(rx, ty), line if WindowArt.width(line) <= room else str(evo["short"]), WindowArt.INK)
+			return
+		var fit := WindowArt.wrap("힌트: " + recipe, room)
 		if not fit.is_empty():
-			WindowArt.text(self, Vector2i(rx, ty), fit[0], WindowArt.INK if known else WindowArt.MUTED)
+			WindowArt.text(self, Vector2i(rx, ty), fit[0], WindowArt.MUTED)
 		return
 	if not win.save.seen.has(selected):
 		WindowArt.text(self, Vector2i(12, ty), "아직 못 찾았어요", WindowArt.MUTED)

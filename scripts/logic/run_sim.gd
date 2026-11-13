@@ -34,6 +34,7 @@ class Enemy:
 	var ram_hit_at := -INF  ## 관성 충각에 마지막으로 부딪힌 시각
 	var no_echo := false  ## 광맥 공명기 충격파로 부서지면 다시 충격파를 내지 않는다 (연쇄 폭주 방지)
 	var bonus_drop := 0  ## 공명 파쇄로 부서지면 더 떨어뜨리는 광물 수
+	var pull_drop := false  ## 공명 파쇄로 부서지면 광물이 바로 우주선 쪽으로 끌려온다
 	# 고대 경비선 전용
 	var aim := 0.0  ## 선체(포)가 바라보는 방향 (라디안)
 	var charge := -1.0  ## 충전한 시간 (충전 중이 아니면 -1)
@@ -1051,6 +1052,7 @@ func _on_enemy_destroyed(a: Enemy) -> void:
 			m.xp = mineral_xp(int(drop["grade"]))  # 경험치는 오르기 전 등급 기준
 			# 운석 자리에서 사방으로 튕겨 나가 감속하며 멈춘다 (멈출 때까지 가는 거리 = 속도 / 감속)
 			m.vel = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(Juice.MINERAL_POP_MIN, Juice.MINERAL_POP_MAX) * Juice.MINERAL_POP_DAMP
+			m.attracted = a.pull_drop  # 공명 파쇄: 자석 범위 밖이어도 끌려온다 (튕김 속도는 끌릴 때 0이 됨)
 
 
 ## 광맥 공명기: 운석이 부서져 광물이 떨어진 자리 둘레에 충격파. 충격파로 부서진 운석은 다시 충격파를 내지 않는다

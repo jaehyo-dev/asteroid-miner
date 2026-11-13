@@ -46,6 +46,10 @@ var _links: Array[Dictionary] = []
 var _freezes: Array[Dictionary] = []
 var _discharges: Array[Dictionary] = []
 var _shocks: Array[Dictionary] = []
+## 5b단계 진화: 기뢰 도미노 불길 {from, to, t, life}, 공명 파동 {pos, radius, gen, t, life, seed}, 톱날 지난 위치(최근 프레임부터, 잔상 호)
+var _fuses: Array[Dictionary] = []
+var _ripples: Array[Dictionary] = []
+var _saw_hist: Array = []
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 ## 채굴 펄스 육각 격자 꼭짓점 (가운데 기준, 한 번만 만든다)
@@ -95,7 +99,7 @@ func step(delta: float) -> void:
 					"life": float(p["zap_time"][tier]), "tier": tier, "crackle": 0.0})
 				_ring_t = 0.0
 			"sub_hit":
-				var tier := _tier("wave" if f["kind"] == "shatter" else f["kind"])
+				var tier := 2 if f["kind"] == "ice" else _tier("wave" if f["kind"] == "shatter" else f["kind"])
 				if f["kind"] == "saw" and tier == 0:
 					continue  # 1단계 톱날은 맞을 때 불꽃 없음
 				_hits.append({"kind": f["kind"], "pos": f["pos"], "target": f["target"], "tier": tier, "t": 0.0, "seed": _rng.randi() % 997,
@@ -113,9 +117,17 @@ func step(delta: float) -> void:
 				_shocks.append({"pos": f["pos"], "radius": f["radius"], "t": 0.0, "life": float(Juice.EVO_FX["vein_time"]), "seed": _rng.randi() % 997})
 			"ram":
 				_hits.append({"kind": "ram", "pos": f["pos"], "target": null, "tier": 2, "t": 0.0, "seed": _rng.randi() % 997, "life": 0.3})
-	if sim.events.has("sub_wave") and not sim.subs.waves.is_empty():
-		var w: Dictionary = sim.subs.waves.back()
-		_waves.append({"pos": w["pos"], "radius": w["radius"], "t": 0.0, "tier": _tier("wave"), "seed": _rng.randi() % 997})
+			"mine_fuse":
+				_fuses.append({"from": f["from"], "to": f["to"], "t": 0.0, "life": Balance.EVO_MINE_DOMINO + float(Juice.EVO_FX["fuse_after"])})
+			"res_wave":
+				_ripples.append({"pos": f["pos"], "radius": f["radius"], "gen": f["gen"], "t": 0.0, "seed": _rng.randi() % 997,
+					"life": float(f["radius"]) / Balance.SUB_WAVE_SPEED + float(Juice.EVO_FX["ripple_after"])})
+	if sim.events.has("sub_wave"):  # 방금 쏜 큰 파동 = 뒤에서부터 첫 세대 0 (공명 파동이 그 뒤에 붙을 수 있다)
+		for i in range(sim.subs.waves.size() - 1, -1, -1):
+			var w: Dictionary = sim.subs.waves[i]
+			if int(w.get("gen", 0)) == 0:
+				_waves.append({"pos": w["pos"], "radius": w["radius"], "t": 0.0, "tier": _tier("wave"), "seed": _rng.randi() % 997})
+				break
 	if sim.events.has("sub_missile") and _tier("missile") == 2:
 		_hatch_t = 0.0
 	# 5단계 블랙홀이 다 지나서 사라지면 붕괴 연출
@@ -142,6 +154,13 @@ func step(delta: float) -> void:
 	_freezes = _aged(_freezes, delta)
 	_discharges = _aged(_discharges, delta)
 	_shocks = _aged(_shocks, delta)
+	_fuses = _aged(_fuses, delta)
+	_ripples = _aged(_ripples, delta)
+	if _evo("saw") and sim.alive:  # 회전 충각 잔상 호: 톱날 위치를 프레임마다 남긴다
+		_saw_hist.push_front(sim.subs.saw_points(sim.player_pos))
+		_saw_hist.resize(mini(_saw_hist.size(), int(Juice.EVO_FX["saw_hist"])))
+	else:
+		_saw_hist.clear()
 	var wave_after: float = p["wave_after"]
 	_waves = _waves.filter(func(w: Dictionary) -> bool:
 		w["t"] += delta
@@ -150,7 +169,7 @@ func step(delta: float) -> void:
 	_collapses = _collapses.filter(func(c: Dictionary) -> bool:
 		c["t"] += delta
 		return c["t"] < collapse)
-	for list: Array[Dictionary] in [_bursts, _zaps, _waves, _collapses, _links, _freezes, _discharges, _shocks]:
+	for list: Array[Dictionary] in [_bursts, _zaps, _waves, _collapses, _links, _freezes, _discharges, _shocks, _fuses, _ripples]:
 		while list.size() > Juice.SUB_FX_MAX:
 			list.pop_front()
 	while _hits.size() > Juice.SUB_HIT_MAX:
@@ -211,9 +230,15 @@ func draw_under(ci: CanvasItem) -> void:
 		_draw_collapse(ci, c, p)
 	for w in _waves:
 		_draw_wave(ci, w, p)
+	for rp in _ripples:
+		_draw_ripple(ci, rp)
 	_draw_coil_ring(ci, p)
+	for pl in sim.subs.pools:
+		_draw_pool(ci, pl)
 	if _evo("mine"):
 		_draw_mine_links(ci)
+		for fu in _fuses:
+			_draw_fuse(ci, fu)
 	if not sim.subs.mines.is_empty():
 		var tier := _tier("mine")
 		for m in sim.subs.mines:
@@ -267,7 +292,19 @@ func _draw_hole(ci: CanvasItem, h: Dictionary, tier: int, p: Dictionary) -> void
 					prev = at
 	_accretion(ci, c, core, tier, float(p["hole_band"][tier]))
 	RunSprites.disc(ci, c, core, VOID)
-	if _evo("blackhole"):  # 정지장: 얼음 조각이 가운데를 감싸고 천천히 돈다 (선 없이 마름모 점)
+	if _evo("blackhole"):  # 정지장: 얼음 조각이 가운데를 감싸고 천천히 돈다 (선 없이 마름모 점) + 움직이면 뒤로 서리 꼬리
+		var drift: Vector2 = h.get("drift", Vector2.ZERO)
+		if drift.length() > 2.0:
+			var back := -drift.normalized()
+			var side := back.orthogonal()
+			for i in int(Juice.EVO_FX["frost_tail"]):
+				var u := float(i) / int(Juice.EVO_FX["frost_tail"])
+				var wob := (_h(i, int(_time * 10.0)) - 0.5) * (2.0 + 8.0 * u)
+				var at := (c + back * (core + 4.0 + u * r * 1.1) + side * wob).round()
+				if i % 3 == 0:
+					_ice(ci, at, 1, 0.9 * (1.0 - u))
+				else:
+					RunSprites.rect(ci, Rect2(at, Vector2.ONE * (2.0 if u < 0.3 else 1.0)), Color(WHITE if i % 2 == 0 else CYAN, 0.85 * (1.0 - u)))
 		var n := int(Juice.EVO_FX["ice_shards"])
 		for i in n:
 			var at := (c + Vector2.from_angle(-_time * 1.5 + TAU * i / n) * (r * 0.55 + 3.0 * sin(_time * 4.0 + i))).round()
@@ -566,6 +603,8 @@ func draw_over(ci: CanvasItem) -> void:
 		_draw_coil_charge(ci)
 	for d in _discharges:
 		_draw_discharge(ci, d)
+	for sh in sim.subs.shards:
+		_draw_shard(ci, sh)
 	for z in _zaps:  # 번개는 가까운 대상과 짧게 이어져 적 아래면 가려진다 → 내 탄 층 (적 탄보다는 아래)
 		_draw_zap(ci, z)
 	for h in _hits:
@@ -611,19 +650,24 @@ func _draw_missile(ci: CanvasItem, m: Dictionary, tier: int, p: Dictionary) -> v
 
 
 ## 톱날 1단계 작은 회색 / 3단계 청록 날 끝 + 짧은 잔상 호 / 5단계 큰 톱니 + 주황 날 끝 + 긴 잔상 호
+## 회전 충각: 지난 위치로 그린 긴 잔상 호(부메랑 중 더 길고 불티), 충각 대형이면 앞쪽 금빛 쐐기
 func _draw_saws(ci: CanvasItem, s: int, p: Dictionary) -> void:
 	var tier := _tier("saw")
 	var evo := _evo("saw")
-	var speed := SubWeapons.speed_ratio(sim) if evo else 0.0
 	var n := int(SubWeapons.stat("saw", "count", s))
-	var orbit := SubWeapons.stat("saw", "orbit", s) + (Balance.EVO_SAW_ORBIT_ADD if evo else 0.0)
-	var trail := int(float(p["saw_trail"][tier]) * (1.0 + float(Juice.EVO_FX["saw_speed_trail"]) * speed))  # 회전 충각: 빠를수록 잔상이 길다
+	var orbit := SubWeapons.stat("saw", "orbit", s)
 	var tip: Color = _lift("saw", [METAL_LIGHT, TEAL, EMBER][tier])
-	for i in n:
-		for j in range(trail, 0, -1):  # 잔상 호: 지나온 자리에 옅어지는 점
-			var at := sim.player_pos + Vector2.from_angle(sim.subs.saw_angle - j * 0.09 + TAU * i / n) * orbit
-			var col: Color = TEAL if tier == 1 else (GOLD if j * 2 > trail else (MAGENTA if evo else EMBER))
-			RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), Color(col, 0.6 * (1.0 - float(j) / (trail + 1))))
+	if evo:
+		_draw_saw_trail(ci)
+		if sim.subs.ram_k > 0.05:
+			_draw_ram_wedge(ci, sim.subs.ram_k)
+	else:
+		var trail := int(p["saw_trail"][tier])
+		for i in n:
+			for j in range(trail, 0, -1):  # 잔상 호: 지나온 자리에 옅어지는 점
+				var at := sim.player_pos + Vector2.from_angle(sim.subs.saw_angle - j * 0.09 + TAU * i / n) * orbit
+				var col: Color = TEAL if tier == 1 else (GOLD if j * 2 > trail else EMBER)
+				RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), Color(col, 0.6 * (1.0 - float(j) / (trail + 1))))
 	var radius := Balance.EVO_SAW_RADIUS - 1.0 if evo else Balance.SUB_SAW_RADIUS - 1.0 + tier
 	var teeth := int(Juice.EVO_FX["saw_teeth"]) if evo else int(p["saw_teeth"][tier])
 	for c in sim.subs.saw_points(sim.player_pos, s):
@@ -635,14 +679,45 @@ func _draw_saws(ci: CanvasItem, s: int, p: Dictionary) -> void:
 			RunSprites.rect(ci, Rect2((center + dir * (radius + 1.0)).round() - Vector2.ONE, Vector2(2, 2)), tip)
 			if tier == 2:
 				RunSprites.rect(ci, Rect2((center + dir * (radius + 2.5)).round(), Vector2.ONE), MAGENTA if evo and i % 2 == 0 else GOLD)
-		if evo:  # 회전 충각: 달아오른 가운데 + 빠르면 뒤로 튀는 불티
-			RunSprites.disc(ci, center, 4.0, Color(MAGENTA, 0.5 + 0.3 * speed))
-			if speed > 0.6:
-				var back := -sim.player_vel.normalized()
-				for i in 3:
-					var at := center + back * (radius + 2.0 + i * 3.0) + back.orthogonal() * (_h(int(_time * 30.0) + i, i) - 0.5) * 6.0
-					RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color([WHITE, GOLD, EMBER][i], 1.0 - i * 0.25))
+		if evo:  # 달아오른 가운데
+			RunSprites.disc(ci, center, 4.0, Color(MAGENTA, 0.6 + 0.3 * sim.subs.ram_k))
 		RunSprites.disc(ci, center, 2.0 if tier < 2 else 2.5, ORANGE if tier == 2 else WHITE)
+
+
+## 회전 충각 잔상: 톱날마다 지난 프레임 위치를 잇는 호 (금 → 진홍으로 옅어짐). 부메랑 중엔 굵고 뒤로 불티가 튄다
+func _draw_saw_trail(ci: CanvasItem) -> void:
+	var throwing := sim.subs.throw_t >= 0.0
+	var count := _saw_hist.size() if throwing else mini(_saw_hist.size(), int(Juice.EVO_FX["saw_hist_idle"]))
+	for j in range(count - 1, 0, -1):
+		var a: Array = _saw_hist[j]
+		var b: Array = _saw_hist[j - 1]
+		var k := float(j) / count
+		for i in mini(a.size(), b.size()):
+			var col: Color = GOLD if k < 0.35 else (EMBER if k < 0.7 else MAGENTA)
+			RunSprites.line(ci, (a[i] as Vector2).round(), (b[i] as Vector2).round(), Color(col, 0.75 * (1.0 - k)), 3.0 if throwing and k < 0.5 else 2.0)
+			if throwing and j % 3 == 0:  # 불티: 호 바깥으로 흩어진다
+				var out := ((a[i] as Vector2) - sim.player_pos).normalized()
+				var at := (a[i] as Vector2) + out * (2.0 + 6.0 * k) + out.orthogonal() * (_h(j, i) - 0.5) * 6.0
+				RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color([WHITE, GOLD, EMBER][(i + j) % 3], 1.0 - k))
+
+
+## 충각 대형: 우주선 앞쪽 금빛 쐐기 (옅은 판 + 밝은 두 변 + 끝 흰 점). k = 모인 정도
+func _draw_ram_wedge(ci: CanvasItem, k: float) -> void:
+	var dir := sim.subs.ram_dir
+	var side := dir.orthogonal()
+	var c := sim.player_pos
+	var tip := (c + dir * (Balance.EVO_RAM_TIP + 9.0)).round()
+	var left := (c + dir * 4.0 + side * 15.0).round()
+	var right := (c + dir * 4.0 - side * 15.0).round()
+	var notch := (c + dir * 10.0).round()
+	ci.draw_colored_polygon(PackedVector2Array([tip, left, notch, right]), Color(GOLD, 0.22 * k))
+	RunSprites.line(ci, left, tip, Color(GOLD, 0.9 * k), 2.0)
+	RunSprites.line(ci, right, tip, Color(GOLD, 0.9 * k), 2.0)
+	RunSprites.rect(ci, Rect2(tip - Vector2.ONE, Vector2(2, 2)), Color(WHITE, k))
+	if k > 0.8 and int(_time * 20.0) % 2 == 0:  # 끝에서 바람 가르는 흰 점
+		for i in 2:
+			var at := tip - dir * (4.0 + i * 5.0) + side * (8.0 if i == 0 else -8.0)
+			RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(WHITE, 0.8))
 
 
 ## 맞은 자리: 톱날 3단계 불꽃 / 5단계 주황 불꽃 + 운석 부스러기, 채굴 펄스 1단계 금 / 3단계 빛나는 광맥 / 5단계 + 금가루
@@ -655,6 +730,12 @@ func _draw_hit(ci: CanvasItem, h: Dictionary, p: Dictionary) -> void:
 		for i in 6:
 			var at := at0 + Vector2.from_angle(_h(sd, i) * TAU) * (3.0 + 14.0 * k)
 			RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE * (2.0 if i < 2 else 1.0)), Color([WHITE, GOLD, ORANGE][i % 3], 1.0 - k))
+		return
+	if h["kind"] == "ice":  # 얼음 조각이 맞은 자리: 청백 조각이 작게 튄다
+		var at0: Vector2 = h["pos"]
+		for i in 4:
+			var at := at0 + Vector2.from_angle(_h(sd, i) * TAU) * (2.0 + 8.0 * k)
+			RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(WHITE if i % 2 == 0 else CYAN, 1.0 - k))
 		return
 	if h["kind"] == "shatter":  # 공명 파쇄: 운석이 금빛 조각으로 터져 흩어진다 (자석 광물과 헷갈리지 않게 금방 사라짐)
 		var at0: Vector2 = h["pos"]
@@ -831,3 +912,71 @@ func _draw_discharge(ci: CanvasItem, d: Dictionary) -> void:
 			var p1 := path[i + 1].round()
 			RunSprites.line(ci, p0, p1, Color(TEAL, 0.3 * a), 5.0)
 			RunSprites.line(ci, p0, p1, Color(WHITE, a), 2.0)
+
+
+# ── 5b단계 진화 그리기 (2026-11-13 사용자 결정: 판 흐름이 바뀌는 새 동작) ─────────────
+
+## 연소 기뢰선 도미노: 터진 기뢰에서 다음 기뢰로 선을 따라 달려가는 불길 (흰·금 머리 + 주황 꼬리), 닿은 뒤 짧게 남는다
+func _draw_fuse(ci: CanvasItem, fu: Dictionary) -> void:
+	var from: Vector2 = fu["from"]
+	var to: Vector2 = fu["to"]
+	var u := minf(float(fu["t"]) / Balance.EVO_MINE_DOMINO, 1.0)
+	var a := 1.0 if u < 1.0 else 1.0 - (float(fu["t"]) - Balance.EVO_MINE_DOMINO) / float(Juice.EVO_FX["fuse_after"])
+	var head := from.lerp(to, u)
+	RunSprites.line(ci, from.round(), head.round(), Color(EMBER, 0.6 * a), 3.0)
+	RunSprites.line(ci, from.round(), head.round(), Color(GOLD, 0.8 * a), 1.0)
+	var dir := (to - from).normalized()
+	for i in 4:  # 머리 뒤로 튀는 불티
+		var at := head - dir * (2.0 + i * 3.0) + dir.orthogonal() * (_h(i, int(_time * 30.0)) - 0.5) * 5.0
+		RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color([WHITE, GOLD, ORANGE, EMBER][i], a))
+	RunSprites.rect(ci, Rect2(head.round() - Vector2.ONE, Vector2(3, 3)), Color(GOLD, a))
+	RunSprites.rect(ci, Rect2(head.round(), Vector2.ONE), Color(WHITE, a))
+
+
+## 불바다: 바닥에 일렁이는 주황 불꽃. 경계선 없이 옅은 바탕 + 가운데 많고 바깥에 적은 불꽃 기둥(아래 붉고 위 금빛) + 위로 뜨는 불티
+func _draw_pool(ci: CanvasItem, pl: Dictionary) -> void:
+	var t: float = pl["t"]
+	var a := minf(t / 0.15, 1.0) * minf((Balance.EVO_POOL_TIME - t) / 0.5, 1.0)
+	var c: Vector2 = pl["pos"]
+	var r: float = pl["radius"]
+	var sd := int(c.x) * 7 + int(c.y) * 13
+	_soft_disc(ci, c.round(), r, Color(EMBER, 0.16 * a), 4)
+	var n := int(Juice.EVO_FX["pool_flames"])
+	for i in n:
+		var d := sqrt(_h(sd, i)) * r * 0.9
+		var base := c + Vector2.from_angle(_h(sd, i + 50) * TAU) * d
+		var flick := 0.5 + 0.5 * sin(_time * (9.0 + 5.0 * _h(sd, i + 90)) + i * 1.7)
+		var tall := roundi((1.0 - d / r) * 4.0 * flick + 1.0)  # 가운데일수록 높게 일렁인다
+		for j in tall:
+			var col: Color = EMBER if j == 0 else (ORANGE if j < 2 else (GOLD if j < 4 else WHITE))
+			RunSprites.rect(ci, Rect2((base + Vector2(0, -j)).round(), Vector2.ONE), Color(col, 0.9 * a))
+	for i in 3:  # 불티
+		var u := fposmod(_time * 0.9 + _h(sd, i + 200), 1.0)
+		var at := c + Vector2((_h(sd, i + 300) - 0.5) * r * 1.2, -u * 12.0)
+		RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(GOLD if i % 2 == 0 else ORANGE, a * (1.0 - u)))
+
+
+## 공명 파동: 부서진 운석 자리에서 퍼지는 작은 금빛 물결 (세대가 높을수록 희게), 끊어진 호 + 뒤로 옅어지는 점 + 반짝이
+func _draw_ripple(ci: CanvasItem, rp: Dictionary) -> void:
+	var full := float(rp["radius"]) / Balance.SUB_WAVE_SPEED
+	var r := minf(float(rp["t"]) * Balance.SUB_WAVE_SPEED, float(rp["radius"]))
+	var a := 1.0 - maxf(float(rp["t"]) - full, 0.0) / float(Juice.EVO_FX["ripple_after"])
+	var c: Vector2 = (rp["pos"] as Vector2).round()
+	var sd: int = rp["seed"]
+	var col := GOLD.lerp(WHITE, float(rp["gen"]) / (Balance.EVO_RES_DEPTH + 1))
+	_soft_disc(ci, c, r, Color(GOLD, 0.06 * a), 3)
+	_arc(ci, c, r, Color(col, 0.85 * a), sd)
+	_haze(ci, c, r, 6.0, Color(col, 0.6 * a), sd + 5)
+	var blink := int(_time * 12.0)
+	for i in 6:
+		var at := c + Vector2.from_angle(TAU * i / 6.0 + _h(sd, i)) * r
+		RunSprites.rect(ci, Rect2(at.round() - Vector2.ONE, Vector2(2, 2)), Color(WHITE if (i + blink) % 2 == 0 else GOLD, a))
+
+
+## 얼음 조각: 날아가는 방향으로 짧은 청백 막대 (흰 머리)
+func _draw_shard(ci: CanvasItem, sh: Dictionary) -> void:
+	var pos: Vector2 = sh["pos"]
+	var dir := (sh["vel"] as Vector2).normalized()
+	var a := 1.0 - float(sh["t"]) / Balance.EVO_SHARD_LIFE * 0.5
+	RunSprites.line(ci, (pos - dir * 5.0).round(), pos.round(), Color(CYAN, 0.8 * a), 2.0)
+	RunSprites.rect(ci, Rect2(pos.round() - Vector2.ONE, Vector2(2, 2)), Color(WHITE, a))

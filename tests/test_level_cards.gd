@@ -199,3 +199,22 @@ func test_건너뛰기_버튼은_보상_광물_글자가_다_들어감() -> void
 		assert_true(big <= int(view.x) - 8, "%s 카드 없을 때 큰 버튼 %d" % [view, big])
 	assert_eq(cards.skip_text_for(1280, 2, 24, 12), "(보상 광물 1234)", "PC는 긴 글자")
 	cards.free()
+
+
+## 진화 6개·짝 스킬 6개 카드 (2026-11-13 사용자 지적: 폰에서 "고폭 / 탄두", "유도 미사일 / 포드"처럼 이름 중간에서 줄이 바뀜)
+## 이름은 한 줄, 조합법은 한 줄이거나 "<보조 무기>" / "+ <짝 스킬> →", 진화 재료는 한 줄이거나 "진화 재료:" / "<보조 무기>"
+func test_진화_짝_스킬_카드는_이름_중간에서_줄이_안_바뀜() -> void:
+	for view in [PHONE, Vector2(640, 360), SMALL_PHONE]:
+		for e in Balance.EVOLUTIONS:
+			var sub: String = SubWeapons.info(e["sub"])["name"]
+			var skill := Upgrades.display_name(e["skill"])
+			var cards := SubWeapons.put_evolution([{"id": e["skill"], "grade": Upgrades.EPIC}, {"id": "speed", "grade": 0}, {"id": "speed", "grade": 0}], e["id"])
+			var lay := LevelCard.layout_for(view, cards)
+			for c in cards:
+				if c.get("evo", false) or c["id"] == e["skill"]:
+					assert_eq(LevelCard.wrap_text(Upgrades.display_name(c["id"]), lay["name_size"], lay["inner"]).size(), 1, "%s 이름 한 줄: %s" % [view, Upgrades.display_name(c["id"])])
+			var recipe := LevelCard.recipe_lines(cards[2] if cards[2].get("evo", false) else cards[1], 12, lay["inner"])
+			assert_true(recipe == PackedStringArray([sub + " + " + skill + " →"]) or recipe == PackedStringArray([sub, "+ " + skill + " →"])
+				or recipe == PackedStringArray([sub + " +", skill + " →"]), "%s 조합법 %s" % [view, recipe])
+			var pair := LevelCard.pair_lines({"id": e["skill"], "grade": Upgrades.EPIC}, 12, lay["inner"])
+			assert_true(pair == PackedStringArray(["진화 재료: " + sub]) or pair == PackedStringArray(["진화 재료:", sub]), "%s 진화 재료 %s" % [view, pair])

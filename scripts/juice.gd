@@ -115,8 +115,13 @@ const SUB_FX := {"burst_time": 0.3, "smoke_time": 0.55, "zap_time": [0.22, 0.24,
 	"minor_bright": 0.15}
 ## 진화·짝 스킬 그리기 (v0.8.0 5단계): 연쇄 불줄기 시간, 정지장 얼음 조각 수·붕괴 시간·튀는 조각 수, 회전 충각 톱니 수·속도에 따른 잔상 배율,
 ## 불타는 선 깜빡이는 불티 수(선마다), 방전 시간·번개 꺾임 수·충전 불꽃 최대 수, 파쇄 조각 수, 공명 충격파 시간, 궤적 불꽃 크기, 냉각 서리 점 수
-const EVO_FX := {"link_time": 0.18, "ice_shards": 8, "freeze_time": 0.6, "freeze_shards": 14, "saw_teeth": 10, "saw_speed_trail": 2.0,
-	"fire_embers": 3, "discharge_time": 0.45, "discharge_kinks": 4, "charge_sparks": 8, "shatter_bits": 10, "vein_time": 0.28, "trail_size": 2.0, "frost_dots": 3}
+## 5b단계: 톱날 잔상 프레임 수(부메랑 중 / 평소), 블랙홀 서리 꼬리 점 수, 불바다 불꽃 기둥 수, 도미노 불길이 닿은 뒤 남는 시간, 공명 파동 잔광 시간
+const EVO_FX := {"link_time": 0.18, "ice_shards": 8, "freeze_time": 0.6, "freeze_shards": 14, "saw_teeth": 10,
+	"fire_embers": 3, "discharge_time": 0.45, "discharge_kinks": 4, "charge_sparks": 8, "shatter_bits": 10, "vein_time": 0.28, "trail_size": 2.0, "frost_dots": 3,
+	"saw_hist": 7, "saw_hist_idle": 4, "frost_tail": 12, "pool_flames": 12, "fuse_after": 0.12, "ripple_after": 0.15}
+## 공명 파쇄 종소리: 세대마다 올리는 반음 수, 몰림 창(초) (창 안에 Juice.BREAK_SOUND_MAX개까지, 갈수록 작게)
+const RES_BELL_SEMITONES := 2
+const RES_BELL_WINDOW := 0.15
 ## 한꺼번에 그리는 보조 무기 폭발·번개·붕괴 수, 맞은 자리 표시(금·불꽃) 수 (폰 성능용, 넘으면 오래된 것부터 지움)
 const SUB_FX_MAX := 16
 const SUB_HIT_MAX := 24

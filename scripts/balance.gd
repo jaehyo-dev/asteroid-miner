@@ -441,14 +441,15 @@ const SUB_WEAPONS := [
 		"labels": {"radius": "파동 반경 %s", "damage": "피해 %s", "interval": "간격 %s초"}},
 ]
 ## 진화 6개 (v0.8.0 5단계): 보조 무기 5단계 + 짝 스킬(skill) 1단계 이상이면 다음 레벨업에 진화 카드 1장 확정.
-## 고르면 보조 무기가 진화 무기로 바뀐다(칸 수 그대로, 짝 스킬은 남음). 5단계 수치는 그대로 쓰고 동작이 하나 더 생긴다
+## 고르면 보조 무기가 진화 무기로 바뀐다(칸 수 그대로, 짝 스킬은 남음). 5단계 수치는 그대로 쓰고 동작이 더 생긴다
+## 회전 충각·연소 기뢰선·공명 파쇄·정지장 붕괴탄은 판 흐름이 바뀌는 새 동작으로 다시 만듦 (2026-11-13 사용자 결정, 5b단계)
 const EVOLUTIONS := [
 	{"id": "evo_missile", "sub": "missile", "skill": "explosive", "name": "연쇄 폭격", "kind": "진화", "max": 1, "desc": "미사일 폭발이 옆 적으로 3번 이어 터짐", "short": "폭발 3번 연쇄"},
-	{"id": "evo_blackhole", "sub": "blackhole", "skill": "chill", "name": "정지장 붕괴탄", "kind": "진화", "max": 1, "desc": "끌어모은 적을 얼렸다가 한꺼번에 무너뜨림", "short": "얼린 뒤 붕괴"},
-	{"id": "evo_saw", "sub": "saw", "skill": "ram", "name": "회전 충각", "kind": "진화", "max": 1, "desc": "톱날이 커지고, 빠르게 움직일수록 세게 갈아냄", "short": "큰 톱날, 빠를수록 셈"},
-	{"id": "evo_mine", "sub": "mine", "skill": "trail", "name": "연소 기뢰선", "kind": "진화", "max": 1, "desc": "기뢰가 불타는 선으로 이어져 길이 덫이 됨", "short": "기뢰를 불꽃선으로"},
+	{"id": "evo_blackhole", "sub": "blackhole", "skill": "chill", "name": "정지장 붕괴탄", "kind": "진화", "max": 1, "desc": "적이 많은 쪽으로 움직이며 얼리고, 깨질 때 얼음 조각이 튐", "short": "쫓아 얼림, 얼음 조각"},
+	{"id": "evo_saw", "sub": "saw", "skill": "ram", "name": "회전 충각", "kind": "진화", "max": 1, "desc": "4초마다 톱날이 멀리 날아갔다 돌아오고, 빠르면 앞쪽 충각", "short": "톱날 부메랑, 빠르면 충각"},
+	{"id": "evo_mine", "sub": "mine", "skill": "trail", "name": "연소 기뢰선", "kind": "진화", "max": 1, "desc": "이어진 기뢰가 줄줄이 터지고 자리마다 불바다", "short": "기뢰 줄줄이 폭발, 불바다"},
 	{"id": "evo_coil", "sub": "coil", "skill": "charge", "name": "과충전 방전", "kind": "진화", "max": 1, "desc": "맞힐수록 전하가 쌓이다 화면 절반에 큰 방전", "short": "전하가 차면 큰 방전"},
-	{"id": "evo_wave", "sub": "wave", "skill": "vein", "name": "공명 파쇄", "kind": "진화", "max": 1, "desc": "파동이 운석을 한 번에 부수고 광물을 더 줌", "short": "운석 파쇄, 광물+1"},
+	{"id": "evo_wave", "sub": "wave", "skill": "vein", "name": "공명 파쇄", "kind": "진화", "max": 1, "desc": "부서진 운석이 파동을 다시 뿜어 운석밭을 연쇄로 부숨", "short": "운석 연쇄 파쇄"},
 ]
 ## 연쇄 폭격: 이어 터지는 횟수, 다음 대상을 찾는 거리, 터지는 사이 시간, 이어 터질 때마다 곱하는 피해
 const EVO_CHAIN_COUNT := 3
@@ -458,22 +459,55 @@ const EVO_CHAIN_DAMAGE := 0.8
 ## 정지장 붕괴탄: 끌린 적은 블랙홀 안에서 얼어 멈춤, 끝날 때 반경 × EVO_COLLAPSE_REACH 안 모두에게 피해(탄 피해에 곱함)
 const EVO_COLLAPSE_DAMAGE := 9.0
 const EVO_COLLAPSE_REACH := 1.2
-## 회전 충각: 톱날 반지름, 도는 반경 더하기, 최고 속도일 때 피해·도는 속도 배율 더하기 (움직이는 빠르기 비율에 곱함)
+## 블랙홀이 움직이는 속도(픽셀/초)와 적을 찾는 거리(이 안 적들의 가운데 쪽으로 간다)
+const EVO_HOLE_DRIFT := 28.0
+const EVO_HOLE_SEEK := 140.0
+## 사라질 때 언 적마다 튀는 얼음 조각 수(최소~최대), 속도, 날아가는 시간, 피해(탄 피해에 곱함), 맞은 적 느려짐 비율·시간, 한꺼번에 날 수 있는 조각 수(폰 성능)
+const EVO_SHARD_COUNT := [4, 6]
+const EVO_SHARD_SPEED := 170.0
+const EVO_SHARD_LIFE := 0.5
+const EVO_SHARD_DAMAGE := 1.5
+const EVO_SHARD_SLOW := 0.5
+const EVO_SHARD_SLOW_TIME := 1.5
+const EVO_SHARD_MAX := 48
+## 회전 충각: 톱날 반지름, 도는 반경 더하기
 const EVO_SAW_RADIUS := 8.0
 const EVO_SAW_ORBIT_ADD := 6.0
-const EVO_SAW_SPEED_DAMAGE := 1.5
-const EVO_SAW_SPEED_SPIN := 0.75
+## 부메랑: 간격(초), 날아갔다 오는 시간, 가장 멀리 갈 때 도는 반경 배율, 날아가는 동안 피해 배율
+const EVO_SAW_THROW_GAP := 4.0
+const EVO_SAW_THROW_TIME := 1.3
+const EVO_SAW_THROW_REACH := 3.0
+const EVO_SAW_THROW_DAMAGE := 2.2
+## 충각 대형: 이동 속도가 RAM_SPEED_RATIO 이상이면 톱날이 앞쪽에 모인다. 모이는 빠르기(초당), 이웃 톱날 사이 각도(라디안), 맨 앞 톱날 거리, 양끝 톱날이 뒤로 물러나는 거리, 다른 적 피해 배율
+const EVO_RAM_FORM_SPEED := 6.0
+const EVO_RAM_SPREAD := 0.6
+## 충각 대형일 때 톱날 판정 반지름에 더하는 값 (쐐기 전체가 들이받는 판정, 앞쪽만 막는 대신 넓게)
+const EVO_RAM_REACH_ADD := 6.0
+const EVO_RAM_TIP := 24.0
+const EVO_RAM_ROW := 8.0
+const EVO_RAM_DAMAGE := 4.0
 ## 연소 기뢰선: 이웃 기뢰를 잇는 최대 거리(5단계 간격 0.8초 × 최고 속도 약 96~125픽셀보다 길게), 선에 닿은 적 초당 피해(탄 피해에 곱함), 선 굵기(판정 반지름)
 const EVO_MINE_LINK := 130.0
 const EVO_MINE_LINE_DPS := 2.5
 const EVO_MINE_LINE_WIDTH := 4.0
+## 도미노: 이어진 기뢰가 하나씩 터지는 간격(초). 불바다: 남는 시간, 반경(폭발 반경에 곱함), 초당 피해(탄 피해에 곱함), 한꺼번에 있는 수(폰 성능)
+const EVO_MINE_DOMINO := 0.1
+const EVO_POOL_TIME := 2.0
+const EVO_POOL_RADIUS := 0.8
+const EVO_POOL_DPS := 3.0
+const EVO_POOL_MAX := 12
 ## 과충전 방전: 번개가 맞힌 수가 이만큼 쌓이면 큰 방전, 방전 반경(화면 절반쯤), 피해(탄 피해에 곱함)
 const EVO_COIL_CHARGE := 20
 const EVO_COIL_RADIUS := 200.0
 const EVO_COIL_DAMAGE := 6.0
 ## 공명 파쇄: 작은·중간 운석(황금 아님)은 파동에 닿으면 한 번에 부서지고 광물 +EVO_WAVE_DROP, 큰 운석·다른 적은 피해 ×EVO_WAVE_BIG_MULT
 const EVO_WAVE_DROP := 1
-const EVO_WAVE_BIG_MULT := 2.0
+const EVO_WAVE_BIG_MULT := 2.7
+## 공명 파동: 파동으로 부서진 운석이 다시 뿜는 작은 파동의 반경, 피해 배율(큰 파동 피해에 곱함), 큰 파동 하나에서 이어지는 최대 횟수(세대), 큰 파동 하나가 만드는 공명 파동 수 상한(폰 성능)
+const EVO_RES_RADIUS := 40.0
+const EVO_RES_DAMAGE := 0.6
+const EVO_RES_DEPTH := 6
+const EVO_RES_BUDGET := 24
 ## 유도 미사일: 노리는 거리, 속도, 도는 힘(라디안/초), 날아가는 최대 시간, 맞는 반지름
 const SUB_MISSILE_RANGE := 220.0
 const SUB_MISSILE_SPEED := 150.0

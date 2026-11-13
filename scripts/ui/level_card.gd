@@ -47,6 +47,8 @@ const DESC_MAX_LINES := 2
 ## 카드 폭: 글자 작은 화면(PC) · 글자 큰 화면(폰). 예전 196 · 262의 약 73%
 const CARD_W_SMALL := 144
 const CARD_W_LARGE := 190
+## 폰: 화면의 카드 이름이 한 줄에 안 들어가면 이 폭까지만 넓힌다 (진화·짝 스킬 이름이 중간에서 안 끊기게: 잔류 분사 궤적 24px 164 → 폭 204)
+const CARD_W_LARGE_MAX := 206
 ## 프레임 그림이 찌그러지지 않는 최소 높이 (9칸 나누기의 위아래 모서리)
 const FRAME_MIN_H := 169
 ## 꼬리표 글자 양옆 여백 (알약 양끝 장식이 글자를 가리지 않게)
@@ -150,15 +152,28 @@ static func wrap_text(text: String, font_size: int, width: float) -> PackedStrin
 	return lines
 
 
-## 진화 카드 이름 위 작은 조합법 줄: "<보조 무기> + <짝 스킬> →" (작은 글자, 공백에서 줄바꿈)
+## 이름 안 띄어쓰기를 줄바꿈 안 되는 공백으로 묶는다 (wrap_text가 한 덩어리로 다루고, 줄에 담을 때 보통 공백으로 되돌림)
+static func glue(text: String) -> String:
+	return text.replace(" ", "\u00a0")
+
+
+## 진화 카드 이름 위 작은 조합법 줄: "<보조 무기> + <짝 스킬> →". 이름 중간에서 끊지 않고, 안 들어가면 "<보조 무기>" / "+ <짝 스킬> →" 두 줄
+## ("+ <짝 스킬> →"도 한 줄에 안 들어가면 "<보조 무기> +" / "<짝 스킬> →")
 static func recipe_lines(card: Dictionary, font_size: int, width: float) -> PackedStringArray:
-	return wrap_text(str(card["recipe"]) + " →", font_size, width) if card.has("recipe") else PackedStringArray()
+	if not card.has("recipe"):
+		return PackedStringArray()
+	var e := SubWeapons.evo_info(card["id"])
+	var sub: String = SubWeapons.info(e["sub"])["name"]
+	var skill := Upgrades.display_name(e["skill"])
+	if FONT.get_string_size("+ %s →" % skill, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > width:
+		return wrap_text(glue(sub + " +") + " " + glue(skill + " →"), font_size, width)
+	return wrap_text(glue(sub) + " " + glue("+ %s →" % skill), font_size, width)
 
 
-## 짝 스킬 카드 설명 아래 작은 줄: "진화 재료: <보조 무기>"
+## 짝 스킬 카드 설명 아래 작은 줄: "진화 재료: <보조 무기>" (안 들어가면 "진화 재료:" / "<보조 무기>")
 static func pair_lines(card: Dictionary, font_size: int, width: float) -> PackedStringArray:
 	var sub := SubWeapons.pair_of(card["id"])
-	return wrap_text("진화 재료: " + sub, font_size, width) if not sub.is_empty() else PackedStringArray()
+	return wrap_text(glue("진화 재료:") + " " + glue(sub), font_size, width) if not sub.is_empty() else PackedStringArray()
 
 
 ## 설명 줄: 긴 문구가 DESC_MAX_LINES를 넘으면 짧은 문구를 쓴다
@@ -175,7 +190,13 @@ static func layout_for(view: Vector2, cards: Array) -> Dictionary:
 	var large := view.x >= LARGE_MIN.x and view.y >= LARGE_MIN.y
 	var count := maxi(cards.size(), Balance.UPGRADE_CHOICE_COUNT)
 	var gap := 12 if large else 10
-	var w := mini(CARD_W_LARGE if large else CARD_W_SMALL, (int(view.x) - 2 * 4 - (count - 1) * gap) / count)
+	var room := (int(view.x) - 2 * 4 - (count - 1) * gap) / count
+	var w := mini(CARD_W_LARGE if large else CARD_W_SMALL, room)
+	if large:
+		for c in cards:
+			var need := ceili(FONT.get_string_size(Upgrades.display_name(c["id"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x) + 2 * PAD + 2
+			if need > w and need <= mini(CARD_W_LARGE_MAX, room):
+				w = need
 	var inner := float(w - 2 * PAD - 2)
 	var text_size := 24 if large else 12
 	var name_lines := 1

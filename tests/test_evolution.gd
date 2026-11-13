@@ -317,18 +317,71 @@ func test_정지장_붕괴탄은_얼렸다가_끝날_때_한꺼번에_피해() -
 	assert_true(a.hp < 1000.0 - Balance.EVO_COLLAPSE_DAMAGE * sim.bullet_damage * 0.99, "붕괴 피해")
 
 
-func test_회전_충각은_빠르게_움직일수록_세게_갈아냄() -> void:
-	var damage := []
-	for move in [Vector2.ZERO, Vector2.RIGHT]:
-		var sim := _sim()
-		sim.fx_evolve("saw")
-		assert_eq(sim.subs.saw_radius(), Balance.EVO_SAW_RADIUS, "톱날이 커짐")
-		sim.player_vel = move * sim.move_speed
-		var a := _rock(sim, sim.subs.saw_points(Vector2.ZERO)[0], 1000.0)
-		sim.subs._update_saw(sim, 0.0, 5)
-		damage.append(1000.0 - a.hp)
-	assert_true(damage[0] > 0.0)
-	assert_almost_eq(damage[1] / damage[0], 1.0 + Balance.EVO_SAW_SPEED_DAMAGE, 0.01, "최고 속도면 피해 ×2.5")
+func test_회전_충각_부메랑은_4초마다_멀리_날아갔다_돌아옴() -> void:
+	var sim := _sim()
+	sim.fx_evolve("saw")
+	assert_eq(sim.subs.saw_radius(), Balance.EVO_SAW_RADIUS, "톱날이 커짐")
+	var orbit := SubWeapons.stat("saw", "orbit", 5) + Balance.EVO_SAW_ORBIT_ADD
+	var far := 0.0
+	var thrown: Array[float] = []
+	for i in roundi((Balance.EVO_SAW_THROW_GAP * 2 + Balance.EVO_SAW_THROW_TIME + 0.2) / 0.02):
+		sim.update(0.02, Vector2.ZERO)
+		if sim.events.has("sub_saw_throw"):
+			thrown.append(sim.time)
+		far = maxf(far, sim.subs.saw_points(sim.player_pos)[0].distance_to(sim.player_pos))
+	assert_eq(thrown.size(), 2)
+	assert_almost_eq(thrown[0], Balance.EVO_SAW_THROW_GAP, 0.05, "4초에 던짐")
+	assert_almost_eq(thrown[1] - thrown[0], Balance.EVO_SAW_THROW_GAP, 0.05, "다음도 4초 간격 (날아가는 동안에도 셈)")
+	assert_almost_eq(far, orbit * Balance.EVO_SAW_THROW_REACH, 1.0, "도는 반경의 약 3배까지")
+	assert_eq(sim.subs.throw_t, -1.0, "돌아옴")
+	assert_almost_eq(sim.subs.saw_points(sim.player_pos)[0].distance_to(sim.player_pos), orbit, 0.01, "원래 반경")
+
+
+func test_회전_충각은_빠르면_앞쪽에_모여_작은_운석을_한_번에_부숨() -> void:
+	var sim := _sim()
+	sim.fx_evolve("saw")
+	for i in 30:
+		sim.update(0.02, Vector2.RIGHT)
+	assert_almost_eq(sim.subs.ram_k, 1.0, 0.001, "충각 대형")
+	for p in sim.subs.saw_points(sim.player_pos):
+		assert_true((p - sim.player_pos).x > 0.0, "톱날이 모두 앞쪽")
+	var tip := sim.subs.saw_points(sim.player_pos)[1]
+	var small := _rock(sim, tip, 1.0e5, 1)
+	var gold := _rock(sim, tip + Vector2(0, 1), 1.0e5, 1)
+	gold.golden = true
+	sim.subs._update_saw(sim, 0.0, 5)
+	assert_eq(small.hp, 0.0, "중간 운석 한 번에")
+	assert_almost_eq(1.0e5 - gold.hp, SubWeapons.stat("saw", "damage", 5) * Balance.EVO_RAM_DAMAGE * sim.bullet_damage, 0.01, "다른 적은 큰 피해")
+	# 멈추면 다시 둘레를 돈다
+	for i in 30:
+		sim.update(0.02, Vector2.ZERO)
+	assert_almost_eq(sim.subs.ram_k, 0.0, 0.001)
+
+
+func test_연소_기뢰선은_이어진_기뢰가_줄줄이_터지고_불바다를_남김() -> void:
+	var sim := _sim()
+	sim.fx_evolve("mine")
+	sim.subs._timers["mine"] = 99.0  # 새 기뢰를 놓지 않게
+	sim.subs.mines.clear()
+	for i in 4:
+		sim.subs.mines.append({"pos": Vector2(100 + i * 60, 0), "t": 1.0})
+	sim.subs.mines.append({"pos": Vector2(600, 0), "t": 1.0})  # 멀어서 안 이어짐
+	_rock(sim, Vector2(100, 0), 1.0e6)
+	var boom_times: Array[float] = []
+	for i in 30:
+		var before := sim.subs.mines.size()
+		sim.update(0.02, Vector2.ZERO)
+		for k in before - sim.subs.mines.size():
+			boom_times.append(sim.time)
+	assert_eq(boom_times.size(), 4, "이어진 4개 모두 터짐")
+	assert_eq(sim.subs.mines.size(), 1, "안 이어진 기뢰는 남음")
+	assert_almost_eq(boom_times[3] - boom_times[0], Balance.EVO_MINE_DOMINO * 3, 0.05, "0.1초 간격으로 줄줄이")
+	assert_eq(sim.subs.pools.size(), 4, "터진 자리마다 불바다")
+	var a := _rock(sim, Vector2(220, 0), 100.0)
+	sim.subs._update_pools(sim, 0.5)
+	assert_almost_eq(100.0 - a.hp, Balance.EVO_POOL_DPS * sim.bullet_damage * 0.5, 0.01, "불바다 초당 피해")
+	sim.subs._update_pools(sim, Balance.EVO_POOL_TIME)
+	assert_true(sim.subs.pools.is_empty(), "2초 뒤 꺼짐")
 
 
 func test_연소_기뢰선은_기뢰_사이_선에_닿은_적에게_피해() -> void:
@@ -390,6 +443,59 @@ func test_공명_파쇄는_작은_운석을_한_번에_부수고_광물을_더_�
 	assert_eq(base_drops, 0)
 
 
+func test_공명_파쇄는_부서진_운석이_파동을_다시_뿜어_연쇄() -> void:
+	var sim := _sim()
+	sim.fx_evolve("wave")
+	sim.subs._timers["wave"] = 99.0
+	var rocks: Array[RunSim.Enemy] = []
+	for i in 10:  # 큰 파동 끝 바로 밖에서 시작해 30 간격으로 늘어선 작은 운석
+		rocks.append(_rock(sim, Vector2(80 + i * 30, 0), 1.0e5, 0))
+	sim.subs.waves.append({"pos": Vector2(80, 0), "r": 0.0, "radius": 10.0, "damage": 1.0, "hits": [], "gen": 0, "budget": {"left": Balance.EVO_RES_BUDGET}})
+	var gens := 0
+	for i in 120:
+		sim.update(0.02, Vector2.ZERO)
+		for e in sim.events:
+			if e.begins_with("sub_res_"):
+				gens = maxi(gens, int(e.substr(8)))
+	var broken := rocks.filter(func(r: RunSim.Enemy) -> bool: return not sim.enemies.has(r)).size()
+	assert_eq(gens, Balance.EVO_RES_DEPTH, "연쇄는 최대 6번")
+	assert_eq(broken, Balance.EVO_RES_DEPTH + 1, "큰 파동 1 + 공명 6번만큼 부서짐")
+	for m in sim.minerals:
+		assert_true(m.attracted, "공명으로 부서진 운석 광물은 끌려옴")
+
+
+func test_정지장_블랙홀은_적이_많은_쪽으로_움직이고_얼음_조각이_튐() -> void:
+	var sim := _sim()
+	sim.fx_evolve("blackhole")
+	sim.subs._timers["blackhole"] = 99.0
+	var a := _rock(sim, Vector2(80, 0), 1.0e6)
+	for i in 3:
+		_rock(sim, Vector2(80 + 60, -10 + i * 10), 1.0e6)
+	var other := _rock(sim, Vector2(80, 70), 1.0e6)
+	other.golden = true  # 끌림이 적어 블랙홀 밖에 남는다
+	sim.subs.holes.append({"pos": Vector2(80, 0), "from": Vector2.ZERO, "t": Balance.SUB_HOLE_FLIGHT, "time": 3.5, "radius": 62.0, "dps": 0.0})
+	sim.update(0.02, Vector2.ZERO)
+	var start: Vector2 = sim.subs.holes[0]["pos"]
+	for i in 25:
+		sim.update(0.02, Vector2.ZERO)
+	assert_true((sim.subs.holes[0]["pos"] as Vector2).x > start.x + 5.0, "적이 많은 쪽(오른쪽)으로 움직임")
+	assert_true(a.chill_slow >= 1.0, "안의 적은 얼어 있음")
+	var frozen := sim.enemies.filter(func(e: RunSim.Enemy) -> bool: return e.chill > 0.0 and e.chill_slow >= 1.0 and e.pos.distance_to(sim.subs.holes[0]["pos"]) < 62.0 * Balance.EVO_COLLAPSE_REACH + e.radius).size()
+	assert_true(frozen >= 2)
+	sim.subs._collapse(sim, sim.subs.holes[0])
+	var shards := sim.subs.shards.size()
+	assert_true(shards >= 4 * frozen and shards <= mini(6 * frozen, Balance.EVO_SHARD_MAX), "언 적마다 4~6개 (%d마리 %d개)" % [frozen, shards])
+	sim.subs.shards.clear()
+	sim.subs.shards.append({"pos": Vector2(80, 50), "vel": Vector2(0, 170), "t": 0.0, "src": a})
+	other.pos = Vector2(80, 60)
+	other.chill = 0.0
+	var hp := other.hp
+	sim.subs._update_shards(sim, 0.05)
+	assert_almost_eq(hp - other.hp, Balance.EVO_SHARD_DAMAGE * sim.bullet_damage, 0.01, "조각 피해")
+	assert_almost_eq(other.chill_slow, Balance.EVO_SHARD_SLOW, 0.001, "느려짐")
+	assert_true(sim.subs.shards.is_empty(), "맞으면 사라짐")
+
+
 func test_진화_화면_효과는_그려도_오류가_없고_상한을_지킴() -> void:
 	var sim := _sim()
 	var fx := SubWeaponFx.new(sim)
@@ -411,6 +517,6 @@ func test_진화_화면_효과는_그려도_오류가_없고_상한을_지킴() 
 		canvas.queue_redraw()
 		await wait_frames(2)
 		canvas.queue_free()
-		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts]:
+		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts, fx._fuses, fx._ripples]:
 			assert_true(list.size() <= Juice.SUB_FX_MAX, id + " 효과 상한")
 		sim.enemies.clear()

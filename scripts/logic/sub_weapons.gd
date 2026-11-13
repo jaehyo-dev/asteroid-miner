@@ -24,6 +24,15 @@ var evolved: Dictionary = {}
 var chains: Array[Dictionary] = []
 ## 과충전 방전: 쌓인 전하 (번개가 맞힌 수)
 var coil_charge := 0
+## 연소 기뢰선 불바다 {pos, t, radius}
+var pools: Array[Dictionary] = []
+## 정지장 붕괴탄 얼음 조각 {pos, vel, t, src(조각이 나온 적), skip(같은 붕괴에 맞은 적들: 이미 붕괴 피해를 받아 건너뛰고 바깥으로 튐)}
+var shards: Array[Dictionary] = []
+## 회전 충각: 부메랑이 날아간 뒤 지난 시간(-1이면 돌기만), 다음 부메랑까지, 충각 대형으로 모인 정도(0~1)와 앞쪽 방향
+var throw_t := -1.0
+var _throw_timer := Balance.EVO_SAW_THROW_GAP
+var ram_k := 0.0
+var ram_dir := Vector2.UP
 
 
 static func ids() -> PackedStringArray:
@@ -174,7 +183,9 @@ func update(sim: RunSim, delta: float) -> void:
 	_update_holes(sim, delta)
 	_update_mines(sim, delta)
 	_update_mine_links(sim, delta)
+	_update_pools(sim, delta)
 	_update_waves(sim, delta)
+	_update_shards(sim, delta)
 
 
 ## 정해진 때마다 한 번 쏘기. 쐈으면 true
@@ -210,7 +221,9 @@ func _fire(sim: RunSim, id: String, s: int) -> bool:
 		"coil":
 			return _zap(sim, s)
 		"wave":
-			waves.append({"pos": sim.player_pos, "r": 0.0, "radius": stat(id, "radius", s), "damage": stat(id, "damage", s), "hits": []})
+			# gen: 공명 세대(0 = 큰 파동), budget: 이 큰 파동에서 더 만들 수 있는 공명 파동 수 (공명 파동끼리 같은 사전을 나눠 씀)
+			waves.append({"pos": sim.player_pos, "r": 0.0, "radius": stat(id, "radius", s), "damage": stat(id, "damage", s), "hits": [],
+				"gen": 0, "budget": {"left": Balance.EVO_RES_BUDGET}})
 			sim.events.append("sub_wave")
 			return true
 	return false
@@ -258,6 +271,8 @@ func _update_holes(sim: RunSim, delta: float) -> void:
 		kept.append(h)
 		if h["t"] < Balance.SUB_HOLE_FLIGHT:
 			continue
+		if is_evolved("blackhole"):
+			_drift(sim, h, delta)
 		var c: Vector2 = h["pos"]
 		var r: float = h["radius"]
 		var step := Balance.SUB_HOLE_PULL * delta
@@ -276,15 +291,67 @@ func _update_holes(sim: RunSim, delta: float) -> void:
 	holes = kept
 
 
-## 정지장 붕괴탄: 블랙홀이 끝나는 순간 반경 × EVO_COLLAPSE_REACH 안 모두에게 큰 피해 (얼었던 적이 한꺼번에 무너진다)
+## 정지장 붕괴탄: 자리 잡은 블랙홀이 EVO_HOLE_SEEK 안 적들의 가운데 쪽으로 천천히 움직인다 (적이 많은 쪽으로 끌려감). drift는 그리기용 방향
+func _drift(sim: RunSim, h: Dictionary, delta: float) -> void:
+	var c: Vector2 = h["pos"]
+	var sum := Vector2.ZERO
+	var n := 0
+	for e in sim.enemies:
+		if e.hp > 0.0 and e.pos.distance_to(c) < Balance.EVO_HOLE_SEEK:
+			sum += e.pos
+			n += 1
+	if n == 0:
+		h["drift"] = Vector2.ZERO
+		return
+	var goal := sum / n
+	h["pos"] = c.move_toward(goal, Balance.EVO_HOLE_DRIFT * delta)
+	h["drift"] = (h["pos"] - c) / maxf(delta, 0.0001)
+
+
+## 정지장 붕괴탄: 블랙홀이 끝나는 순간 반경 × EVO_COLLAPSE_REACH 안 모두에게 큰 피해 (얼었던 적이 한꺼번에 무너진다).
+## 언 적마다 얼음 조각 EVO_SHARD_COUNT개가 사방으로 튄다
 func _collapse(sim: RunSim, h: Dictionary) -> void:
 	var reach := float(h["radius"]) * Balance.EVO_COLLAPSE_REACH
 	sim.fx.append({"type": "sub_collapse", "pos": h["pos"], "radius": reach})
 	sim.events.append("explode")
-	for e in sim.enemies:
-		if e.hp > 0.0 and e.pos.distance_to(h["pos"]) < reach + e.radius:
-			e.chill = 0.0
-			sim.sub_hit(e, Balance.EVO_COLLAPSE_DAMAGE, h["pos"])
+	var caught := sim.enemies.filter(func(e: RunSim.Enemy) -> bool: return e.hp > 0.0 and e.pos.distance_to(h["pos"]) < reach + e.radius)
+	for e: RunSim.Enemy in caught:
+		if e.chill > 0.0 and e.chill_slow >= 1.0:
+			var n := sim.rng.randi_range(Balance.EVO_SHARD_COUNT[0], Balance.EVO_SHARD_COUNT[1])
+			var turn := sim.rng.randf() * TAU
+			for i in n:
+				if shards.size() >= Balance.EVO_SHARD_MAX:
+					break
+				shards.append({"pos": e.pos, "vel": Vector2.from_angle(turn + TAU * i / n) * Balance.EVO_SHARD_SPEED, "t": 0.0, "src": e, "skip": caught})
+		e.chill = 0.0
+		sim.sub_hit(e, Balance.EVO_COLLAPSE_DAMAGE, h["pos"])
+	if not shards.is_empty():
+		sim.events.append("sub_shatter_ice")
+
+
+## 얼음 조각: 곧게 날아가 처음 닿은 적(같은 붕괴에 맞은 적 말고)에게 피해 + 느려짐, 맞히거나 시간이 다 되면 사라진다
+func _update_shards(sim: RunSim, delta: float) -> void:
+	if shards.is_empty():
+		return
+	var kept: Array[Dictionary] = []
+	for sh in shards:
+		var from: Vector2 = sh["pos"]
+		sh["pos"] = from + (sh["vel"] as Vector2) * delta
+		sh["t"] += delta
+		var hit: RunSim.Enemy = null
+		for e in sim.enemies:
+			if e.hp > 0.0 and e != sh["src"] and not (sh.get("skip", []) as Array).has(e) and RunSim.segment_distance(from, sh["pos"], e.pos) < e.radius + 2.0:
+				hit = e
+				break
+		if hit != null:
+			sim.sub_hit(hit, Balance.EVO_SHARD_DAMAGE, from)
+			if not (hit.chill > 0.0 and hit.chill_slow >= 1.0):
+				hit.chill_slow = maxf(hit.chill_slow if hit.chill > 0.0 else 0.0, Balance.EVO_SHARD_SLOW)
+				hit.chill = maxf(hit.chill, Balance.EVO_SHARD_SLOW_TIME)
+			sim.fx.append({"type": "sub_hit", "kind": "ice", "pos": sh["pos"], "target": hit})
+		elif sh["t"] < Balance.EVO_SHARD_LIFE:
+			kept.append(sh)
+	shards = kept
 
 
 ## 연쇄 폭격: 미사일 폭발 뒤 EVO_CHAIN_DELAY마다 가장 가까운 다른 적 자리에서 다시 터진다 (피해는 매번 EVO_CHAIN_DAMAGE배)
@@ -320,11 +387,14 @@ func mine_links() -> Array[PackedVector2Array]:
 	if not is_evolved("mine"):
 		return out
 	for i in range(1, mines.size()):
-		var a: Dictionary = mines[i - 1]
-		var b: Dictionary = mines[i]
-		if a["t"] >= Balance.SUB_MINE_ARM and b["t"] >= Balance.SUB_MINE_ARM and (a["pos"] as Vector2).distance_to(b["pos"]) <= Balance.EVO_MINE_LINK:
-			out.append(PackedVector2Array([a["pos"], b["pos"]]))
+		if _linked(mines[i - 1], mines[i]):
+			out.append(PackedVector2Array([mines[i - 1]["pos"], mines[i]["pos"]]))
 	return out
+
+
+## 놓인 순서로 이웃한 두 기뢰가 선으로 이어졌는지: 둘 다 켜졌고 EVO_MINE_LINK 안
+static func _linked(a: Dictionary, b: Dictionary) -> bool:
+	return a["t"] >= Balance.SUB_MINE_ARM and b["t"] >= Balance.SUB_MINE_ARM and (a["pos"] as Vector2).distance_to(b["pos"]) <= Balance.EVO_MINE_LINK
 
 
 func _update_mine_links(sim: RunSim, delta: float) -> void:
@@ -341,32 +411,69 @@ func _update_mine_links(sim: RunSim, delta: float) -> void:
 				break
 
 
-## 기뢰: 잠깐 뒤 켜지고, 적이 닿으면 터진다. 오래되면 사라진다
+## 기뢰: 잠깐 뒤 켜지고, 적이 닿으면 터진다. 오래되면 사라진다.
+## 연소 기뢰선: 터진 기뢰와 선으로 이어진 이웃 기뢰에 심지(fuse)가 붙어 EVO_MINE_DOMINO 뒤 터지고, 그 이웃도 또 붙는다(도미노). 터진 자리에 불바다
 func _update_mines(sim: RunSim, delta: float) -> void:
 	if mines.is_empty():
 		return
 	var s := stage_of("mine")
+	var evo := is_evolved("mine")
+	var booms: Array[int] = []
 	var kept: Array[Dictionary] = []
-	for m in mines:
+	for i in mines.size():  # 놓인 순서대로: 먼저 터진 기뢰에 부서진 적은 다음 기뢰를 건드리지 않는다
+		var m: Dictionary = mines[i]
 		m["t"] += delta
-		if m["t"] >= Balance.SUB_MINE_LIFE:
-			continue
 		var boom := false
-		if m["t"] >= Balance.SUB_MINE_ARM:
+		if m.has("fuse"):
+			m["fuse"] -= delta
+			boom = m["fuse"] <= 0.0
+		elif m["t"] >= Balance.SUB_MINE_LIFE:
+			continue
+		elif m["t"] >= Balance.SUB_MINE_ARM:
 			for e in sim.enemies:
 				if e.hp > 0.0 and e.pos.distance_to(m["pos"]) < e.radius + Balance.SUB_MINE_TRIGGER:
 					boom = true
 					break
-		if boom:
-			_burst(sim, m["pos"], stat("mine", "blast", s), stat("mine", "damage", s), "mine")
-		else:
+		if not boom:
 			kept.append(m)
+			continue
+		booms.append(i)
+		_burst(sim, m["pos"], stat("mine", "blast", s), stat("mine", "damage", s), "mine")
+		if evo:
+			pools.append({"pos": m["pos"], "t": 0.0, "radius": stat("mine", "blast", s) * Balance.EVO_POOL_RADIUS})
+			while pools.size() > Balance.EVO_POOL_MAX:
+				pools.pop_front()
+	if evo:  # 도미노: 터진 기뢰의 이웃(터지기 전 목록, 놓인 순서)에 심지를 붙인다
+		for i in booms:
+			for j in [i - 1, i + 1]:
+				if j >= 0 and j < mines.size() and not mines[j].has("fuse") and not booms.has(j) and _linked(mines[i], mines[j]):
+					mines[j]["fuse"] = Balance.EVO_MINE_DOMINO
+					sim.fx.append({"type": "mine_fuse", "from": mines[i]["pos"], "to": mines[j]["pos"]})
 	mines = kept
 
 
+## 불바다: EVO_POOL_TIME 동안 남아 닿은 적에게 초당 피해 (계속 닿는 피해라 번쩍임 없이, 한 프레임에 적마다 한 번)
+func _update_pools(sim: RunSim, delta: float) -> void:
+	if pools.is_empty():
+		return
+	pools = pools.filter(func(p: Dictionary) -> bool:
+		p["t"] += delta
+		return p["t"] < Balance.EVO_POOL_TIME)
+	var hurt := Balance.EVO_POOL_DPS * sim.bullet_damage * delta
+	for e in sim.enemies:
+		if e.hp <= 0.0:
+			continue
+		for p in pools:
+			if e.pos.distance_to(p["pos"]) < float(p["radius"]) + e.radius:
+				e.hp -= hurt
+				break
+
+
 ## 채굴 펄스: 파동이 퍼지며 처음 닿은 적에게 한 번씩 피해 (운석이 아닌 적은 약하게)
+## 공명 파쇄: 파동으로 부서진 운석은 그 자리에서 작은 공명 파동을 다시 뿜고(세대 EVO_RES_DEPTH까지, 큰 파동마다 EVO_RES_BUDGET개까지), 광물은 우주선 쪽으로 끌려온다
 func _update_waves(sim: RunSim, delta: float) -> void:
 	var kept: Array[Dictionary] = []
+	var born: Array[Dictionary] = []
 	for w in waves:
 		w["r"] = minf(float(w["r"]) + Balance.SUB_WAVE_SPEED * delta, w["radius"])
 		var hits: Array = w["hits"]
@@ -382,35 +489,78 @@ func _update_waves(sim: RunSim, delta: float) -> void:
 					e.hp = minf(e.hp, 0.0)
 					e.bonus_drop = Balance.EVO_WAVE_DROP
 				sim.fx.append({"type": "sub_hit", "kind": "shatter" if shatter else "wave", "pos": e.pos, "target": e})  # 그리기용 (금 가는 운석)
+				if is_evolved("wave") and e.kind == RunSim.ROCK and e.hp <= 0.0:
+					e.pull_drop = true
+					var gen := int(w.get("gen", 0)) + 1
+					var budget: Dictionary = w.get("budget", {"left": 0})
+					if gen <= Balance.EVO_RES_DEPTH and int(budget["left"]) > 0:
+						budget["left"] -= 1
+						var root := float(w.get("root", w["damage"]))
+						born.append({"pos": e.pos, "r": 0.0, "radius": Balance.EVO_RES_RADIUS, "damage": root * Balance.EVO_RES_DAMAGE, "root": root,
+							"hits": [e], "gen": gen, "budget": budget})
+						sim.fx.append({"type": "res_wave", "pos": e.pos, "radius": Balance.EVO_RES_RADIUS, "gen": gen})
+						sim.events.append("sub_res_%d" % gen)
 		if w["r"] < w["radius"]:
 			kept.append(w)
+	kept.append_array(born)
 	waves = kept
 
 
 ## 궤도 톱날: 우주선 둘레를 돌며 닿은 적을 SUB_SAW_HIT_GAP마다 간다
-## 회전 충각이면 움직이는 빠르기에 따라 더 빨리 돌고 더 세게 간다 (톱날도 크다)
+## 회전 충각: EVO_SAW_THROW_GAP마다 톱날이 멀리 휘어 날아갔다 돌아오고(부메랑, 피해 ×EVO_SAW_THROW_DAMAGE),
+## 이동 속도가 RAM_SPEED_RATIO 이상이면 앞쪽에 모여 충각이 된다(작은·중간 운석은 한 번에, 다른 적은 피해 ×EVO_RAM_DAMAGE)
 func _update_saw(sim: RunSim, delta: float, s: int) -> void:
-	var speed := speed_ratio(sim) if is_evolved("saw") else 0.0
-	saw_angle = wrapf(saw_angle + Balance.SUB_SAW_SPIN * (1.0 + Balance.EVO_SAW_SPEED_SPIN * speed) * delta, 0.0, TAU)
-	var reach := saw_radius()
-	var damage := stat("saw", "damage", s) * (1.0 + Balance.EVO_SAW_SPEED_DAMAGE * speed)
+	var evo := is_evolved("saw")
+	var throwing := false
+	if evo:
+		if throw_t >= 0.0:
+			throw_t += delta
+			if throw_t >= Balance.EVO_SAW_THROW_TIME:
+				throw_t = -1.0
+		_throw_timer -= delta  # 날아가는 동안에도 센다 (간격이 정확히 EVO_SAW_THROW_GAP)
+		if _throw_timer <= 0.0 and throw_t < 0.0:
+			_throw_timer += Balance.EVO_SAW_THROW_GAP
+			throw_t = 0.0
+			sim.events.append("sub_saw_throw")
+		throwing = throw_t >= 0.0
+		var fast := speed_ratio(sim) >= Balance.RAM_SPEED_RATIO and not throwing
+		ram_k = move_toward(ram_k, 1.0 if fast else 0.0, Balance.EVO_RAM_FORM_SPEED * delta)
+		if sim.player_vel != Vector2.ZERO:
+			ram_dir = sim.player_vel.normalized()
+	saw_angle = wrapf(saw_angle + Balance.SUB_SAW_SPIN * (1.5 if throwing else 1.0) * delta, 0.0, TAU)
+	var ramming := evo and ram_k >= 0.8
+	var reach := saw_radius() + (Balance.EVO_RAM_REACH_ADD if ramming else 0.0)
+	var damage := stat("saw", "damage", s) * (Balance.EVO_SAW_THROW_DAMAGE if throwing else 1.0)
 	for p in saw_points(sim.player_pos, s):
 		for e in sim.enemies:
 			if e.hp > 0.0 and sim.time - e.saw_hit_at >= Balance.SUB_SAW_HIT_GAP and e.pos.distance_to(p) < e.radius + reach:
 				e.saw_hit_at = sim.time
-				sim.sub_hit(e, damage, p, true)
+				if ramming and e.kind == RunSim.ROCK and not e.golden and e.type <= 1:  # 충각: 작은·중간 운석은 한 번에 부숨 (광물 그대로)
+					e.last_bullet_damage = sim.bullet_damage
+					e.hp = 0.0
+					sim.fx.append({"type": "ram", "pos": e.pos})
+					sim.events.append("ram")
+					continue
+				sim.sub_hit(e, damage * (Balance.EVO_RAM_DAMAGE if ramming else 1.0), p, true)
 				sim.fx.append({"type": "sub_hit", "kind": "saw", "pos": p.lerp(e.pos, 0.5), "target": e})  # 그리기용 (불꽃·부스러기)
 
 
-## 톱날 위치들 (그리기와 판정이 같은 값)
+## 톱날 위치들 (그리기와 판정이 같은 값). 회전 충각이면 부메랑 중엔 도는 반경이 커졌다 줄고, 충각 대형이면 앞쪽 부채꼴로 모인다
 func saw_points(center: Vector2, s: int = -1) -> Array[Vector2]:
 	if s < 0:
 		s = stage_of("saw")
 	var result: Array[Vector2] = []
 	var n := int(stat("saw", "count", s))
 	var orbit := stat("saw", "orbit", s) + (Balance.EVO_SAW_ORBIT_ADD if is_evolved("saw") else 0.0)
+	if throw_t >= 0.0:
+		orbit *= 1.0 + (Balance.EVO_SAW_THROW_REACH - 1.0) * sin(PI * throw_t / Balance.EVO_SAW_THROW_TIME)
 	for i in n:
-		result.append(center + Vector2.from_angle(saw_angle + TAU * i / n) * orbit)
+		var at := center + Vector2.from_angle(saw_angle + TAU * i / n) * orbit
+		if ram_k > 0.0:  # 앞쪽 부채꼴: 가운데가 가장 앞, 양옆으로 갈수록 뒤로 (뾰족한 쐐기)
+			var off := (float(i) - (n - 1) / 2.0) * Balance.EVO_RAM_SPREAD
+			var wedge := center + ram_dir.rotated(off) * (Balance.EVO_RAM_TIP - absf(off) * Balance.EVO_RAM_ROW / Balance.EVO_RAM_SPREAD)
+			at = at.lerp(wedge, ram_k)
+		result.append(at)
 	return result
 
 

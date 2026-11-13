@@ -53,6 +53,8 @@ const SOUNDS := {
 	"evo_pick_1": {"files": ["card_pick"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"evo_pick_2": {"files": ["evo_pick_2"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
 	"evo_pick_3": {"files": ["evo_pick_3"], "db": -10.0, "pitch": 1.0, "jitter": 0.0, "max": 1},
+	# 공명 파쇄 종소리: 광물 종(pickup_2)을 연쇄 세대마다 높게 (run.gd, 한 프레임에 한 번 + 겹침 상한 2)
+	"res_bell": {"files": ["pickup_2"], "db": -13.0, "pitch": 1.0, "jitter": 0.0, "max": 2},
 	# UI 버튼: 부드러운 톡 (review/v070_fix/listen4/ 1번). 연타해도 덜 피곤하게 음 높이를 조금 흔든다
 	"click": {"files": ["click"], "db": -8.0, "pitch": 1.0, "jitter": 0.05, "max": 2},
 	# 연구소 강화·갈림길 해금 = 1번 "탄창 착-칵"(권총 녹음, e3와 다른 구간). 만렙 = 강화 소리 + 번쩍일 때 3번 "금속판 쿵 + 짧은 종". 광물 부족은 낮은 툭

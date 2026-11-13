@@ -20,6 +20,9 @@ func setup() -> void:
 ## 끌기 처리. 눌렀다 뗄 때 누름으로 칠 수 있으면 false를 돌려준다
 func drag_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if not event.pressed and dragged:  # 손을 떼면 멈출 자리에 맞춘다 (창마다 snap_scroll)
+			scroll = clampi(snap_scroll(scroll, scroll - _press_scroll), 0, max_scroll)
+			queue_redraw()
 		_press_y = event.position.y if event.pressed else -1.0
 		_press_scroll = scroll
 		if event.pressed:
@@ -30,6 +33,11 @@ func drag_input(event: InputEvent) -> void:
 		if dragged:
 			scroll = clampi(_press_scroll + int(_press_y - event.position.y), 0, max_scroll)
 			queue_redraw()
+
+
+## 끌기를 멈췄을 때 맞출 자리 (기본: 그대로). moved: 이번에 끈 양 (+면 아래 내용으로)
+func snap_scroll(v: int, _moved := 0) -> int:
+	return v
 
 
 ## 오른쪽 가장자리 끌기 막대: 글자를 덮지 않게 판 맨 끝에

@@ -69,6 +69,10 @@ var fx_stage := false
 var _fx_feed := 0.0
 ## ?fxtest 촬영 모드에서 우주선 곁을 스쳐 가는 적 탄(포격 탄·경비선 탄)을 섞는지 (Shift+8). v0.8.0 배포 전에 지운다
 var fx_shots := false
+## ?fxtest 촬영 모드에서 우주선 둘레 90~200에도 7:00 체력 운석을 채우는지 (Shift+F, 공명 파쇄 연쇄·정지장 얼음 조각 장면). v0.8.0 배포 전에 지운다
+var fx_field := false
+## ?fxtest Shift+7 진화 카드 화면이 다음에 보여 줄 보조 무기 번호. v0.8.0 배포 전에 지운다
+var _fx_evo_next := 0
 
 
 func _ready() -> void:
@@ -132,15 +136,11 @@ func _update_fx_label() -> void:
 		fx_label.text = head + "\n" + (fx_label.text.get_slice("\n", 1) if fx_stage else fx_label.text)
 
 
-## ?fxtest Shift+7: 진화 조건을 맞춰(가진 보조 무기 중 진화 안 한 첫 것, 없으면 진화 안 한 첫 보조 무기를 5단계 + 짝 스킬) 레벨업 화면을 연다. v0.8.0 배포 전에 지운다
+## ?fxtest Shift+7: 다른 보조 무기를 지우고 6개 중 다음 것을 5단계 + 짝 스킬로 맞춰 레벨업 화면을 연다(누를 때마다 차례로). v0.8.0 배포 전에 지운다
 func _fx_evolution_card() -> void:
-	var id := ""
-	for sid: String in Array(sim.subs.stages.keys()) + Array(SubWeapons.ids()):
-		if not sim.subs.is_evolved(sid):
-			id = sid
-			break
-	if id.is_empty():
-		return
+	var id: String = SubWeapons.ids()[_fx_evo_next % SubWeapons.ids().size()]  # 누를 때마다 6개를 차례로 (카드 12장 확인용)
+	_fx_evo_next += 1
+	sim.clear_subs()
 	while sim.subs.stage_of(id) < int(SubWeapons.info(id)["max"]):
 		sim.apply_pick(id, 0)
 	var skill: String = SubWeapons.evo_of(id)["skill"]
@@ -190,6 +190,16 @@ func _fx_stage_step(delta: float) -> void:
 		var ang := randf() * TAU
 		a.pos = sim.player_pos + Vector2.from_angle(ang) * randf_range(30.0, 80.0)  # 보조 무기 반경(26~90) 안에 들게
 		a.vel = Vector2.from_angle(ang + PI * 0.5) * randf_range(4.0, 12.0)
+	if fx_field:  # 바깥 운석밭: 작은·중간 운석만, 거의 멈춰 떠 있다
+		var outer := sim.enemies.filter(func(e: RunSim.Enemy) -> bool: return e.kind == RunSim.ROCK and e.pos.distance_to(sim.player_pos) < 210.0).size()
+		for i in maxi(0, 30 - outer):
+			var a := sim.spawn_asteroid()
+			a.type = randi() % 2
+			a.radius = Balance.ASTEROID_TYPES[a.type]["radius"]
+			a.max_hp = RunSim.asteroid_hp(Balance.ASTEROID_TYPES[a.type]["hp"], 420.0)  # 첫 진화 시각(흐름표 7:00) 체력: 블랙홀 안에서 버텨 얼음 조각이 보이게
+			a.hp = a.max_hp
+			a.pos = sim.player_pos + Vector2.from_angle(randf() * TAU) * randf_range(90.0, 200.0)
+			a.vel = Vector2.from_angle(randf() * TAU) * 3.0
 
 
 ## 워프 터널로 판을 시작한다: 시뮬레이션은 멈춰 있고, HUD와 조이스틱은 도착할 때까지 없다.
@@ -380,6 +390,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			fx_shots = not fx_shots
 			get_viewport().set_input_as_handled()
 			return
+		if event.shift_pressed and event.physical_keycode == KEY_F:  # 촬영 모드에 바깥 운석밭 켜고 끄기
+			fx_field = not fx_field
+			get_viewport().set_input_as_handled()
+			return
 		if event.shift_pressed and event.physical_keycode == KEY_0:  # 촬영 모드 켜고 끄기 (웹 빌드 캡처용)
 			fx_stage = not fx_stage
 			_update_fx_label()
@@ -490,8 +504,11 @@ func _discover() -> void:
 ## 이번 프레임 사건의 효과음: 발사, 맞음, 깨짐(크기별)·적 파괴, 피격, 레벨업, 광물 줍기.
 ## 같은 소리가 많이 겹치는 것은 Sfx.play가 동시 재생 수로 막는다.
 func _play_sounds() -> void:
+	var res_gen := 0
 	for e in sim.events:
-		if e == "shoot" or e == "hit_rock":
+		if e.begins_with("sub_res_"):  # 공명 파쇄: 이번 프레임 가장 높은 세대 하나만 (폰에서 겹치지 않게)
+			res_gen = maxi(res_gen, int(e.substr(8)))
+		elif e == "shoot" or e == "hit_rock":
 			Sfx.play(e)
 		elif e.begins_with("hit_"):
 			var db := _enemy_sound_db(e, Juice.ENEMY_HIT_SOUND_WINDOW)
@@ -509,6 +526,10 @@ func _play_sounds() -> void:
 			Sfx.play("shoot", -1.0, 1.25, -8.0)
 		elif e == "beacon":
 			Sfx.play("beacon", 0.0)
+	if res_gen > 0:
+		var db := _enemy_sound_db("res_bell", Juice.RES_BELL_WINDOW)
+		if db > -INF:
+			Sfx.play("res_bell", 0.0, PickupCombo.pitch_of(Juice.RES_BELL_SEMITONES * res_gen), db)
 	for a in sim.destroyed + sim.crashed:
 		var db := _break_sounds.next_db(sim.time) if a.kind == RunSim.ROCK else _enemy_sound_db(break_sound(a), Juice.ENEMY_DESTROY_SOUND_WINDOW)
 		if a.golden or (a.kind == RunSim.ROCK and a.type == 2):
