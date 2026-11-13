@@ -3,7 +3,7 @@ extends RefCounted
 ## 보조 무기 6종 (v0.8.0): 기본 무기와 따로 자동으로 동작한다. 레벨업 카드로 얻고 같은 카드로 1단계씩 오른다(1~5단계).
 ## 수치는 Balance.SUB_WEAPONS·SUB_*. 화면과 분리되어 있어 RunSim.update()만으로 테스트할 수 있다.
 ## 피해는 RunSim.sub_hit()으로 주고, 부서진 적은 RunSim이 기본 무기 탄과 같은 자리에서 처리한다(광물·경험치 그대로).
-## 그리기용 상태(missiles, holes, mines, waves, sweeps, zaps)는 SubWeaponFx가 읽기만 한다.
+## 그리기용 상태(missiles, holes, mines, waves, res_waves, zaps)는 SubWeaponFx가 읽기만 한다.
 
 ## 가진 보조 무기: id → 단계 (얻은 순서대로, 판 화면 칸 순서)
 var stages: Dictionary = {}
@@ -31,9 +31,9 @@ var shards: Array[Dictionary] = []
 ## 회전 충각: 퍼지기 시작한 뒤 지난 시간(-1이면 평소처럼 돌기만), 다음 퍼짐까지
 var throw_t := -1.0
 var _throw_timer := Balance.EVO_SAW_THROW_GAP
-## 공명 파쇄 스윕 {pos(우주선을 따라감), a0(시작 각), t, radius, damage, swept(스윕이 지나간 적), marks(공명 표시 [{e, gen}], 차례로 터짐),
-## last(마지막으로 터진 자리), n(터진 수), gap(다음 터짐까지), budget(표시를 옮길 수 있는 남은 횟수)}
-var sweeps: Array[Dictionary] = []
+## 공명 파쇄 파동 {pos, r, radius, damage, gen(0 = 큰 파동, 1~3 작은 파동), hits(큰 파동 하나에서 맞은 적 → true, 세대끼리 같은 사전),
+## left({"n": 남은 작은 파동 수}, 세대끼리 같은 사전)}
+var res_waves: Array[Dictionary] = []
 
 
 static func ids() -> PackedStringArray:
@@ -186,7 +186,7 @@ func update(sim: RunSim, delta: float) -> void:
 	_update_mine_links(sim, delta)
 	_update_pools(sim, delta)
 	_update_waves(sim, delta)
-	_update_sweeps(sim, delta)
+	_update_res(sim, delta)
 	_update_shards(sim, delta)
 
 
@@ -224,7 +224,7 @@ func _fire(sim: RunSim, id: String, s: int) -> bool:
 			return _zap(sim, s)
 		"wave":
 			if is_evolved("wave"):
-				sweeps.append(new_sweep(sim.player_pos, fposmod(sim.time * 1.7, TAU), stat(id, "radius", s) * Balance.EVO_SWEEP_REACH, stat(id, "damage", s)))
+				res_waves.append(new_res_wave(sim.player_pos, stat(id, "radius", s), stat(id, "damage", s)))
 			else:
 				waves.append({"pos": sim.player_pos, "r": 0.0, "radius": stat(id, "radius", s), "damage": stat(id, "damage", s), "hits": []})
 			sim.events.append("sub_wave")
@@ -488,10 +488,9 @@ func _update_waves(sim: RunSim, delta: float) -> void:
 	waves = kept
 
 
-## 공명 파쇄 스윕 하나 (a0 = 시작 각)
-static func new_sweep(pos: Vector2, a0: float, radius: float, damage: float) -> Dictionary:
-	return {"pos": pos, "a0": a0, "t": 0.0, "radius": radius, "damage": damage, "swept": [], "marks": [], "last": Vector2.ZERO, "n": 0,
-		"gap": Balance.EVO_RES_GAP, "budget": Balance.EVO_RES_BUDGET}
+## 공명 파쇄 큰 파동 하나
+static func new_res_wave(pos: Vector2, radius: float, damage: float) -> Dictionary:
+	return {"pos": pos, "r": 0.0, "radius": radius, "damage": damage, "gen": 0, "hits": {}, "left": {"n": Balance.EVO_RES_BUDGET}}
 
 
 ## 공명 파쇄로 한 번에 부서지는 운석: 작은·중간, 황금 아님
@@ -499,86 +498,42 @@ static func _shatters(e: RunSim.Enemy) -> bool:
 	return e.kind == RunSim.ROCK and not e.golden and e.type <= 1
 
 
-## 공명 파쇄: 스윕이 둘레를 한 바퀴 돌며 지나간 작은·중간 운석에 공명 표시, 큰 운석·다른 적은 바로 피해 ×EVO_WAVE_BIG_MULT.
-## 표시된 운석은 EVO_RES_GAP마다 하나씩(마지막으로 터진 자리에서 가장 가까운 것) 터지고, 둘레 EVO_RES_RADIUS에 표시를 옮긴다
-func _update_sweeps(sim: RunSim, delta: float) -> void:
+## 공명 파쇄: 파동이 EVO_RES_GROW초에 끝까지 퍼지며 처음 닿은 적에게 한 번씩 피해. 큰 파동은 작은·중간 운석을 한 번에 부수고(광물 +1),
+## 맞은 자리마다 반경 ×EVO_RES_SHRINK·피해 ×EVO_RES_DAMAGE 작은 파동이 새로 퍼진다 (EVO_RES_DEPTH세대, 큰 파동 하나에 EVO_RES_BUDGET개까지)
+func _update_res(sim: RunSim, delta: float) -> void:
 	var kept: Array[Dictionary] = []
-	for sw in sweeps:
-		var swept: Array = sw["swept"]
-		var marks: Array = sw["marks"]
-		if sw["t"] < Balance.EVO_SWEEP_TIME:
-			sw["t"] = minf(float(sw["t"]) + delta, Balance.EVO_SWEEP_TIME)
-			sw["pos"] = sim.player_pos
-			var reach := float(sw["t"]) / Balance.EVO_SWEEP_TIME * TAU
-			for e in sim.enemies:
-				var off: Vector2 = e.pos - sw["pos"]
-				if e.hp <= 0.0 or swept.has(e) or off.length() - e.radius > float(sw["radius"]) or fposmod(off.angle() - float(sw["a0"]), TAU) > reach:
-					continue
-				swept.append(e)
-				if _shatters(e):
-					_res_mark(sim, e, sw["pos"])
-					marks.append({"e": e, "gen": 0})
-				else:
-					_res_hurt(sim, e, float(sw["damage"]), sw["pos"])
-		marks = marks.filter(func(m: Dictionary) -> bool: return (m["e"] as RunSim.Enemy).hp > 0.0 and sim.enemies.has(m["e"]))
-		sw["marks"] = marks
-		if marks.is_empty():
-			sw["gap"] = Balance.EVO_RES_GAP  # 새로 표시된 운석은 한 박자 뒤에 터진다
-		else:
-			sw["gap"] -= delta
-			if sw["gap"] <= 0.0:
-				sw["gap"] += Balance.EVO_RES_GAP
-				_res_pop(sim, sw)
-		if sw["t"] < Balance.EVO_SWEEP_TIME or not (sw["marks"] as Array).is_empty():
-			kept.append(sw)
-	sweeps = kept
-
-
-## 공명 표시 운석 하나 터뜨리기: 마지막 자리에서 가장 가까운 것. 광물 +EVO_WAVE_DROP, 광물은 끌려옴. 둘레에 표시를 옮기고 큰 것은 피해
-func _res_pop(sim: RunSim, sw: Dictionary) -> void:
-	var marks: Array = sw["marks"]
-	var last: Vector2 = sim.player_pos if int(sw["n"]) == 0 else sw["last"]  # 첫 광맥 줄은 지금 우주선에서 뻗는다
-	var pick := 0
-	for i in marks.size():
-		if (marks[i]["e"] as RunSim.Enemy).pos.distance_to(last) < (marks[pick]["e"] as RunSim.Enemy).pos.distance_to(last):
-			pick = i
-	var m: Dictionary = marks.pop_at(pick)
-	var e: RunSim.Enemy = m["e"]
-	sw["n"] += 1
-	sw["last"] = e.pos
-	sim.sub_hit(e, float(sw["damage"]), e.pos)
-	e.hp = minf(e.hp, 0.0)
-	e.bonus_drop = Balance.EVO_WAVE_DROP
-	e.pull_drop = true
-	sim.fx.append({"type": "res_link", "from": last, "to": e.pos, "n": sw["n"]})
-	sim.fx.append({"type": "sub_hit", "kind": "shatter", "pos": e.pos, "target": e, "n": sw["n"]})
-	sim.events.append("sub_res_%d" % mini(int(sw["n"]), Balance.EVO_RES_DEPTH))
-	if int(sw["budget"]) <= 0:
-		return
-	sw["budget"] -= 1
-	var swept: Array = sw["swept"]
-	for o in sim.enemies:
-		if o == e or o.hp <= 0.0 or o.pos.distance_to(e.pos) - o.radius > Balance.EVO_RES_RADIUS:
-			continue
-		if not _shatters(o):
-			_res_hurt(sim, o, float(sw["damage"]) * Balance.EVO_RES_DAMAGE, e.pos)
-		elif not swept.has(o) and int(m["gen"]) < Balance.EVO_RES_DEPTH:
-			swept.append(o)
-			_res_mark(sim, o, e.pos)
-			marks.append({"e": o, "gen": int(m["gen"]) + 1})
-
-
-## 공명 표시 붙이기. 그리기용으로 표시를 옮겨 준 자리(우주선 또는 터진 운석)를 남긴다
-func _res_mark(sim: RunSim, e: RunSim.Enemy, from: Vector2) -> void:
-	e.res_mark = true
-	e.res_mark_at = sim.time
-	sim.fx.append({"type": "res_mark", "from": from, "target": e})
+	var born: Array[Dictionary] = []
+	for w in res_waves:
+		w["r"] = minf(float(w["r"]) + float(w["radius"]) / Balance.EVO_RES_GROW * delta, w["radius"])
+		var hits: Dictionary = w["hits"]
+		var gen := int(w["gen"])
+		for e in sim.enemies:
+			if e.hp <= 0.0 or hits.has(e) or e.pos.distance_to(w["pos"]) - e.radius > float(w["r"]):
+				continue
+			hits[e] = true
+			if gen == 0 and _shatters(e):
+				sim.sub_hit(e, float(w["damage"]), w["pos"])
+				e.hp = minf(e.hp, 0.0)
+				e.bonus_drop = Balance.EVO_WAVE_DROP
+				e.pull_drop = true
+				sim.fx.append({"type": "sub_hit", "kind": "shatter", "pos": e.pos, "target": e, "n": gen})
+			else:
+				_res_hurt(sim, e, float(w["damage"]), w["pos"])
+				sim.fx.append({"type": "sub_hit", "kind": "res", "pos": e.pos, "target": e, "n": gen})
+			var left: Dictionary = w["left"]
+			if gen < Balance.EVO_RES_DEPTH and int(left["n"]) > 0:
+				left["n"] -= 1
+				born.append({"pos": e.pos, "r": 0.0, "radius": float(w["radius"]) * Balance.EVO_RES_SHRINK, "damage": float(w["damage"]) * Balance.EVO_RES_DAMAGE,
+					"gen": gen + 1, "hits": hits, "left": left})
+				sim.events.append("sub_res_%d" % (gen + 1))
+		if w["r"] < w["radius"]:
+			kept.append(w)
+	res_waves = kept + born
 
 
 ## 공명 파쇄로 큰 운석·다른 적에게 주는 피해 (운석 아니면 약하게). 부서진 운석의 광물은 끌려온다
 func _res_hurt(sim: RunSim, e: RunSim.Enemy, damage: float, from: Vector2) -> void:
 	sim.sub_hit(e, damage * Balance.EVO_WAVE_BIG_MULT * (1.0 if e.kind == RunSim.ROCK else Balance.SUB_WAVE_CREATURE_MULT), from)
-	sim.fx.append({"type": "sub_hit", "kind": "wave", "pos": e.pos, "target": e})
 	if e.kind == RunSim.ROCK and e.hp <= 0.0:
 		e.pull_drop = true
 

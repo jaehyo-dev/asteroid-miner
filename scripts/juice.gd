@@ -120,12 +120,12 @@ const SUB_FX := {"burst_time": 0.3, "smoke_time": 0.55, "zap_time": [0.22, 0.24,
 const EVO_FX := {"link_time": 0.18, "ice_shards": 8, "freeze_time": 0.6, "freeze_shards": 14, "saw_teeth": 10,
 	"fire_embers": 3, "discharge_time": 0.45, "discharge_kinks": 4, "charge_sparks": 8, "shatter_bits": 10, "vein_time": 0.28, "trail_size": 2.0, "frost_dots": 3,
 	"frost_tail": 12, "pool_flames": 12, "fuse_after": 0.12, "saw_arc_time": 0.05, "saw_arc_max": 0.6, "saw_hot": 0.6}
-## 공명 파쇄 (2026-11-13 사용자 결정, 레이더 스윕 그림 없앰, 후보 1 균열 / 2 진동 / 3 결정화를 ?fxtest R로 고름):
-## 연쇄 줄(균열·음파 점선) 남는 시간·뻗는 시간, 연쇄 몇 번째에 가장 하얘지는지, 표시 뒤 균열·결정 가시가 다 자라는 시간,
-## 결정 조각이 옆 운석까지 날아가는 시간, 진동 최대 흔들림(픽셀)·달아오르는 시간, 결정 가시 수, 진동 점선 점 간격(픽셀)
-const RES_FX := {"vein_life": 0.4, "vein_grow": 0.06, "white_at": 8, "grow": 0.1, "fly": 0.1, "shake": 2.0, "heat": 0.4, "spikes": 7, "dot_gap": 5.0}
-## 공명 파쇄 종소리: 세대마다 올리는 반음 수, 몰림 창(초) (창 안에 Juice.BREAK_SOUND_MAX개까지, 갈수록 작게)
-const RES_BELL_SEMITONES := 2
+## 공명 파쇄 파동 (2026-11-13 사용자 결정, 5e단계). 세대(큰 파동, 작은 1·2·3세대)마다: 띠 두께(픽셀), 밝기, 흰빛으로 바뀐 정도.
+## fade = 끝까지 퍼졌을 때 줄어드는 밝기 몫(1이면 사라짐), flash = 맞은 대상 금빛 번쩍임 시간
+const RES_FX := {"band": [9, 6, 4, 3], "alpha": [1.0, 0.95, 0.85, 0.75], "white": [0.0, 0.35, 0.65, 0.9], "fade": 0.7, "flash": 0.14}
+## 공명 파쇄 "띵": 세대마다 올리는 반음 수·줄이는 dB, 몰림 창(초) (창 안에 Juice.BREAK_SOUND_MAX개까지, 갈수록 작게)
+const RES_BELL_SEMITONES := 4
+const RES_BELL_STEP_DB := -3.0
 const RES_BELL_WINDOW := 0.15
 ## 한꺼번에 그리는 보조 무기 폭발·번개·붕괴 수, 맞은 자리 표시(금·불꽃) 수 (폰 성능용, 넘으면 오래된 것부터 지움)
 const SUB_FX_MAX := 16

@@ -1,0 +1,4 @@
+{
+  "shots": {"res_1_big": 2, "res_2_gen1": 5, "res_3_gen23": 11},
+  "compare": {"wave_5": [30, 36], "coil_evo": [61, 50], "res": [5, 11]}
+}

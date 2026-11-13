@@ -439,38 +439,67 @@ func test_공명_파쇄는_작은_운석을_한_번에_부수고_광물을_더_�
 	assert_eq(base_drops, 0)
 
 
-func test_공명_파쇄는_스윕이_표시한_운석이_차례로_연쇄() -> void:
+func test_공명_파쇄는_맞은_곳마다_작아지는_파동이_3세대까지_번짐() -> void:
+	var sim := _sim()
+	sim.fx_evolve("wave")
+	sim.subs._timers["wave"] = 99.0
+	# 큰 운석(반경 20)을 한 줄로: 큰 파동(80) → A, A의 1세대(40) → B, B의 2세대(20) → C, C의 3세대(10) → D, D는 4세대가 없어 E는 안 맞음
+	var line: Array[RunSim.Enemy] = []
+	for x in [90.0, 145.0, 180.0, 205.0, 225.0]:
+		line.append(_rock(sim, Vector2(x, 0), 1.0e5, 2))
+	sim.subs.res_waves.append(SubWeapons.new_res_wave(sim.player_pos, 80.0, 1.0))
+	var seen: Array[Dictionary] = []
+	var top := 0
+	for i in 150:
+		sim.update(0.016, Vector2.ZERO)
+		for w in sim.subs.res_waves:
+			if not seen.has(w):
+				seen.append(w)
+		for e in sim.events:
+			if e.begins_with("sub_res_"):
+				top = maxi(top, int(e.substr(8)))
+	var bd := sim.bullet_damage
+	for g in 4:
+		assert_almost_eq(1.0e5 - line[g].hp, Balance.EVO_WAVE_BIG_MULT * pow(Balance.EVO_RES_DAMAGE, g) * bd, 0.01, "세대 %d 피해 ×0.6^%d" % [g, g])
+	assert_eq(line[4].hp, 1.0e5, "작은 파동은 3세대까지")
+	for w in seen:
+		var g := int(w["gen"])
+		assert_almost_eq(float(w["radius"]), 80.0 * pow(Balance.EVO_RES_SHRINK, g), 0.01, "반경 ×0.5^세대")
+	assert_eq(seen.size(), 4, "큰 파동 1 + 작은 파동 3 (3세대에 맞은 D는 더 안 퍼뜨림)")
+	assert_eq(top, Balance.EVO_RES_DEPTH, "띵 소리 사건은 3세대까지")
+	assert_true(sim.subs.res_waves.is_empty(), "다 퍼지면 사라짐")
+
+
+func test_공명_파쇄는_같은_대상을_한_번만_맞히고_작은_파동_수_상한() -> void:
 	var sim := _sim()
 	sim.fx_evolve("wave")
 	sim.subs._timers["wave"] = 99.0
 	var rocks: Array[RunSim.Enemy] = []
-	for i in 10:  # 스윕 끝 바로 안 하나에서 시작해 30 간격으로 늘어선 작은 운석
-		rocks.append(_rock(sim, Vector2(40 + i * 30, 0), 1.0e5, 0))
-	var big := _rock(sim, Vector2(-40, 0), 1.0e5, 2)  # 연쇄 자리에서 멀리 (공명 피해는 안 닿음)
-	sim.subs.sweeps.append(SubWeapons.new_sweep(sim.player_pos, 0.0, 45.0, 1.0))
-	sim.update(0.02, Vector2.ZERO)
-	assert_true(rocks[0].res_mark and rocks[0].hp > 0.0, "스윕이 지나가면 표시만 (바로 안 터짐)")
-	assert_false(rocks[1].res_mark, "스윕 밖은 표시 없음")
-	var popped: Array[float] = []
-	var order: Array[int] = []
-	var top := 0
-	for i in 180:
-		sim.update(0.02, Vector2.ZERO)
-		for e in sim.events:
-			if e.begins_with("sub_res_"):
-				top = maxi(top, int(e.substr(8)))
-		for k in rocks.size():
-			if not order.has(k) and not sim.enemies.has(rocks[k]):
-				order.append(k)
-				popped.append(sim.time)
-	assert_almost_eq(1.0e5 - big.hp, Balance.EVO_WAVE_BIG_MULT * sim.bullet_damage, 0.01, "큰 운석은 스윕에 바로 피해 ×2.7")
-	assert_eq(order, [0, 1, 2, 3, 4, 5, 6], "가까운 것부터 하나씩, 표시는 세대 6까지만 옮겨감")
-	for k in range(1, popped.size()):
-		assert_almost_eq(popped[k] - popped[k - 1], Balance.EVO_RES_GAP, 0.025, "0.1~0.15초 간격으로 차례로")
-	assert_eq(top, Balance.EVO_RES_DEPTH, "종소리는 6단계까지 오름")
-	for m in sim.minerals:
-		assert_true(m.attracted, "연쇄로 부서진 운석 광물은 끌려옴")
-	assert_true(sim.subs.sweeps.is_empty(), "연쇄가 끝나면 스윕도 사라짐")
+	for gx in range(-6, 7):  # 촘촘한 큰 운석밭 (서로 작은 파동이 겹쳐 닿는다)
+		for gy in range(-6, 7):
+			if gx != 0 or gy != 0:
+				rocks.append(_rock(sim, Vector2(gx * 26, gy * 26), 1.0e5, 2))
+	sim.subs.res_waves.append(SubWeapons.new_res_wave(sim.player_pos, 90.0, 1.0))
+	var hits := {}
+	var last := {}
+	for e in rocks:
+		last[e] = e.hp
+	var small := 0
+	var seen: Array[Dictionary] = []
+	for i in 200:
+		sim.update(0.016, Vector2.ZERO)
+		for w in sim.subs.res_waves:
+			if not seen.has(w):
+				seen.append(w)
+				small += 1 if int(w["gen"]) > 0 else 0
+		for e in rocks:
+			if e.hp < last[e]:
+				hits[e] = int(hits.get(e, 0)) + 1
+				last[e] = e.hp
+	assert_eq(small, Balance.EVO_RES_BUDGET, "작은 파동은 상한까지만")
+	assert_true(hits.size() > Balance.EVO_RES_BUDGET, "상한을 다 써도 남은 파동은 계속 맞힘")
+	for e in hits:
+		assert_eq(hits[e], 1, "큰 파동 하나에서 같은 대상은 한 번만")
 
 
 func test_정지장_블랙홀은_적이_많은_쪽으로_움직이고_얼음_조각이_튐() -> void:
@@ -526,43 +555,34 @@ func test_진화_화면_효과는_그려도_오류가_없고_상한을_지킴() 
 		canvas.queue_redraw()
 		await wait_frames(2)
 		canvas.queue_free()
-		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts, fx._fuses, fx._veins, fx._cracks, fx._flights]:
+		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts, fx._fuses]:
 			assert_true(list.size() <= Juice.SUB_FX_MAX, id + " 효과 상한")
 		sim.enemies.clear()
 
 
-func test_공명_파쇄_그림_후보_3개는_그려도_오류가_없고_상한을_지킴() -> void:
-	for style in [1, 2, 3]:
-		SubWeaponFx.res_style = style
-		var sim := _sim()
-		var fx := SubWeaponFx.new(sim)
-		sim.fx_evolve("wave")
-		for i in 40:  # 촘촘한 운석밭 (표시가 줄줄이 옮겨 붙게)
-			_rock(sim, Vector2.from_angle(i * 0.7) * (30.0 + i * 3.0), 1.0e5, 0)
-		var canvas := Node2D.new()
-		add_child(canvas)
-		var marked := 0
-		var seen := [0, 0, 0]  # 균열, 음파 점선, 날아가는 결정이 보인 프레임 수
-		for i in 150:
-			sim.update(0.016, Vector2.ZERO)
-			for f in sim.fx:
-				if f["type"] == "res_mark":
-					marked += 1
-					assert_true((f["target"] as RunSim.Enemy).res_mark, "표시 이벤트 = 표시 붙은 운석")
-			fx.step(0.016)
-			seen[0] += fx._cracks.size()
-			seen[1] += fx._veins.size()
-			seen[2] += fx._flights.size()
-		canvas.draw.connect(func() -> void:
-			fx.draw_under(canvas)
-			fx.draw_over(canvas))
-		canvas.queue_redraw()
-		await wait_frames(2)
-		canvas.queue_free()
-		assert_true(marked > 0, "표시가 붙음 %d" % style)
-		for k in 3:
-			assert_eq(seen[k] > 0, k + 1 == style, "후보 %d는 자기 연쇄 그림만 (%d번 그림)" % [style, k + 1])
-		for list in [fx._veins, fx._cracks, fx._flights]:
-			assert_true(list.size() <= Juice.SUB_FX_MAX, "효과 상한 %d" % style)
-		assert_true(fx._hits.size() <= Juice.SUB_HIT_MAX)
-	SubWeaponFx.res_style = 1
+func test_공명_파쇄_파동은_그려도_오류가_없고_상한을_지킴() -> void:
+	var sim := _sim()
+	var fx := SubWeaponFx.new(sim)
+	sim.fx_evolve("wave")
+	for i in 40:  # 촘촘한 운석밭 (작은 파동이 줄줄이 번지게)
+		_rock(sim, Vector2.from_angle(i * 0.7) * (30.0 + i * 3.0), 1.0e5, i % 3)
+	var canvas := Node2D.new()
+	add_child(canvas)
+	var flashes := 0
+	var most := 0
+	for i in 150:
+		sim.update(0.016, Vector2.ZERO)
+		for f in sim.fx:
+			if f["type"] == "sub_hit" and f["kind"] in ["res", "shatter"]:
+				flashes += 1
+		fx.step(0.016)
+		most = maxi(most, sim.subs.res_waves.size())
+	canvas.draw.connect(func() -> void:
+		fx.draw_under(canvas)
+		fx.draw_over(canvas))
+	canvas.queue_redraw()
+	await wait_frames(2)
+	canvas.queue_free()
+	assert_true(flashes > 0, "맞은 대상 번쩍임")
+	assert_true(most <= 2 * (Balance.EVO_RES_BUDGET + 1), "동시에 그리는 파동 수 상한 (%d)" % most)
+	assert_true(fx._hits.size() <= Juice.SUB_HIT_MAX)

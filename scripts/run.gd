@@ -127,9 +127,9 @@ func _update_fx_label() -> void:
 	var subs: PackedStringArray = []
 	for id: String in sim.subs.stages:
 		subs.append(Upgrades.display_name(SubWeapons.evo_of(id)["id"]) + " 진화" if sim.subs.is_evolved(id) else "%s %d" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)])
-	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]\n[Alt+Shift+1~6 바로 진화] [Shift+7 진화 카드]\n공명 파쇄 후보 %d [R]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음", SubWeaponFx.res_style]
+	fx_label.text = "%s   [1~5 무기]\n%s   [Shift+1~6 보조]\n[Backspace 보조 지우기] [Alt+1~6 하나만 1→3→5단계]\n[Alt+Shift+1~6 바로 진화] [Shift+7 진화 카드]" % [sim.weapon["name"], "  ".join(subs) if not subs.is_empty() else "보조 없음"]
 	if fx_stage:  # 촬영 모드는 화면을 덜 가리게 짧게: 가진 보조 무기 + FPS·효과 수
-		fx_label.text = "%s\nFPS %d  효과 %d\n공명 파쇄 후보 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count(), SubWeaponFx.res_style]
+		fx_label.text = "%s\nFPS %d  효과 %d" % ["  ".join(subs) if not subs.is_empty() else "보조 없음", Engine.get_frames_per_second(), world.fx_count()]
 	if sim.subs.stages.size() == 1:  # 하나만 볼 때(Alt+1~6)는 맨 위에 크게 "채굴 펄스 3단계"
 		var id: String = sim.subs.stages.keys()[0]
 		var head := Upgrades.display_name(SubWeapons.evo_of(id)["id"]) + " (진화)" if sim.subs.is_evolved(id) else "%s %d단계" % [SubWeapons.info(id)["name"], sim.subs.stage_of(id)]
@@ -370,12 +370,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_fx_evolution_card()
 			get_viewport().set_input_as_handled()
 			return
-		if event.physical_keycode == KEY_R and not event.shift_pressed:  # 공명 파쇄 그림 후보 1 → 2 → 3 (v0.8.0 배포 전에 지운다)
-			SubWeaponFx.res_style = SubWeaponFx.res_style % 3 + 1
-			world.clear_sub_fx()
-			_update_fx_label()
-			get_viewport().set_input_as_handled()
-			return
 		if (event.alt_pressed or event.ctrl_pressed or event.meta_pressed) and slot >= 0 and slot < SubWeapons.ids().size():
 			sim.only_sub(SubWeapons.ids()[slot])
 			world.clear_sub_fx()
@@ -502,8 +496,8 @@ func _discover() -> void:
 func _play_sounds() -> void:
 	var res_gen := 0
 	for e in sim.events:
-		if e.begins_with("sub_res_"):  # 공명 파쇄: 이번 프레임 가장 높은 세대 하나만 (폰에서 겹치지 않게)
-			res_gen = maxi(res_gen, int(e.substr(8)))
+		if e.begins_with("sub_res_"):  # 공명 파쇄 "띵": 이번 프레임 가장 큰(세대가 낮은) 파동 하나만 (폰에서 겹치지 않게)
+			res_gen = int(e.substr(8)) if res_gen == 0 else mini(res_gen, int(e.substr(8)))
 		elif e == "shoot" or e == "hit_rock":
 			Sfx.play(e)
 		elif e.begins_with("hit_"):
@@ -525,7 +519,7 @@ func _play_sounds() -> void:
 	if res_gen > 0:
 		var db := _enemy_sound_db("res_bell", Juice.RES_BELL_WINDOW)
 		if db > -INF:
-			Sfx.play("res_bell", 0.0, PickupCombo.pitch_of(Juice.RES_BELL_SEMITONES * res_gen), db)
+			Sfx.play("res_bell", 0.0, PickupCombo.pitch_of(Juice.RES_BELL_SEMITONES * res_gen), db + Juice.RES_BELL_STEP_DB * (res_gen - 1))
 	for a in sim.destroyed + sim.crashed:
 		var db := _break_sounds.next_db(sim.time) if a.kind == RunSim.ROCK else _enemy_sound_db(break_sound(a), Juice.ENEMY_DESTROY_SOUND_WINDOW)
 		if a.golden or (a.kind == RunSim.ROCK and a.type == 2):

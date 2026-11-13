@@ -449,7 +449,7 @@ const EVOLUTIONS := [
 	{"id": "evo_saw", "sub": "saw", "skill": "ram", "name": "회전 충각", "kind": "진화", "max": 1, "desc": "4초마다 톱날이 넓게 퍼지며 빨리 돌아 길의 적을 갈아냄", "short": "퍼지며 빨리 도는 톱날"},
 	{"id": "evo_mine", "sub": "mine", "skill": "trail", "name": "연소 기뢰선", "kind": "진화", "max": 1, "desc": "이어진 기뢰가 줄줄이 터지고 자리마다 불바다", "short": "기뢰 줄줄이 폭발, 불바다"},
 	{"id": "evo_coil", "sub": "coil", "skill": "charge", "name": "과충전 방전", "kind": "진화", "max": 1, "desc": "맞힐수록 전하가 쌓이다 화면 절반에 큰 방전", "short": "전하가 차면 큰 방전"},
-	{"id": "evo_wave", "sub": "wave", "skill": "vein", "name": "공명 파쇄", "kind": "진화", "max": 1, "desc": "금빛 스윕이 운석에 표시, 표시된 운석이 줄줄이 연쇄 폭발", "short": "스윕 표시, 줄줄이 연쇄"},
+	{"id": "evo_wave", "sub": "wave", "skill": "vein", "name": "공명 파쇄", "kind": "진화", "max": 1, "desc": "퍼지는 파동이 맞은 곳마다 작은 파동을 다시 퍼뜨림", "short": "맞은 곳마다 작은 파동"},
 ]
 ## 연쇄 폭격: 이어 터지는 횟수, 다음 대상을 찾는 거리, 터지는 사이 시간, 이어 터질 때마다 곱하는 피해
 const EVO_CHAIN_COUNT := 3
@@ -497,18 +497,14 @@ const EVO_COIL_DAMAGE := 6.0
 ## 공명 파쇄: 작은·중간 운석(황금 아님)은 파동에 닿으면 한 번에 부서지고 광물 +EVO_WAVE_DROP, 큰 운석·다른 적은 피해 ×EVO_WAVE_BIG_MULT
 const EVO_WAVE_DROP := 1
 const EVO_WAVE_BIG_MULT := 2.7
-## 공명 파쇄 (2026-11-13 사용자 결정): 고리 파동 대신 우주선 둘레를 EVO_SWEEP_TIME초에 한 바퀴 도는 탐지 스윕. 지나간 작은·중간 운석에 공명 표시가 붙고
-## EVO_RES_GAP초마다 하나씩 차례로 터진다(다음은 마지막으로 터진 자리에서 가장 가까운 표시 운석).
-## 터진 운석은 반경 EVO_RES_RADIUS 안 작은·중간 운석에 표시를 옮기고(세대 EVO_RES_DEPTH까지, 스윕 하나에 EVO_RES_BUDGET번까지),
-## 큰 운석·다른 적에게는 스윕 피해 × EVO_RES_DAMAGE (× EVO_WAVE_BIG_MULT)
-const EVO_SWEEP_TIME := 0.6
-## 스윕이 닿는 거리 = 5단계 파동 반경 × 이 값 (레이더처럼 더 멀리 훑어 운석밭 가장자리부터 연쇄가 시작된다)
-const EVO_SWEEP_REACH := 1.1
-const EVO_RES_GAP := 0.12
-const EVO_RES_RADIUS := 40.0
+## 공명 파쇄 (2026-11-13 사용자 결정, 5e단계): 우주선 둘레 큰 파동(5단계 주기·반경 R, 피해 D)에 맞은 적·운석마다 그 자리에서
+## 반경 ×EVO_RES_SHRINK, 피해 ×EVO_RES_DAMAGE 작은 파동이 퍼지고, 그 파동에 맞은 대상도 또 퍼뜨린다(작은 파동 EVO_RES_DEPTH세대까지).
+## 큰 파동 하나에서 같은 대상은 한 번만 맞고, 작은 파동은 EVO_RES_BUDGET개까지. 파동은 세대와 상관없이 EVO_RES_GROW초에 끝까지 퍼진다
+const EVO_RES_SHRINK := 0.5
 const EVO_RES_DAMAGE := 0.6
-const EVO_RES_DEPTH := 6
+const EVO_RES_DEPTH := 3
 const EVO_RES_BUDGET := 24
+const EVO_RES_GROW := 0.4
 ## 유도 미사일: 노리는 거리, 속도, 도는 힘(라디안/초), 날아가는 최대 시간, 맞는 반지름
 const SUB_MISSILE_RANGE := 220.0
 const SUB_MISSILE_SPEED := 150.0
