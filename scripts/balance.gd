@@ -446,10 +446,10 @@ const SUB_WEAPONS := [
 const EVOLUTIONS := [
 	{"id": "evo_missile", "sub": "missile", "skill": "explosive", "name": "연쇄 폭격", "kind": "진화", "max": 1, "desc": "미사일 폭발이 옆 적으로 3번 이어 터짐", "short": "폭발 3번 연쇄"},
 	{"id": "evo_blackhole", "sub": "blackhole", "skill": "chill", "name": "정지장 붕괴탄", "kind": "진화", "max": 1, "desc": "적이 많은 쪽으로 움직이며 얼리고, 깨질 때 얼음 조각이 튐", "short": "쫓아 얼림, 얼음 조각"},
-	{"id": "evo_saw", "sub": "saw", "skill": "ram", "name": "회전 충각", "kind": "진화", "max": 1, "desc": "4초마다 톱날이 멀리 날아갔다 돌아오고, 빠르면 앞쪽 충각", "short": "톱날 부메랑, 빠르면 충각"},
+	{"id": "evo_saw", "sub": "saw", "skill": "ram", "name": "회전 충각", "kind": "진화", "max": 1, "desc": "4초마다 톱날이 넓게 퍼지며 빨리 돌아 길의 적을 갈아냄", "short": "퍼지며 빨리 도는 톱날"},
 	{"id": "evo_mine", "sub": "mine", "skill": "trail", "name": "연소 기뢰선", "kind": "진화", "max": 1, "desc": "이어진 기뢰가 줄줄이 터지고 자리마다 불바다", "short": "기뢰 줄줄이 폭발, 불바다"},
 	{"id": "evo_coil", "sub": "coil", "skill": "charge", "name": "과충전 방전", "kind": "진화", "max": 1, "desc": "맞힐수록 전하가 쌓이다 화면 절반에 큰 방전", "short": "전하가 차면 큰 방전"},
-	{"id": "evo_wave", "sub": "wave", "skill": "vein", "name": "공명 파쇄", "kind": "진화", "max": 1, "desc": "부서진 운석이 파동을 다시 뿜어 운석밭을 연쇄로 부숨", "short": "운석 연쇄 파쇄"},
+	{"id": "evo_wave", "sub": "wave", "skill": "vein", "name": "공명 파쇄", "kind": "진화", "max": 1, "desc": "금빛 스윕이 운석에 표시, 표시된 운석이 줄줄이 연쇄 폭발", "short": "스윕 표시, 줄줄이 연쇄"},
 ]
 ## 연쇄 폭격: 이어 터지는 횟수, 다음 대상을 찾는 거리, 터지는 사이 시간, 이어 터질 때마다 곱하는 피해
 const EVO_CHAIN_COUNT := 3
@@ -473,19 +473,13 @@ const EVO_SHARD_MAX := 48
 ## 회전 충각: 톱날 반지름, 도는 반경 더하기
 const EVO_SAW_RADIUS := 8.0
 const EVO_SAW_ORBIT_ADD := 6.0
-## 부메랑: 간격(초), 날아갔다 오는 시간, 가장 멀리 갈 때 도는 반경 배율, 날아가는 동안 피해 배율
+## 퍼짐 (2026-11-13 사용자 결정: 앞쪽 충각은 빼고 퍼지며 빨리 도는 동작만): 간격(초), 퍼졌다 돌아오는 시간, 가장 넓을 때 도는 반경 배율,
+## 가장 넓을 때 도는 속도 배율, 퍼진 동안 피해 배율
 const EVO_SAW_THROW_GAP := 4.0
 const EVO_SAW_THROW_TIME := 1.3
 const EVO_SAW_THROW_REACH := 3.0
-const EVO_SAW_THROW_DAMAGE := 2.2
-## 충각 대형: 이동 속도가 RAM_SPEED_RATIO 이상이면 톱날이 앞쪽에 모인다. 모이는 빠르기(초당), 이웃 톱날 사이 각도(라디안), 맨 앞 톱날 거리, 양끝 톱날이 뒤로 물러나는 거리, 다른 적 피해 배율
-const EVO_RAM_FORM_SPEED := 6.0
-const EVO_RAM_SPREAD := 0.6
-## 충각 대형일 때 톱날 판정 반지름에 더하는 값 (쐐기 전체가 들이받는 판정, 앞쪽만 막는 대신 넓게)
-const EVO_RAM_REACH_ADD := 6.0
-const EVO_RAM_TIP := 24.0
-const EVO_RAM_ROW := 8.0
-const EVO_RAM_DAMAGE := 4.0
+const EVO_SAW_SPIN_MULT := 2.5
+const EVO_SAW_THROW_DAMAGE := 2.8
 ## 연소 기뢰선: 이웃 기뢰를 잇는 최대 거리(5단계 간격 0.8초 × 최고 속도 약 96~125픽셀보다 길게), 선에 닿은 적 초당 피해(탄 피해에 곱함), 선 굵기(판정 반지름)
 const EVO_MINE_LINK := 130.0
 const EVO_MINE_LINE_DPS := 2.5
@@ -503,7 +497,14 @@ const EVO_COIL_DAMAGE := 6.0
 ## 공명 파쇄: 작은·중간 운석(황금 아님)은 파동에 닿으면 한 번에 부서지고 광물 +EVO_WAVE_DROP, 큰 운석·다른 적은 피해 ×EVO_WAVE_BIG_MULT
 const EVO_WAVE_DROP := 1
 const EVO_WAVE_BIG_MULT := 2.7
-## 공명 파동: 파동으로 부서진 운석이 다시 뿜는 작은 파동의 반경, 피해 배율(큰 파동 피해에 곱함), 큰 파동 하나에서 이어지는 최대 횟수(세대), 큰 파동 하나가 만드는 공명 파동 수 상한(폰 성능)
+## 공명 파쇄 (2026-11-13 사용자 결정): 고리 파동 대신 우주선 둘레를 EVO_SWEEP_TIME초에 한 바퀴 도는 탐지 스윕. 지나간 작은·중간 운석에 공명 표시가 붙고
+## EVO_RES_GAP초마다 하나씩 차례로 터진다(다음은 마지막으로 터진 자리에서 가장 가까운 표시 운석).
+## 터진 운석은 반경 EVO_RES_RADIUS 안 작은·중간 운석에 표시를 옮기고(세대 EVO_RES_DEPTH까지, 스윕 하나에 EVO_RES_BUDGET번까지),
+## 큰 운석·다른 적에게는 스윕 피해 × EVO_RES_DAMAGE (× EVO_WAVE_BIG_MULT)
+const EVO_SWEEP_TIME := 0.6
+## 스윕이 닿는 거리 = 5단계 파동 반경 × 이 값 (레이더처럼 더 멀리 훑어 운석밭 가장자리부터 연쇄가 시작된다)
+const EVO_SWEEP_REACH := 1.1
+const EVO_RES_GAP := 0.12
 const EVO_RES_RADIUS := 40.0
 const EVO_RES_DAMAGE := 0.6
 const EVO_RES_DEPTH := 6

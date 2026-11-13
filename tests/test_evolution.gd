@@ -317,45 +317,41 @@ func test_정지장_붕괴탄은_얼렸다가_끝날_때_한꺼번에_피해() -
 	assert_true(a.hp < 1000.0 - Balance.EVO_COLLAPSE_DAMAGE * sim.bullet_damage * 0.99, "붕괴 피해")
 
 
-func test_회전_충각_부메랑은_4초마다_멀리_날아갔다_돌아옴() -> void:
+func test_회전_충각은_4초마다_넓게_퍼지며_빨리_돌고_돌아옴() -> void:
 	var sim := _sim()
 	sim.fx_evolve("saw")
 	assert_eq(sim.subs.saw_radius(), Balance.EVO_SAW_RADIUS, "톱날이 커짐")
 	var orbit := SubWeapons.stat("saw", "orbit", 5) + Balance.EVO_SAW_ORBIT_ADD
 	var far := 0.0
-	var thrown: Array[float] = []
+	var fastest := 0.0
+	var spread: Array[float] = []
 	for i in roundi((Balance.EVO_SAW_THROW_GAP * 2 + Balance.EVO_SAW_THROW_TIME + 0.2) / 0.02):
 		sim.update(0.02, Vector2.ZERO)
 		if sim.events.has("sub_saw_throw"):
-			thrown.append(sim.time)
+			spread.append(sim.time)
 		far = maxf(far, sim.subs.saw_points(sim.player_pos)[0].distance_to(sim.player_pos))
-	assert_eq(thrown.size(), 2)
-	assert_almost_eq(thrown[0], Balance.EVO_SAW_THROW_GAP, 0.05, "4초에 던짐")
-	assert_almost_eq(thrown[1] - thrown[0], Balance.EVO_SAW_THROW_GAP, 0.05, "다음도 4초 간격 (날아가는 동안에도 셈)")
+		fastest = maxf(fastest, sim.subs.saw_spin())
+	assert_eq(spread.size(), 2)
+	assert_almost_eq(spread[0], Balance.EVO_SAW_THROW_GAP, 0.05, "4초에 퍼짐")
+	assert_almost_eq(spread[1] - spread[0], Balance.EVO_SAW_THROW_GAP, 0.05, "다음도 4초 간격 (퍼진 동안에도 셈)")
 	assert_almost_eq(far, orbit * Balance.EVO_SAW_THROW_REACH, 1.0, "도는 반경의 약 3배까지")
+	assert_almost_eq(fastest, Balance.SUB_SAW_SPIN * Balance.EVO_SAW_SPIN_MULT, 0.05, "가장 넓을 때 가장 빠름")
 	assert_eq(sim.subs.throw_t, -1.0, "돌아옴")
 	assert_almost_eq(sim.subs.saw_points(sim.player_pos)[0].distance_to(sim.player_pos), orbit, 0.01, "원래 반경")
+	assert_eq(sim.subs.saw_spin(), Balance.SUB_SAW_SPIN, "원래 속도")
 
 
-func test_회전_충각은_빠르면_앞쪽에_모여_작은_운석을_한_번에_부숨() -> void:
+func test_회전_충각은_빨리_움직여도_앞쪽에_모이지_않음() -> void:
 	var sim := _sim()
 	sim.fx_evolve("saw")
 	for i in 30:
 		sim.update(0.02, Vector2.RIGHT)
-	assert_almost_eq(sim.subs.ram_k, 1.0, 0.001, "충각 대형")
-	for p in sim.subs.saw_points(sim.player_pos):
-		assert_true((p - sim.player_pos).x > 0.0, "톱날이 모두 앞쪽")
-	var tip := sim.subs.saw_points(sim.player_pos)[1]
-	var small := _rock(sim, tip, 1.0e5, 1)
-	var gold := _rock(sim, tip + Vector2(0, 1), 1.0e5, 1)
-	gold.golden = true
+	var points := sim.subs.saw_points(sim.player_pos)
+	var behind := points.filter(func(p: Vector2) -> bool: return (p - sim.player_pos).x < 0.0)
+	assert_true(behind.size() >= 1, "톱날이 둘레에 고르게 (뒤쪽에도)")
+	var small := _rock(sim, points[0], 1.0e5, 1)
 	sim.subs._update_saw(sim, 0.0, 5)
-	assert_eq(small.hp, 0.0, "중간 운석 한 번에")
-	assert_almost_eq(1.0e5 - gold.hp, SubWeapons.stat("saw", "damage", 5) * Balance.EVO_RAM_DAMAGE * sim.bullet_damage, 0.01, "다른 적은 큰 피해")
-	# 멈추면 다시 둘레를 돈다
-	for i in 30:
-		sim.update(0.02, Vector2.ZERO)
-	assert_almost_eq(sim.subs.ram_k, 0.0, 0.001)
+	assert_almost_eq(1.0e5 - small.hp, SubWeapons.stat("saw", "damage", 5) * sim.bullet_damage, 0.01, "중간 운석도 보통 톱날 피해 (충각 없음)")
 
 
 func test_연소_기뢰선은_이어진_기뢰가_줄줄이_터지고_불바다를_남김() -> void:
@@ -443,25 +439,38 @@ func test_공명_파쇄는_작은_운석을_한_번에_부수고_광물을_더_�
 	assert_eq(base_drops, 0)
 
 
-func test_공명_파쇄는_부서진_운석이_파동을_다시_뿜어_연쇄() -> void:
+func test_공명_파쇄는_스윕이_표시한_운석이_차례로_연쇄() -> void:
 	var sim := _sim()
 	sim.fx_evolve("wave")
 	sim.subs._timers["wave"] = 99.0
 	var rocks: Array[RunSim.Enemy] = []
-	for i in 10:  # 큰 파동 끝 바로 밖에서 시작해 30 간격으로 늘어선 작은 운석
-		rocks.append(_rock(sim, Vector2(80 + i * 30, 0), 1.0e5, 0))
-	sim.subs.waves.append({"pos": Vector2(80, 0), "r": 0.0, "radius": 10.0, "damage": 1.0, "hits": [], "gen": 0, "budget": {"left": Balance.EVO_RES_BUDGET}})
-	var gens := 0
-	for i in 120:
+	for i in 10:  # 스윕 끝 바로 안 하나에서 시작해 30 간격으로 늘어선 작은 운석
+		rocks.append(_rock(sim, Vector2(40 + i * 30, 0), 1.0e5, 0))
+	var big := _rock(sim, Vector2(-40, 0), 1.0e5, 2)  # 연쇄 자리에서 멀리 (공명 피해는 안 닿음)
+	sim.subs.sweeps.append(SubWeapons.new_sweep(sim.player_pos, 0.0, 45.0, 1.0))
+	sim.update(0.02, Vector2.ZERO)
+	assert_true(rocks[0].res_mark and rocks[0].hp > 0.0, "스윕이 지나가면 표시만 (바로 안 터짐)")
+	assert_false(rocks[1].res_mark, "스윕 밖은 표시 없음")
+	var popped: Array[float] = []
+	var order: Array[int] = []
+	var top := 0
+	for i in 180:
 		sim.update(0.02, Vector2.ZERO)
 		for e in sim.events:
 			if e.begins_with("sub_res_"):
-				gens = maxi(gens, int(e.substr(8)))
-	var broken := rocks.filter(func(r: RunSim.Enemy) -> bool: return not sim.enemies.has(r)).size()
-	assert_eq(gens, Balance.EVO_RES_DEPTH, "연쇄는 최대 6번")
-	assert_eq(broken, Balance.EVO_RES_DEPTH + 1, "큰 파동 1 + 공명 6번만큼 부서짐")
+				top = maxi(top, int(e.substr(8)))
+		for k in rocks.size():
+			if not order.has(k) and not sim.enemies.has(rocks[k]):
+				order.append(k)
+				popped.append(sim.time)
+	assert_almost_eq(1.0e5 - big.hp, Balance.EVO_WAVE_BIG_MULT * sim.bullet_damage, 0.01, "큰 운석은 스윕에 바로 피해 ×2.7")
+	assert_eq(order, [0, 1, 2, 3, 4, 5, 6], "가까운 것부터 하나씩, 표시는 세대 6까지만 옮겨감")
+	for k in range(1, popped.size()):
+		assert_almost_eq(popped[k] - popped[k - 1], Balance.EVO_RES_GAP, 0.025, "0.1~0.15초 간격으로 차례로")
+	assert_eq(top, Balance.EVO_RES_DEPTH, "종소리는 6단계까지 오름")
 	for m in sim.minerals:
-		assert_true(m.attracted, "공명으로 부서진 운석 광물은 끌려옴")
+		assert_true(m.attracted, "연쇄로 부서진 운석 광물은 끌려옴")
+	assert_true(sim.subs.sweeps.is_empty(), "연쇄가 끝나면 스윕도 사라짐")
 
 
 func test_정지장_블랙홀은_적이_많은_쪽으로_움직이고_얼음_조각이_튐() -> void:
@@ -517,6 +526,6 @@ func test_진화_화면_효과는_그려도_오류가_없고_상한을_지킴() 
 		canvas.queue_redraw()
 		await wait_frames(2)
 		canvas.queue_free()
-		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts, fx._fuses, fx._ripples]:
+		for list in [fx._links, fx._freezes, fx._discharges, fx._shocks, fx._bursts, fx._fuses, fx._veins]:
 			assert_true(list.size() <= Juice.SUB_FX_MAX, id + " 효과 상한")
 		sim.enemies.clear()

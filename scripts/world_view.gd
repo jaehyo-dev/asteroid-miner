@@ -534,7 +534,14 @@ func _draw_orb(s: RunSim.Shot) -> void:
 
 ## 운석: 8방향 그림으로 천천히 돌고, 맞으면 튕기고(흰 번쩍임은 _draw_flash), 체력이 줄면 금 간 프레임으로 바뀐다.
 func _draw_rock(a: RunSim.Enemy) -> void:
-	RunSprites.draw(self, RunSprites.rock(a.type, a.golden), crack_level(a.hp, a.max_hp), rock_dir(a), (a.pos + knock_offset(a)).round())
+	RunSprites.draw(self, RunSprites.rock(a.type, a.golden), crack_level(a.hp, a.max_hp), rock_dir(a), (a.pos + knock_offset(a) + res_shake(a)).round())
+
+
+## 공명 파쇄 표시가 붙은 운석은 곧 터질 듯 떤다 (정수 픽셀만큼)
+static func res_shake(a: RunSim.Enemy) -> Vector2:
+	if not a.res_mark:
+		return Vector2.ZERO
+	return Vector2(sin(a.age * 70.0), cos(a.age * 53.0)).round() * Juice.RES_SHAKE
 
 
 static func rock_dir(a: RunSim.Enemy) -> int:

@@ -115,10 +115,15 @@ const SUB_FX := {"burst_time": 0.3, "smoke_time": 0.55, "zap_time": [0.22, 0.24,
 	"minor_bright": 0.15}
 ## 진화·짝 스킬 그리기 (v0.8.0 5단계): 연쇄 불줄기 시간, 정지장 얼음 조각 수·붕괴 시간·튀는 조각 수, 회전 충각 톱니 수·속도에 따른 잔상 배율,
 ## 불타는 선 깜빡이는 불티 수(선마다), 방전 시간·번개 꺾임 수·충전 불꽃 최대 수, 파쇄 조각 수, 공명 충격파 시간, 궤적 불꽃 크기, 냉각 서리 점 수
-## 5b단계: 톱날 잔상 프레임 수(부메랑 중 / 평소), 블랙홀 서리 꼬리 점 수, 불바다 불꽃 기둥 수, 도미노 불길이 닿은 뒤 남는 시간, 공명 파동 잔광 시간
+## 5b단계: 블랙홀 서리 꼬리 점 수, 불바다 불꽃 기둥 수, 도미노 불길이 닿은 뒤 남는 시간
+## 5c단계 회전 충각: 잔상 호 길이(초: 지금 도는 속도 × 이 시간만큼 뒤까지), 잔상 호 최대 각(라디안, 톱날 4개여도 원으로 이어지지 않게), 날 끝이 하얘지기 시작하는 퍼짐 정도
 const EVO_FX := {"link_time": 0.18, "ice_shards": 8, "freeze_time": 0.6, "freeze_shards": 14, "saw_teeth": 10,
 	"fire_embers": 3, "discharge_time": 0.45, "discharge_kinks": 4, "charge_sparks": 8, "shatter_bits": 10, "vein_time": 0.28, "trail_size": 2.0, "frost_dots": 3,
-	"saw_hist": 7, "saw_hist_idle": 4, "frost_tail": 12, "pool_flames": 12, "fuse_after": 0.12, "ripple_after": 0.15}
+	"frost_tail": 12, "pool_flames": 12, "fuse_after": 0.12, "saw_arc_time": 0.05, "saw_arc_max": 0.6, "saw_hot": 0.6}
+## 공명 파쇄 (2026-11-13 사용자 결정): 표시된 운석 떨림(픽셀), 스윕 빛줄기 뒤로 남는 부채꼴 각(라디안)·빛줄기 수, 광맥 줄 남는 시간·뻗는 시간,
+## 연쇄 몇 번째에 결정 조각이 가장 하얘지는지
+const RES_SHAKE := 1.0
+const RES_FX := {"fan": 1.0, "rays": 12, "vein_life": 0.4, "vein_grow": 0.06, "white_at": 8}
 ## 공명 파쇄 종소리: 세대마다 올리는 반음 수, 몰림 창(초) (창 안에 Juice.BREAK_SOUND_MAX개까지, 갈수록 작게)
 const RES_BELL_SEMITONES := 2
 const RES_BELL_WINDOW := 0.15
