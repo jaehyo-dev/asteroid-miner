@@ -59,6 +59,7 @@ godot --headless --path . --export-release "Web" "$PWD/build/web/index.html"
 - 게임에 넣는 그림은 모두 `tools/pixelate.py`로 정리한다 (`assets/raw/` → `assets/sprites/`): 마젠타(#FF00FF) 배경 빼기(깔끔하지 않으면 `--rembg`, rembg는 `~/.local/venvs/rembg`의 isnet-general-use), 디더링 없이 색 줄이기, nearest로 픽셀 격자 맞추기, 투명도 0/255.
 - 한 화면 안에서는 정수 배율 하나로만 그리고(기지 화면은 그림 3배), 코드로 그리는 도형과 글자(Galmuri11 12px의 같은 배수, 기지 화면 36px)도 같은 격자에 맞춘다.
 - 콘셉트 그림과 완성 화면 캡처를 나란히 붙인 비교 이미지를 만들어 직접 보고, 차이가 큰 부분을 고친 뒤 보고한다.
+- 소리·음악을 코드로 만드는 도구(tools/make_sfx.py, make_music.py): 이미 만든 것은 유지, 새 소리·음악은 먼저 찾는다.
 - codex나 /ponytail-review를 쓸 수 없는 환경이면 건너뛰고 보고에 적는다.
 
 ## 구조
