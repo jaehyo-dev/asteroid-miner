@@ -498,6 +498,8 @@ func _play_sounds() -> void:
 	for e in sim.events:
 		if e.begins_with("sub_res_"):  # 공명 파쇄 "띵": 이번 프레임 가장 큰(세대가 낮은) 파동 하나만 (폰에서 겹치지 않게)
 			res_gen = int(e.substr(8)) if res_gen == 0 else mini(res_gen, int(e.substr(8)))
+		elif e == "res_shake":
+			alert.kick(Juice.RES_SHAKE_TIME, Juice.RES_SHAKE)
 		elif e == "shoot" or e == "hit_rock":
 			Sfx.play(e)
 		elif e.begins_with("hit_"):

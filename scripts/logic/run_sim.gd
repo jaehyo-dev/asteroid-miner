@@ -24,6 +24,7 @@ class Enemy:
 	var kind := ROCK  ## 종류: ROCK(운석), GUARD(고대 경비선) 또는 Balance.CREATURES의 키 ("jelly", "bug")
 	var age := 0.0  ## 나온 뒤 지난 시간
 	var flash := 0.0  ## 탄에 맞은 직후 번쩍이는 남은 시간 (그리기용)
+	var glow := 0.0  ## 공명 파쇄에 맞아 금빛으로 달아오른 남은 시간 (그리기용, 흰 번쩍임 대신)
 	var hit_dir := Vector2.ZERO  ## 마지막으로 맞은 탄이 날아온 방향 (맞으면 그쪽으로 튕기는 모션)
 	var hit_time := 0.0  ## 튕김 모션 남은 시간 (그리기용)
 	var last_bullet_damage := 0.0  ## 마지막으로 맞힌 탄의 피해 (고폭 탄두 폭발 계산용, 치명타 제외)
@@ -607,6 +608,7 @@ func _move_enemies(delta: float) -> void:
 		a.chill = maxf(a.chill - delta, 0.0)
 		a.pos += a.vel * delta * (1.0 - slow)
 		a.flash = maxf(a.flash - delta, 0.0)
+		a.glow = maxf(a.glow - delta, 0.0)
 		a.hit_time = maxf(a.hit_time - delta, 0.0)
 		var keep_limit := limit
 		if a.golden:
@@ -1061,7 +1063,7 @@ func _vein_shock(at: Vector2) -> void:
 	for e in enemies:
 		if e.hp > 0.0 and e.pos.distance_to(at) < Balance.VEIN_RADIUS + e.radius:
 			e.hp -= vein_damage * bullet_damage
-			e.flash = Juice.ENEMY_FLASH_TIME
+			e.glow = Juice.RES_GLOW_TIME  # 광맥 충격파도 공명 파쇄처럼 흰 실루엣 대신 금빛 달아오름
 			if e.hp <= 0.0:
 				e.no_echo = true
 

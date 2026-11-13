@@ -470,6 +470,33 @@ func test_공명_파쇄는_맞은_곳마다_작아지는_파동이_3세대까지
 	assert_true(sim.subs.res_waves.is_empty(), "다 퍼지면 사라짐")
 
 
+func test_공명_파쇄는_흰_번쩍임_대신_금빛_달아오름이고_3세대면_한_번_흔들림() -> void:
+	var sim := _sim()
+	sim.fx_evolve("wave")
+	sim.subs._timers["wave"] = 99.0
+	var line: Array[RunSim.Enemy] = []
+	for x in [90.0, 145.0, 180.0, 205.0, 160.0, 100.0]:  # 앞 4개는 3세대까지 이어지는 줄, 나머지는 같은 큰 파동의 다른 갈래
+		line.append(_rock(sim, Vector2(x, 0.0 if line.size() < 4 else 30.0), 1.0e5, 2))
+	sim.subs.res_waves.append(SubWeapons.new_res_wave(sim.player_pos, 80.0, 1.0))
+	var shakes := 0
+	var gens := {}
+	var glowed := false
+	for i in 150:
+		sim.update(0.016, Vector2.ZERO)
+		shakes += sim.events.count("res_shake")
+		for f in sim.fx:
+			if f["type"] == "res_wave":
+				gens[int(f["gen"])] = true
+			if f["type"] == "sub_hit" and f["kind"] == "res":
+				var e: RunSim.Enemy = f["target"]
+				assert_eq(e.flash, 0.0, "공명 파쇄는 흰 실루엣을 쓰지 않음")
+				assert_almost_eq(e.glow, Juice.RES_GLOW_TIME, 0.001, "금빛 달아오름")
+				glowed = true
+	assert_true(glowed)
+	assert_eq(gens.keys().size(), Balance.EVO_RES_DEPTH, "작은 파동 1~3세대마다 그리기 알림")
+	assert_eq(shakes, 1, "3세대까지 이어지면 큰 파동 하나에 흔들림 한 번")
+
+
 func test_공명_파쇄는_같은_대상을_한_번만_맞히고_작은_파동_수_상한() -> void:
 	var sim := _sim()
 	sim.fx_evolve("wave")

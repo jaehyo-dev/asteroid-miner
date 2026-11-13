@@ -120,9 +120,15 @@ const SUB_FX := {"burst_time": 0.3, "smoke_time": 0.55, "zap_time": [0.22, 0.24,
 const EVO_FX := {"link_time": 0.18, "ice_shards": 8, "freeze_time": 0.6, "freeze_shards": 14, "saw_teeth": 10,
 	"fire_embers": 3, "discharge_time": 0.45, "discharge_kinks": 4, "charge_sparks": 8, "shatter_bits": 10, "vein_time": 0.28, "trail_size": 2.0, "frost_dots": 3,
 	"frost_tail": 12, "pool_flames": 12, "fuse_after": 0.12, "saw_arc_time": 0.05, "saw_arc_max": 0.6, "saw_hot": 0.6}
-## 공명 파쇄 파동 (2026-11-13 사용자 결정, 5e단계). 세대(큰 파동, 작은 1·2·3세대)마다: 띠 두께(픽셀), 밝기, 흰빛으로 바뀐 정도.
-## fade = 끝까지 퍼졌을 때 줄어드는 밝기 몫(1이면 사라짐), flash = 맞은 대상 금빛 번쩍임 시간
-const RES_FX := {"band": [9, 6, 4, 3], "alpha": [1.0, 0.95, 0.85, 0.75], "white": [0.0, 0.35, 0.65, 0.9], "fade": 0.7, "flash": 0.14}
+## 공명 파쇄 그림 (2026-11-13 사용자 결정, 5f단계) (세대 0 큰 파동, 1~3 작은 파동). band: 띠 굵기, sparks: 띠 위 반짝이 수, after·after_dust: 큰 파동 띠 뒤에 남는 금가루 잔광 시간·점 수,
+## end_fade: 다 퍼진 뒤 띠가 사라지는 시간, hit_life: 맞은 자리 표시(결정 조각·금) 시간, star: 맞은 자리 별 번쩍임 시간,
+## launch: 큰 파동이 나갈 때 우주선 둘레 섬광 시간·빛줄기 수, shards·dust: 부서질 때 결정 조각·금가루 수, glow_mix: 금빛 달아오름 진하기
+const RES_FX := {"band": [7, 4, 3, 2], "sparks": [14, 6, 4, 3], "after": 0.3, "after_dust": 64, "end_fade": 0.12,
+	"hit_life": 0.45, "star": 0.12, "launch": 0.1, "launch_rays": 7, "shards": 8, "dust": 10, "glow_mix": 0.5}
+## 공명 파쇄 금빛 달아오름 시간(로직이 대상에 넣음), 3세대까지 이어지면 화면 흔들림 시간·세기(픽셀)
+const RES_GLOW_TIME := 0.1
+const RES_SHAKE_TIME := 0.1
+const RES_SHAKE := 1.0
 ## 공명 파쇄 "띵": 세대마다 올리는 반음 수·줄이는 dB, 몰림 창(초) (창 안에 Juice.BREAK_SOUND_MAX개까지, 갈수록 작게)
 const RES_BELL_SEMITONES := 4
 const RES_BELL_STEP_DB := -3.0

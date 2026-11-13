@@ -25,6 +25,14 @@ const METAL_LIGHT := Color("#a5b29d")
 const SMOKE := Color("#3c3544")
 const CHIP := Color("#917487")
 const CHIP_DARK := Color("#70525e")
+## 공명 파쇄: 앞 가장자리 흰빛 금, 2세대 연한 금
+const PALE_GOLD := Color("#fff4b8")
+const LIGHT_GOLD := Color("#fbe48a")
+## 공명 파쇄 세대별 (0 큰 파동, 1~3 작은 파동) 띠 앞·몸·뒤 색, 반짝이 색 두 가지. 회색이 섞이지 않게 모두 금·흰·청록
+const RES_FRONT: Array[Color] = [PALE_GOLD, PALE_GOLD, WHITE, WHITE]
+const RES_BODY: Array[Color] = [GOLD, GOLD, LIGHT_GOLD, WHITE]
+const RES_BACK: Array[Color] = [ORANGE, ORANGE, GOLD, TEAL]
+const RES_SPARK: Array[Color] = [PALE_GOLD, PALE_GOLD, LIGHT_GOLD, TEAL]
 
 var sim: RunSim
 ## 폭발 {pos, radius, t, life, kind, tier, sd} / 번개 {raw(대상 점), path(꺾은선), branches, t, life, tier, crackle}
@@ -48,6 +56,9 @@ var _discharges: Array[Dictionary] = []
 var _shocks: Array[Dictionary] = []
 ## 5b단계 진화: 기뢰 도미노 불길 {from, to, t, life}
 var _fuses: Array[Dictionary] = []
+## 5f단계 공명 파쇄 파동 그림 {pos, radius, gen, t, seed} (판정 파동이 끝나도 띠가 사라지고 잔광이 남게 따로 둔다), 큰 파동 섬광 시간 (음수면 없음)
+var _res: Array[Dictionary] = []
+var _launch_t := -1.0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 ## 채굴 펄스 육각 격자 꼭짓점 (가운데 기준, 한 번만 만든다)
@@ -101,7 +112,12 @@ func step(delta: float) -> void:
 				if f["kind"] == "saw" and tier == 0:
 					continue  # 1단계 톱날은 맞을 때 불꽃 없음
 				_hits.append({"kind": f["kind"], "pos": f["pos"], "target": f["target"], "tier": tier, "t": 0.0, "seed": _rng.randi() % 997,
-					"life": float(Juice.RES_FX["flash"]) if f["kind"] == "res" else float(p["crack_time"]) if f["kind"] in ["wave", "shatter"] else 0.3, "n": f.get("n", 0)})
+					"life": float(Juice.RES_FX["hit_life"]) if f["kind"] in ["res", "shatter"] else float(p["crack_time"]) if f["kind"] == "wave" else 0.3,
+					"n": f.get("n", 0), "dead": f["kind"] in ["res", "shatter"] and (f["target"] as RunSim.Enemy).hp <= 0.0})
+			"res_wave":
+				_res.append({"pos": f["pos"], "radius": f["radius"], "gen": f["gen"], "t": 0.0, "seed": _rng.randi() % 997})
+				if f["gen"] == 0:
+					_launch_t = 0.0
 			"chain_link":
 				_links.append({"from": f["from"], "to": f["to"], "t": 0.0, "life": float(Juice.EVO_FX["link_time"]), "seed": _rng.randi() % 997})
 			"sub_collapse":
@@ -117,7 +133,7 @@ func step(delta: float) -> void:
 				_hits.append({"kind": "ram", "pos": f["pos"], "target": null, "tier": 2, "t": 0.0, "seed": _rng.randi() % 997, "life": 0.3})
 			"mine_fuse":
 				_fuses.append({"from": f["from"], "to": f["to"], "t": 0.0, "life": Balance.EVO_MINE_DOMINO + float(Juice.EVO_FX["fuse_after"])})
-	if sim.events.has("sub_wave") and not sim.subs.waves.is_empty():  # 방금 쏜 파동 (공명 파쇄 파동은 sim.subs.res_waves를 바로 그림)
+	if sim.events.has("sub_wave") and not sim.subs.waves.is_empty():  # 방금 쏜 파동 (공명 파쇄 파동은 "res_wave" fx로 따로 받음)
 		var w: Dictionary = sim.subs.waves.back()
 		_waves.append({"pos": w["pos"], "radius": w["radius"], "t": 0.0, "tier": _tier("wave"), "seed": _rng.randi() % 997})
 	if sim.events.has("sub_missile") and _tier("missile") == 2:
@@ -131,6 +147,14 @@ func step(delta: float) -> void:
 		_hatch_t += delta
 	if _ring_t >= 0.0:
 		_ring_t += delta
+	if _launch_t >= 0.0:
+		_launch_t += delta
+	var fx := Juice.RES_FX
+	_res = _res.filter(func(w: Dictionary) -> bool:
+		w["t"] += delta
+		return w["t"] < Balance.EVO_RES_GROW + float(fx["after"] if w["gen"] == 0 else fx["end_fade"]))
+	while _res.size() > 2 * (Balance.EVO_RES_BUDGET + 1):
+		_res.pop_front()
 	var crackle := float(p["zap_crackle"])
 	for z in _zaps:
 		if z["tier"] == 2:  # 5단계 번개는 남아 있는 동안 다시 꺾여 지직거린다
@@ -589,8 +613,10 @@ func draw_over(ci: CanvasItem) -> void:
 		_draw_discharge(ci, d)
 	for sh in sim.subs.shards:
 		_draw_shard(ci, sh)
-	for w in sim.subs.res_waves:
+	for w in _res:
 		_draw_res_wave(ci, w)
+	if _launch_t >= 0.0 and _launch_t < float(Juice.RES_FX["launch"]) and sim.alive:
+		_draw_res_launch(ci)
 	for z in _zaps:  # 번개는 가까운 대상과 짧게 이어져 적 아래면 가려진다 → 내 탄 층 (적 탄보다는 아래)
 		_draw_zap(ci, z)
 	for h in _hits:
@@ -717,15 +743,8 @@ func _draw_hit(ci: CanvasItem, h: Dictionary, p: Dictionary) -> void:
 			var at := at0 + Vector2.from_angle(_h(sd, i) * TAU) * (2.0 + 8.0 * k)
 			RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(WHITE if i % 2 == 0 else CYAN, 1.0 - k))
 		return
-	if h["kind"] == "shatter":  # 공명 파쇄 큰 파동에 한 번에 부서짐: 흰 번쩍임 + 금빛 파편
-		_draw_res_pop(ci, h, k)
-		return
-	if h["kind"] == "res":  # 공명 파쇄 파동에 맞음: 짧은 금빛 번쩍임 (세대가 내려갈수록 하얗고 작게)
-		var tg: RunSim.Enemy = h["target"]
-		var at: Vector2 = (tg.pos if tg.hp > 0.0 else h["pos"]).round()
-		var col := _res_color(int(h["n"]))
-		RunSprites.disc(ci, at, tg.radius + 2.0, Color(col, 0.35 * (1.0 - k)))
-		RunSprites.disc(ci, at, maxf(tg.radius * 0.4 * (1.0 - k), 1.0), Color(WHITE, 0.8 * (1.0 - k)))
+	if h["kind"] in ["res", "shatter"]:
+		_draw_res_hit(ci, h, k)
 		return
 	var target: RunSim.Enemy = h["target"]
 	var rock: bool = target.kind == RunSim.ROCK
@@ -936,29 +955,111 @@ func _draw_pool(ci: CanvasItem, pl: Dictionary) -> void:
 		RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(GOLD if i % 2 == 0 else ORANGE, a * (1.0 - u)))
 
 
-## 공명 파쇄 세대 색: 금 → 연한 금 → 흰빛
-static func _res_color(gen: int) -> Color:
-	return GOLD.lerp(WHITE, float(Juice.RES_FX["white"][clampi(gen, 0, 3)]))
-
-
-## 공명 파쇄 파동: 앞쪽이 밝고 뒤(안쪽)로 옅어지는 band픽셀 띠. 세대가 내려갈수록 얇고 옅고 하얗고, 퍼질수록 옅어진다
+## 공명 파쇄 파동: 앞 가장자리가 흰빛 금이고 뒤로 갈수록 (큰 파동은 주황을 거쳐) 투명해지는 띠 + 띠 위에서 반짝이는 점.
+## 큰 파동은 띠 뒤에 잠깐 남는 옅은 금빛 잔광이 있다. 세대가 내려가도 앞 가장자리 밝기는 그대로 두고 굵기만 줄인다
 func _draw_res_wave(ci: CanvasItem, w: Dictionary) -> void:
 	var fx := Juice.RES_FX
 	var gen := clampi(int(w["gen"]), 0, 3)
-	var r := roundf(float(w["r"]))
-	if r < 2.0:
-		return
-	var k := float(w["r"]) / float(w["radius"])
-	var a := float(fx["alpha"][gen]) * (1.0 - float(fx["fade"]) * k * k)
+	var radius := float(w["radius"])
+	var t := float(w["t"])
+	var r := roundf(radius * minf(t / Balance.EVO_RES_GROW, 1.0))
+	var over := maxf(t - Balance.EVO_RES_GROW, 0.0)  # 다 퍼진 뒤 지난 시간
 	var c := (w["pos"] as Vector2).round()
-	var col := _res_color(gen)
 	var band := int(fx["band"][gen])
-	for i in band:
+	var sd: int = w["seed"]
+	if gen == 0:  # 잔광: 띠가 지나간 자리에 after초 동안 남아 깜빡이는 금가루 (옅은 금빛 띠를 깔면 어두운 바탕에서 갈색 고리로 보인다)
+		var speed := radius / Balance.EVO_RES_GROW
+		for j in int(fx["after_dust"]):
+			var age := _h(sd, j + 300) * float(fx["after"])  # 띠가 이 점을 지난 뒤 흐른 시간 (다 퍼진 뒤엔 over만큼 더)
+			var ka := 1.0 - (age + over) / float(fx["after"])
+			var rr := r - band - age * speed
+			if ka <= 0.0 or rr < 3.0:
+				continue
+			var at := (c + Vector2.from_angle(_h(sd, j + 200) * TAU) * rr).round()
+			RunSprites.rect(ci, Rect2(at, Vector2.ONE * (2.0 if j % 7 == 0 else 1.0)), Color(PALE_GOLD if j % 3 == 0 else GOLD, ka * (0.6 + 0.4 * sin(_time * 30.0 + j))))
+	# 다 퍼지면 띠는 바로 빼고 반짝이만 조금 더 퍼지며 사라진다 (옅어지는 띠·1픽셀만 남은 고리는 회색 선처럼 보여서)
+	var a := 1.0 - clampf(over / float(fx["end_fade"]), 0.0, 1.0)
+	if a <= 0.0 or r < 2.0:
+		return
+	r += roundf(over * 40.0)
+	for i in band if over <= 0.0 else 0:
 		var rr := r - i
 		if rr < 1.0:
 			break
-		var u := float(i) / band  # 0 = 앞, 1 = 뒤
-		_ring(ci, c, rr, Color(WHITE if i == 0 else col, a * (1.0 if i < 2 else (1.0 - u) * 0.8)))
+		var u := float(i) / band  # 0 = 앞, 1에 가까울수록 뒤
+		var col: Color = RES_FRONT[gen] if i == 0 else RES_BODY[gen].lerp(RES_BACK[gen], u)
+		_ring(ci, c, rr, Color(col, 1.0 if i == 0 else 1.0 - 0.65 * pow(u, 1.5)))
+	var n := int(fx["sparks"][gen])
+	for j in n:  # 반짝이: 띠 안 정해진 깊이에서 같이 퍼지며 깜빡인다 (밝을 때 + 모양)
+		var ang := (float(j) + _h(sd, j) * 0.6) / n * TAU + t * 0.5
+		var at := (c + Vector2.from_angle(ang) * (r - floorf(_h(sd, j + 40) * band))).round()
+		var tw := sin(_time * 26.0 + _h(sd, j + 80) * TAU)
+		var col: Color = RES_SPARK[gen] if j % 2 == 0 else WHITE
+		if tw > 0.2:
+			var arm := 2.0 if gen == 0 and tw > 0.75 else 1.0
+			RunSprites.rect(ci, Rect2(at - Vector2(arm, 0), Vector2(arm * 2.0 + 1.0, 1)), Color(col, a))
+			RunSprites.rect(ci, Rect2(at - Vector2(0, arm), Vector2(1, arm * 2.0 + 1.0)), Color(col, a))
+			RunSprites.rect(ci, Rect2(at, Vector2.ONE), Color(WHITE, a))
+		else:
+			RunSprites.rect(ci, Rect2(at, Vector2.ONE), Color(col, a * 0.7))
+
+
+## 큰 파동이 나갈 때: 우주선 둘레 짧은 금빛 섬광 + 바깥으로 튀는 작은 빛줄기 (우주선은 이 위에 그려져 가려지지 않는다)
+func _draw_res_launch(ci: CanvasItem) -> void:
+	var fx := Juice.RES_FX
+	var k := _launch_t / float(fx["launch"])
+	var c := sim.player_pos.round()
+	_soft_disc(ci, c, 16.0 + 6.0 * k, Color(GOLD, 0.6 * (1.0 - k)), 4)
+	var rays := int(fx["launch_rays"])
+	for i in rays:
+		var dir := Vector2.from_angle(float(i) / rays * TAU + 0.2)
+		var inner := 10.0 + 10.0 * k
+		RunSprites.line(ci, (c + dir * inner).round(), (c + dir * (inner + 6.0)).round(), Color(GOLD, 1.0 - k), 1.0)
+		RunSprites.rect(ci, Rect2((c + dir * (inner + 6.0)).round(), Vector2.ONE), Color(WHITE, 1.0 - k))
+
+
+## 공명 파쇄에 맞은 자리: 먼저 금빛 별 번쩍임(빛줄기 4~6개), 부서졌으면 금빛 결정 조각 + 금가루, 살아 있으면(큰 운석·적) 금빛 금 무늬.
+## 대상 자체는 흰 실루엣 대신 WorldView가 금빛으로 달아오르게 한다(glow)
+func _draw_res_hit(ci: CanvasItem, h: Dictionary, k: float) -> void:
+	var fx := Juice.RES_FX
+	var tg: RunSim.Enemy = h["target"]
+	var sd: int = h["seed"]
+	var gen := clampi(int(h["n"]), 0, 2)
+	var col: Color = RES_BODY[gen + 1]  # 이 자리에서 퍼질 작은 파동 색
+	var rr := tg.radius
+	var c: Vector2 = (h["pos"] if h["dead"] else tg.pos).round()
+	var ks := float(h["t"]) / float(fx["star"])
+	if ks < 1.0:  # 별 번쩍임: 빛줄기가 빨리 뻗고 옅어진다
+		var rays := 6 - gen
+		var reach := (rr * 0.5 + 6.0 - gen) * minf(ks * 3.0, 1.0)
+		for i in rays:
+			var dir := Vector2.from_angle(float(i) / rays * TAU + _h(sd, 0) * TAU)
+			RunSprites.line(ci, (c + dir * 2.0).round(), (c + dir * reach).round(), Color(col, 1.0 - ks), 1.0)
+		RunSprites.rect(ci, Rect2(c - Vector2(1, 0), Vector2(3, 1)), Color(WHITE, 1.0 - ks))
+		RunSprites.rect(ci, Rect2(c - Vector2(0, 1), Vector2(1, 3)), Color(WHITE, 1.0 - ks))
+	var a := 1.0 - k
+	if h["dead"]:  # 부서짐: 금빛 결정 조각(2픽셀 길쭉한 조각) + 흩날리는 금가루
+		var e := 1.0 - (1.0 - k) * (1.0 - k)
+		for i in int(fx["shards"]):
+			var dir := Vector2.from_angle(_h(sd, i + 1) * TAU)
+			var at := (c + dir * (rr * 0.3 + (12.0 + 14.0 * _h(sd, i + 30)) * e)).round()
+			var tip := (at + dir * 2.0).round()
+			RunSprites.line(ci, at, tip, Color(GOLD if i % 2 == 0 else LIGHT_GOLD, a), 2.0 if i % 3 == 0 else 1.0)
+			RunSprites.rect(ci, Rect2(tip, Vector2.ONE), Color(PALE_GOLD, a))
+		for i in int(fx["dust"]):
+			var dir := Vector2.from_angle(_h(sd, i + 60) * TAU)
+			var at := c + dir * (rr * 0.5 + 24.0 * e * _h(sd, i + 90)) + Vector2(0, 6.0 * k)
+			var tw := 0.6 + 0.4 * sin(_time * 30.0 + float(i))
+			RunSprites.rect(ci, Rect2(at.round(), Vector2.ONE), Color(PALE_GOLD if i % 3 == 0 else GOLD, a * tw))
+		return
+	for i in 3:  # 금 무늬: 맞은 대상 위에 가운데에서 바깥으로 꺾이며 뻗는 금빛 금 (처음엔 흰빛 속심)
+		var ang := _h(sd, i + 1) * TAU
+		var start := c + Vector2.from_angle(ang + 1.3) * rr * 0.15
+		var mid := c + Vector2.from_angle(ang) * rr * 0.5 + Vector2.from_angle(ang + PI / 2.0) * 1.5
+		var end := c + Vector2.from_angle(ang + 0.3) * rr * 0.9
+		var cc := PALE_GOLD.lerp(GOLD, minf(k * 2.0, 1.0))
+		RunSprites.line(ci, start.round(), mid.round(), Color(cc, a), 1.0)
+		RunSprites.line(ci, mid.round(), end.round(), Color(cc, a * 0.85), 1.0)
 
 
 ## 1픽셀 고리: 작으면 아틀라스 고리, 크면 반지름만큼 촘촘한 draw_arc (40점짜리 모난 고리 대신)
@@ -967,21 +1068,6 @@ static func _ring(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
 		RunSprites.ring(ci, c, r, col)
 	else:
 		ci.draw_arc(c, r, 0.0, TAU, clampi(int(r), 24, 128), col, 1.0)
-
-
-## 공명 파쇄 큰 파동에 부서진 운석: 흰 번쩍임 + 금빛 안개 + 금빛 파편
-func _draw_res_pop(ci: CanvasItem, h: Dictionary, k: float) -> void:
-	var at0: Vector2 = h["pos"]
-	var sd: int = h["seed"]
-	var rr0: float = (h["target"] as RunSim.Enemy).radius
-	var a := 1.0 - k
-	if k < 0.15:
-		RunSprites.disc(ci, at0.round(), rr0 * 0.7, Color(WHITE, 0.6 * (1.0 - k / 0.15)))
-	_soft_disc(ci, at0.round(), rr0 + 6.0 * k, Color(GOLD, 0.5 * a), 3)
-	for i in 8:
-		var dir := Vector2.from_angle(_h(sd, i) * TAU)
-		var at := (at0 + dir * (rr0 * 0.4 + 22.0 * k * (0.5 + _h(sd, i + 30)))).round()
-		RunSprites.rect(ci, Rect2(at, Vector2.ONE * (2.0 if i % 4 == 0 else 1.0)), Color([WHITE, CHIP, GOLD][i % 3], a))
 
 
 ## 얼음 조각: 날아가는 방향으로 짧은 청백 막대 (흰 머리)

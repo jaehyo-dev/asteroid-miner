@@ -4,6 +4,8 @@ extends Node2D
 ## 손맛 수치(반동, 번쩍임, 파편, 반짝임, 슬로모션 빛 등)는 scripts/juice.gd에 있다.
 
 const FLASH_SHADER := preload("res://scripts/flash_white.gdshader")
+## 공명 파쇄에 맞은 대상이 달아오르는 금빛
+const RES_GLOW := Color("#ffa82a")
 ## 파편 색: 운석(팩 바위색), 황금, 해파리(Nautolan), 날벌레(Nairan), 경비선(Kla'ed)
 const DEBRIS_COLORS := {"rock": Color("#625565"), "gold": Color("#f6ce50"), "jelly": Color("#917487"), "bug": Color("#577e66"), "guard": Color("#f89419")}
 ## 운석 파괴 애니메이션은 금 간 프레임(0~1)을 건너뛰고 2번부터
@@ -140,7 +142,7 @@ func clear_sub_fx() -> void:
 func fx_count() -> int:
 	var n := _effects.size() + sim.subs.missiles.size() + sim.subs.holes.size() + sim.subs.mines.size()
 	if _sfx != null:
-		n += _sfx._bursts.size() + _sfx._zaps.size() + _sfx._waves.size() + _sfx._hits.size() + _sfx._collapses.size() + _sfx._links.size() + _sfx._freezes.size() + _sfx._discharges.size() + _sfx._shocks.size() + sim.subs.res_waves.size()
+		n += _sfx._bursts.size() + _sfx._zaps.size() + _sfx._waves.size() + _sfx._hits.size() + _sfx._collapses.size() + _sfx._links.size() + _sfx._freezes.size() + _sfx._discharges.size() + _sfx._shocks.size() + _sfx._res.size()
 	return n
 
 
@@ -477,14 +479,17 @@ func _draw_shield() -> void:
 			RunSprites.rect(self, Rect2(center + line[(seed_i + i * 13) % n], Vector2.ONE), Color(Color.WHITE, 1.0 - cycle / Juice.SHIELD_TWINKLE_TIME))
 
 
-## 맞은 적·운석을 흰색으로 덮는다 (셰이더가 색을 흰색으로, 알파 = 섞는 정도: 맞은 순간 가장 하얗고 사라짐)
+## 맞은 적·운석을 흰색으로 덮는다 (셰이더가 색을 modulate 색으로, 알파 = 섞는 정도: 맞은 순간 가장 진하고 사라짐).
+## 공명 파쇄에 맞은 대상은 흰색 대신 금빛으로 반쯤 섞어 달아오르게 한다
 func _draw_flash() -> void:
 	if sim == null:
 		return
 	for e in sim.enemies:
-		if e.flash <= 0.0:
+		if e.flash <= 0.0 and e.glow <= 0.0:
 			continue
 		var mix := Color(1, 1, 1, clampf(e.flash / Juice.ENEMY_FLASH_TIME, 0.0, 1.0))
+		if e.flash <= 0.0:
+			mix = Color(RES_GLOW, float(Juice.RES_FX["glow_mix"]) * clampf(e.glow / Juice.RES_GLOW_TIME, 0.0, 1.0))
 		if e.kind == RunSim.ROCK:
 			RunSprites.draw(_flash_layer, RunSprites.rock(e.type, e.golden), crack_level(e.hp, e.max_hp), rock_dir(e), (e.pos + knock_offset(e)).round(), mix)
 		else:

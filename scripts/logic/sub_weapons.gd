@@ -225,6 +225,7 @@ func _fire(sim: RunSim, id: String, s: int) -> bool:
 		"wave":
 			if is_evolved("wave"):
 				res_waves.append(new_res_wave(sim.player_pos, stat(id, "radius", s), stat(id, "damage", s)))
+				sim.fx.append({"type": "res_wave", "pos": sim.player_pos, "radius": stat(id, "radius", s), "gen": 0})
 			else:
 				waves.append({"pos": sim.player_pos, "r": 0.0, "radius": stat(id, "radius", s), "damage": stat(id, "damage", s), "hits": []})
 			sim.events.append("sub_wave")
@@ -520,12 +521,18 @@ func _update_res(sim: RunSim, delta: float) -> void:
 			else:
 				_res_hurt(sim, e, float(w["damage"]), w["pos"])
 				sim.fx.append({"type": "sub_hit", "kind": "res", "pos": e.pos, "target": e, "n": gen})
+			e.flash = 0.0  # 공명 파쇄는 흰 실루엣 대신 금빛 달아오름
+			e.glow = Juice.RES_GLOW_TIME
 			var left: Dictionary = w["left"]
 			if gen < Balance.EVO_RES_DEPTH and int(left["n"]) > 0:
 				left["n"] -= 1
 				born.append({"pos": e.pos, "r": 0.0, "radius": float(w["radius"]) * Balance.EVO_RES_SHRINK, "damage": float(w["damage"]) * Balance.EVO_RES_DAMAGE,
 					"gen": gen + 1, "hits": hits, "left": left})
 				sim.events.append("sub_res_%d" % (gen + 1))
+				sim.fx.append({"type": "res_wave", "pos": e.pos, "radius": float(w["radius"]) * Balance.EVO_RES_SHRINK, "gen": gen + 1})
+				if gen + 1 == Balance.EVO_RES_DEPTH and not left.has("shook"):  # 연쇄가 마지막 세대까지 이어지면 큰 파동마다 한 번 흔들림
+					left["shook"] = true
+					sim.events.append("res_shake")
 		if w["r"] < w["radius"]:
 			kept.append(w)
 	res_waves = kept + born
